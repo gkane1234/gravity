@@ -27,7 +27,7 @@ public class Planet {
 	private Color color;
 	
 	
-	
+	public double[] chunkCenter;
 	
 	public int name;
 	
@@ -40,7 +40,8 @@ public class Planet {
 		//this.zVelocity=zVelocity;
 		this.mass=mass;
 		this.hitRegister= new int[] {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
-		
+		this.chunkCenter=new double[2];
+		updateChunkCenter();
 		name=num++;
 		
 		color=Global.DEFAULT_PLANET_COLOR;
@@ -169,7 +170,6 @@ public class Planet {
 		for (int i=0;i<num;i++) {
 			ret[i]=new Planet(rando(x),rando(y),rando(xV),rando(yV),rando(m));			
 		}
-		//System.out.println(ret[0].x);
 		return ret;
 		
 	}
@@ -204,5 +204,24 @@ public class Planet {
 		hitRegister[i]=-1;
 		
 	}
+
+	    /**
+     * Updates the chunk center of a planet if it has moved to a new chunk
+     * @return true if the chunk center was updated, false otherwise
+     */
+    public boolean updateChunkCenter() {
+        // Calculate new chunk coordinates
+        double chunkX = Math.floor(x / Global.chunkSize + 0.5);
+        double chunkY = Math.floor(y / Global.chunkSize + 0.5);
+        
+        // Create new array for atomic update if needed
+        if (chunkCenter[0] != chunkX || chunkCenter[1] != chunkY) {
+			chunkCenter[0]=chunkX;
+			chunkCenter[1]=chunkY;
+
+            return true;
+        }
+        return false;
+    }
 
 }

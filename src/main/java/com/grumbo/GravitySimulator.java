@@ -13,14 +13,15 @@ import java.util.concurrent.Executors;
  * GravitySimulator - Main Physics Engine & Simulation Controller
  * =============================================================
  * Primary controller that manages both physics calculations and rendering.
- * Contains GravityFrame for rendering and delegates display operations to it.
+ * Creates and manages both WindowGravity and GravityFrame.
  */
 public class GravitySimulator {
     
     public int numPlanets;
-    public ArrayList<Chunk> listOfChunks;
+    public ChunkList listOfChunks;
     public int time;
     public long wait;
+    public long tickSpeed;
     
     // Performance profiling variables
     public long forceCalcTime = 0;
@@ -31,7 +32,8 @@ public class GravitySimulator {
     // Performance display toggle
     public boolean showPerformanceStats = false;
     
-    // Reference to the rendering frame
+    // UI Components
+    public WindowGravity window;
     private GravityFrame renderFrame;
 
     // Multithreading infrastructure
@@ -39,11 +41,15 @@ public class GravitySimulator {
     
     // Force accumulation for thread safety
     private ThreadLocal<Map<Planet, double[]>> threadLocalForces;
+    private ThreadLocal<ArrayList<Planet>> threadLocalChunklessPlanets;
+    
+    private volatile boolean running = true;
     
     public GravitySimulator() {
-        listOfChunks = new ArrayList<Chunk>();
-        this.wait = 0;
+        listOfChunks = new ChunkList();
+        this.wait = 200;
         this.time = 0;
+        this.tickSpeed = 100;
         
         // Initialize thread pool - use number of CPU cores
         this.threadPool = Executors.newFixedThreadPool(Global.numThreads);
@@ -51,32 +57,75 @@ public class GravitySimulator {
         // Initialize thread-local force accumulation
         this.threadLocalForces = ThreadLocal.withInitial(HashMap::new);
         
-        // Create the rendering frame
+        // Create UI components
         this.renderFrame = new GravityFrame(this);
+        try {
+            this.window = new WindowGravity(this, renderFrame);
+            this.window.setVisible(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        // Add initial planets
+        setupInitialPlanets();
     }
     
-    /**
-     * Shuts down the thread pool gracefully
-     */
-    public void shutdown() {
-        if (threadPool != null && !threadPool.isShutdown()) {
-            threadPool.shutdown();
+    private void setupInitialPlanets() {
+        addPlanetToCorrectChunk(new Planet(-8, 0, 1.0, 0, 100));
+        addPlanetToCorrectChunk(new Planet(8, 0, -1, 0, 100));
+        
+        addPlanetsToCorrectChunk(Planet.makeNew(1000, 
+            new double[] {-1000000, 1000000}, new double[] {-1000000, 1000000},
+            new double[] {-10, 10}, new double[] {-10, 10}, new double[] {1000000, 2000000}));
+    }
+    
+    public void start() {
+        running = true;
+        // Main simulation loop
+        while(running) {
+            long start = System.currentTimeMillis();
+            
             try {
-                if (!threadPool.awaitTermination(5, TimeUnit.SECONDS)) {
-                    threadPool.shutdownNow();
+                // Run physics simulation (which triggers rendering)
+                chunkTick(wait);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            
+            wait = (tickSpeed - (System.currentTimeMillis() - start));
+            if (wait > 0) {
+                try {
+                    Thread.sleep(wait);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
-            } catch (InterruptedException e) {
-                threadPool.shutdownNow();
-                Thread.currentThread().interrupt();
             }
         }
     }
     
-    /**
-     * Gets the render frame for external access
-     */
+    public void stop() {
+        running = false;
+        // Cancel any pending tasks
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
+    }
+
     public GravityFrame getRenderFrame() {
         return renderFrame;
+    }
+    
+    public WindowGravity getWindow() {
+        return window;
+    }
+    
+    public void setTickSpeed(long speed) {
+        this.tickSpeed = speed;
+    }
+    
+    public long getTickSpeed() {
+        return tickSpeed;
     }
     
     /**
@@ -106,7 +155,6 @@ public class GravitySimulator {
      * Main simulation step - calculates forces and updates positions using multiple threads
      */
     public void chunkTick(long wait) throws Exception {
-        System.out.println("chunk tick");
         long physicsStartTime = showPerformanceStats ? System.nanoTime() : 0;
         
         time++;
@@ -118,11 +166,11 @@ public class GravitySimulator {
         
         try {
             // FORCE CALCULATION PHASE (Multithreaded)
-            System.out.println("force calc");
+
             long forceStartTime = showPerformanceStats ? System.nanoTime() : 0;
             
             calculateAttraction();
-            System.out.println("force calc done");
+
             
             if (showPerformanceStats) {
                 long forceEndTime = System.nanoTime();
@@ -133,7 +181,7 @@ public class GravitySimulator {
             long positionStartTime = showPerformanceStats ? System.nanoTime() : 0;
             
             moveAndUpdateChunks();
-            System.out.println("move and update chunks");
+
             if (showPerformanceStats) {
 
                 long physicsEndTime = System.nanoTime();
@@ -153,28 +201,26 @@ public class GravitySimulator {
         }
         
         // Trigger rendering after physics update
-        System.out.println("repaint");
         renderFrame.repaint();
 
-        System.out.println(numPlanets);
     }
     
     /**
      * Calculates gravitational forces between all chunk pairs using multiple threads with force accumulation
      */
     private void calculateAttraction() throws InterruptedException {
-        int numChunks = listOfChunks.size();
+        int numChunks = listOfChunks.getNumChunks();
         if (numChunks == 0) return;
         
         // Calculate total number of chunk pair interactions
         int totalInteractions = (numChunks * (numChunks + 1)) / 2;
         
-        if (totalInteractions <= 0) return;
+        if (totalInteractions <= 0) System.out.println("No interactions"+numChunks);
         
         // Collect all thread-local force maps for reduction
         ConcurrentHashMap<Thread, Map<Planet, double[]>> allThreadForces = new ConcurrentHashMap<>();
         CountDownLatch latch = new CountDownLatch(totalInteractions);
-        System.out.println("latch");
+
         // Create tasks for each chunk pair interaction
         for (int chunk1 = 0; chunk1 < numChunks; chunk1++) {
             for (int chunk2 = chunk1; chunk2 < numChunks; chunk2++) {
@@ -190,8 +236,8 @@ public class GravitySimulator {
                         // Store this thread's force map for later reduction
                         allThreadForces.put(Thread.currentThread(), forceAccumulator);
                         
-                        Chunk one = listOfChunks.get(c1);
-                        Chunk two = listOfChunks.get(c2);
+                        Chunk one = listOfChunks.getChunk(c1);
+                        Chunk two = listOfChunks.getChunk(c2);
                         
                         // Use force accumulation instead of direct planet modification
                         one.attractWithAccumulation(two, forceAccumulator);
@@ -210,31 +256,20 @@ public class GravitySimulator {
     }
     
     /**
-     * Reduces all thread-local force accumulations and applies them to planets
+     * Takes all thread-local force accumulations and applies them to planets
      */
     private void applyAccumulatedForces(Map<Thread, Map<Planet, double[]>> allThreadForces) {
-        Map<Planet, double[]> totalForces = new HashMap<>();
         
         // Combine forces from all threads
         for (Map<Planet, double[]> threadForces : allThreadForces.values()) {
             for (Map.Entry<Planet, double[]> entry : threadForces.entrySet()) {
                 Planet planet = entry.getKey();
                 double[] force = entry.getValue();
-                
-                totalForces.computeIfAbsent(planet, k -> new double[2]);
-                totalForces.get(planet)[0] += force[0]; // x component
-                totalForces.get(planet)[1] += force[1]; // y component
+                planet.xVResidual += force[0];
+                planet.yVResidual += force[1];
             }
         }
         
-        // Apply total forces to planets (thread-safe because sequential)
-        for (Map.Entry<Planet, double[]> entry : totalForces.entrySet()) {
-            Planet planet = entry.getKey();
-            double[] totalForce = entry.getValue();
-            
-            planet.xVResidual += totalForce[0];
-            planet.yVResidual += totalForce[1];
-        }
     }
     
     /**
@@ -242,7 +277,7 @@ public class GravitySimulator {
      */
     @SuppressWarnings("unlikely-arg-type")
     private void moveAndUpdateChunks() throws InterruptedException {
-        int numChunks = listOfChunks.size();
+        int numChunks = listOfChunks.getNumChunks();
         if (numChunks == 0) return;
         
         // Phase 1: Parallel movement calculations
@@ -253,7 +288,7 @@ public class GravitySimulator {
             
             threadPool.submit(() -> {
                 try {
-                    Chunk c = listOfChunks.get(chunkIndex);
+                    Chunk c = listOfChunks.getChunk(chunkIndex);
                     c.move(); // Move all planets in this chunk
                 } finally {
                     movementLatch.countDown();
@@ -266,15 +301,13 @@ public class GravitySimulator {
         
         // Phase 2: Sequential chunk reassignment (to avoid race conditions)
         // We need to process chunks in reverse order to safely remove empty chunks
-        for (int chunk = listOfChunks.size() - 1; chunk >= 0; chunk--) {
-            Chunk c = listOfChunks.get(chunk);
+        for (int chunk = listOfChunks.getNumChunks() - 1; chunk >= 0; chunk--) {
+            Chunk c = listOfChunks.getChunk(chunk);
             ArrayList<Planet> planets = c.planets;
             
             // Check each planet to see if it needs to move to a different chunk
             for (int planet = planets.size() - 1; planet >= 0; planet--) {
-                double[] planetChunk = getPlanetChunkCenter(planets.get(planet));
-
-                if (!c.equals(planetChunk)) {
+                if (planets.get(planet).updateChunkCenter()) {
                     addPlanetToCorrectChunk(planets.get(planet));
                     c.removePlanet(planet);
                     numPlanets--;
@@ -283,7 +316,7 @@ public class GravitySimulator {
             
             // Remove empty chunks
             if (planets.size() == 0) {
-                listOfChunks.remove(chunk);
+                //listOfChunks.removeChunk(c.center);
             }
         }
     }
@@ -292,22 +325,18 @@ public class GravitySimulator {
      * Adds a planet to the appropriate chunk based on its position
      */
     public void addPlanetToCorrectChunk(Planet o) {
-        System.out.println(numPlanets);
-        double[] center = getPlanetChunkCenter(o);
-        
-        @SuppressWarnings("unlikely-arg-type")
-        int indexOfChunk = findIndexOf(center);
+
+        int indexOfChunk = findIndexOf(o);
 
         numPlanets++;
         
-        if (indexOfChunk == -1) { // create new chunk
-            listOfChunks.add(new Chunk(o, center, Global.chunkSize));
+        if (indexOfChunk==-1) { // create new chunk
+            listOfChunks.addChunkWithPlanet(o);
             return;
         }
         
-        Chunk c = listOfChunks.get(indexOfChunk);
+        Chunk c = listOfChunks.getChunk(indexOfChunk);
         c.addPlanet(o);
-        listOfChunks.set(indexOfChunk, c);
         
     }
     
@@ -323,21 +352,26 @@ public class GravitySimulator {
     /**
      * Finds the index of a chunk with the given center coordinates
      */
-    private int findIndexOf(double[] center) {
-        for (int i = 0; i < listOfChunks.size(); i++) {
-            if (listOfChunks.get(i).equals(center)) return i;
+    private int findIndexOf(Planet o) {
+        return listOfChunks.getChunkIndex(o.chunkCenter);
+    }
+
+    public void updateChunkSize(double newChunkSize) {
+        ArrayList<Planet> planets = new ArrayList<>();
+        System.out.println("Updating chunk size to " + newChunkSize);
+        for (Chunk c : listOfChunks.getChunks()) {
+            for (Planet p : c.planets) {
+                planets.add(p);
+            }
+            
         }
-        return -1;
+        listOfChunks = new ChunkList();
+        for (Planet p : planets) {
+            addPlanetToCorrectChunk(p);
+        }
+        System.out.println("Chunk size updated to " + newChunkSize);
     }
-    
-    /**
-     * Calculates which chunk center a planet should belong to
-     */
-    private double[] getPlanetChunkCenter(Planet o) {
-        double chunkX = Math.floor(o.x / Global.chunkSize + 0.5);
-        double chunkY = Math.floor(o.y / Global.chunkSize + 0.5);
-        return new double[] {chunkX, chunkY};
-    }
+
     
     /**
      * Gets reference planet for camera following
@@ -345,11 +379,34 @@ public class GravitySimulator {
     public int[] getReference(boolean follow) {
         if (!follow) return new int[] {0, 0};
         
-        if (listOfChunks.size() > 0 && listOfChunks.get(0).planets.size() > 0) {
-            Planet g = listOfChunks.get(0).planets.get(0);
+        if (listOfChunks.getNumChunks() > 0 && listOfChunks.getChunk(0).planets.size() > 0) {
+            Planet g = listOfChunks.getChunk(0).planets.get(0);
             return new int[] {(int) g.x, (int) g.y};
         }
         return new int[] {0, 0};
+    }
+        /**
+     * Shuts down the thread pool gracefully
+     */
+    public void shutdown() {
+        if (threadPool != null && !threadPool.isShutdown()) {
+            threadPool.shutdown();
+            try {
+                // Wait longer for tasks to complete
+                if (!threadPool.awaitTermination(2, TimeUnit.SECONDS)) {
+                    // Force shutdown if tasks don't complete
+                    threadPool.shutdownNow();
+                    // Wait again for tasks to respond to interrupt
+                    if (!threadPool.awaitTermination(2, TimeUnit.SECONDS)) {
+                        System.err.println("Thread pool did not terminate");
+                    }
+                }
+            } catch (InterruptedException e) {
+                // Re-cancel if current thread also interrupted
+                threadPool.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
     }
     
     /**
@@ -390,7 +447,7 @@ public class GravitySimulator {
         double fps = totalTimeMs > 0 ? 1000.0 / totalTimeMs : 0;
         
         // Calculate thread utilization
-        int chunkPairs = listOfChunks.size() > 0 ? (listOfChunks.size() * (listOfChunks.size() + 1)) / 2 : 0;
+        int chunkPairs = listOfChunks.getNumChunks() > 0 ? (listOfChunks.getNumChunks() * (listOfChunks.getNumChunks() + 1)) / 2 : 0;
         double threadUtilization = chunkPairs > 0 ? Math.min(100.0, (double)chunkPairs / Global.numThreads * 100) : 0;
         
         return String.format(
@@ -419,7 +476,7 @@ public class GravitySimulator {
             Chunk.counterDiff.get(),
             Chunk.counterCom.get(),
             renderTime > 0 ? physicsTime / renderTime : 0,
-            listOfChunks.size(), numPlanets,
+            listOfChunks.getNumChunks(), numPlanets,
             fps, totalTimeMs,
             threadUtilization, chunkPairs,
             frameCount

@@ -24,15 +24,15 @@ public class Chunk {
 	
 	double[] center;
 	
-	double length;
 
-	public Chunk(Planet p, double[] center,double length) {
-		planets= new ArrayList<Planet>();
-		planets.add(p);
-		this.mass=p.mass;
-		
-		this.center=center;
-		this.length=length;
+	public Chunk(Planet p) {
+		this(p.chunkCenter);
+		addPlanet(p);
+	}
+
+	public Chunk(double[] center) {
+		planets = new ArrayList<Planet>();
+		this.center = center;
 
 	}
 	
@@ -49,7 +49,7 @@ public class Chunk {
 	
 	public void attract(Chunk chunk2) {
 		if (chunk2.equals(this.center)) {
-			sameChunkAttraction();
+			sameChunkAttractionWithAccumulation(null);
 			return;
 		}
 		
@@ -62,7 +62,6 @@ public class Chunk {
 		long t=System.currentTimeMillis();
 		for (int i=0;i<planets.size();i++) {
 			for (int j=0;j<chunk2.planets.size();j++) {
-				//System.out.println(planets.size());
 				Planet p = planets.get(i);
 				Planet q= chunk2.planets.get(j);
 				Planet.attract(p, q, TICK_SIZE);
@@ -119,7 +118,7 @@ public class Chunk {
 			planets.set(planet, p);
 		}
 	}
-	
+
 	
 	@Override
 	public boolean equals(Object o) {
@@ -149,9 +148,7 @@ public class Chunk {
 
 
 	private void sameChunkAttraction() {
-		//System.out.println(planets.size());
 		
-		long t=System.currentTimeMillis();
 		for (int i=0;i<planets.size()-1;i++) {
 			for (int j=i+1;j<planets.size();j++) {
 				Planet a = planets.get(i);
@@ -178,8 +175,7 @@ public class Chunk {
 				if (a.justHit(b.name)) {
 					a.noHit(b.name);
 				}
-					
-				//System.out.println("hello");;
+
 				Planet.attract(a,b,TICK_SIZE);
 				planets.set(i, a);
 				planets.set(j,b);
@@ -187,7 +183,6 @@ public class Chunk {
 				}
 			}
 		}
-		counterSame.addAndGet(System.currentTimeMillis()-t);
 		
 	}
 
@@ -198,8 +193,8 @@ public class Chunk {
 		
 		long t=System.currentTimeMillis();
 		
-		Planet centerOfMass2= new Planet(length*chunk2.center[0],length*chunk2.center[1],0,0,chunk2.mass);
-		Planet centerOfMass1= new Planet(length*center[0],length*center[1],0,0,0);
+		Planet centerOfMass2= new Planet(Global.chunkSize*chunk2.center[0],Global.chunkSize*chunk2.center[1],0,0,chunk2.mass);
+		Planet centerOfMass1= new Planet(Global.chunkSize*center[0],Global.chunkSize*center[1],0,0,0);
 		
 		double[] residuals=Planet.forceOfAttract(centerOfMass1, centerOfMass2, TICK_SIZE);
 		
@@ -253,8 +248,8 @@ public class Chunk {
 		
 		long t = System.currentTimeMillis();
 		
-		Planet centerOfMass2 = new Planet(length*chunk2.center[0], length*chunk2.center[1], 0, 0, chunk2.mass);
-		Planet centerOfMass1 = new Planet(length*center[0], length*center[1], 0, 0, 0);
+		Planet centerOfMass2 = new Planet(Global.chunkSize*chunk2.center[0], Global.chunkSize*chunk2.center[1], 0, 0, chunk2.mass);
+		Planet centerOfMass1 = new Planet(Global.chunkSize*center[0], Global.chunkSize*center[1], 0, 0, 0);
 		
 		double[] residuals = Planet.forceOfAttract(centerOfMass1, centerOfMass2, TICK_SIZE);
 		
