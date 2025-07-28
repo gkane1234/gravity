@@ -76,6 +76,12 @@ public class GravityFrame extends JComponent {
 		
 		// Draw text on top of objects
 		drawOutlinedText(g2d, Long.toString(simulator.wait), 10, 10);
+
+		int[] mouseLocation = simulator.window.mouseLocation;
+		int[] simulationLocation  = getSimulationLocation(mouseLocation[0], mouseLocation[1]);
+		drawOutlinedText(g2d, Long.toString(mouseLocation[0]) + ", " + Long.toString(mouseLocation[1])+
+		" | " + Long.toString(simulationLocation[0]) + ", " + Long.toString(simulationLocation[1])+
+		" | " + Double.toString(Global.zoom), 30, 10);
 		
 		// Display performance info on screen only if toggle is enabled
 		if (simulator.showPerformanceStats && simulator.frameCount > 0) {
@@ -116,26 +122,58 @@ public class GravityFrame extends JComponent {
 			y += lineHeight;
 		}
 	}
+	public int[] getScreenLocation(double simX, double simY) {
+		int[] followLocation = simulator.getReference(Global.follow);
+		int screenWidth = this.getSize().width;
+		int screenHeight = this.getSize().height;
+		
+		// Convert simulation coordinates to screen coordinates
+		return new int[] {
+			(int)(Global.zoom * (simX - followLocation[0]) + (screenWidth/2 + Global.shift[0])),
+			(int)(Global.zoom * (simY - followLocation[1]) + (screenHeight/2 + Global.shift[1]))
+		};
+	}
+
+	public int[] getSimulationLocation(double screenX, double screenY) {
+		int[] followLocation = simulator.getReference(Global.follow);
+		int screenWidth = this.getSize().width;
+		int screenHeight = this.getSize().height;
+		
+		// Convert screen coordinates to simulation coordinates
+		return new int[] {
+			(int)((screenX - (screenWidth/2 + Global.shift[0])) / Global.zoom + followLocation[0]),
+			(int)((screenY - (screenHeight/2 + Global.shift[1])) / Global.zoom + followLocation[1])
+		};
+	}
 	
 	/**
 	 * Renders all planets from all chunks
 	 */
 	private void drawPlanets(Graphics g) {
-		int[] xy = simulator.getReference(Global.follow);
-		
-		for (int chunk = 0; chunk < simulator.listOfChunks.size(); chunk++) {
-			ArrayList<Planet> planets = simulator.listOfChunks.get(chunk).planets;
+		ArrayList<Chunk> chunks = simulator.listOfChunks.getChunks();
+		for (int i = 0; i < chunks.size(); i++) {
+			Chunk chunk = chunks.get(i);
+			ArrayList<Planet> planets = chunk.planets;
 			
 			for (int planet = 0; planet < planets.size(); planet++) {
 				Planet p = planets.get(planet);
 				g.setColor(p.getColor());
-				int width = (int)(planets.get(planet).getRadius() * 2);
+				double planetDiameter = p.getRadius() * 2;
 				
+				// Get screen coordinates for planet position
+				int[] screenPos = getScreenLocation(
+					p.x - planetDiameter/2,
+					p.y - planetDiameter/2
+				);
+				//System.out.println(screenPos[0] + ", " + screenPos[1]);
+				
+				// Draw the planet
+				int screenDiameter = (int)Math.max(2, Global.zoom * planetDiameter);
 				g.fillOval(
-					(int)(Global.zoom * (p.x - width/2 - xy[0]) + (Global.shift[0] + this.getSize().width/2)), 
-					(int)(Global.zoom * (p.y - width/2 - xy[1]) + (Global.shift[1] + this.getSize().height/2)), 
-					(int)Math.max(2, Global.zoom * width), 
-					(int)Math.max(2, Global.zoom * width)
+					screenPos[0],
+					screenPos[1],
+					screenDiameter,
+					screenDiameter
 				);
 			}
 		}	
