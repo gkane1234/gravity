@@ -153,6 +153,7 @@ public class GravityFrame extends JComponent {
 		
 		// Draw vertical lines at chunk boundaries
 		for (double chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+			
 			// Convert chunk coordinate back to simulation coordinate
 			double x = (chunkX - 0.5) * chunkSize; // Subtract 0.5 to get the boundary
 			int[] screenStart = getScreenLocation(x, startChunkY * chunkSize);
@@ -213,8 +214,8 @@ public class GravityFrame extends JComponent {
 	 */
 	private void drawPlanets(Graphics g) {
 		ArrayList<Chunk> chunks = simulator.listOfChunks.getChunks();
-		for (int i = 0; i < chunks.size(); i++) {
-			Chunk chunk = chunks.get(i);
+		for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
+			Chunk chunk = chunks.get(chunkIndex);
 			ArrayList<Planet> planets = chunk.planets;
 			
 			for (int planet = 0; planet < planets.size(); planet++) {
@@ -237,6 +238,18 @@ public class GravityFrame extends JComponent {
 					screenDiameter,
 					screenDiameter
 				);
+
+				if (Global.drawTail) {
+					g.setColor(Color.RED);
+					long[] tailLast = p.tail[p.tailIndex];
+					for (int i=1;i<Global.tailLength;i++) {
+						long[] tailNext = p.tail[(p.tailIndex+i)%Global.tailLength];
+						int[] screenPosLast = getScreenLocation(tailLast[0], tailLast[1]);
+						int[] screenPosNext = getScreenLocation(tailNext[0], tailNext[1]);
+						g.drawLine(screenPosLast[0], screenPosLast[1], screenPosNext[0], screenPosNext[1]);
+						tailLast = tailNext;
+					}
+				}
 			}
 		}	
 	}

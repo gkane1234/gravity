@@ -63,6 +63,9 @@ public class GravityUI {
             case KeyEvent.VK_B:
                 simulator.drawChunkBorders = !simulator.drawChunkBorders;
                 break;
+            case KeyEvent.VK_T:
+                Global.drawTail = !Global.drawTail;
+                break;
         }
     }
 

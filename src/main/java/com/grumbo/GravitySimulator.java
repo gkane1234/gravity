@@ -76,7 +76,7 @@ public class GravitySimulator {
         
         addPlanetsToCorrectChunk(Planet.makeNew(100, 
             new double[] {-100000, 100000}, new double[] {-100000, 100000},
-            new double[] {-100000, 100000}, new double[] {-100000, 100000}, new double[] {1000000, 2000000}));
+            new double[] {-1000, 1000}, new double[] {-1000, 1000}, new double[] {1000000000, 2000000000}));
     }
     
     public void start() {

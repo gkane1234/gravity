@@ -26,6 +26,9 @@ public class Planet {
 	public long[] chunkCenter;
 	
 	public int name;
+
+	public long[][] tail;
+	public int tailIndex= 0;
 	
 	public Planet(double x, double y, double xVelocity, double yVelocity, double mass) {
 		this.x=x;
@@ -40,6 +43,13 @@ public class Planet {
 		name=num++;
 		
 		color=Global.DEFAULT_PLANET_COLOR;
+
+		//initialize tail
+		tail = new long[Global.tailLength][2];
+		for (int i=0;i<Global.tailLength;i++) {
+			tail[i]=new long[] {(long)x,(long)y};
+		}
+		tailIndex=0;
 		
 	}
 	
@@ -48,6 +58,12 @@ public class Planet {
 		y+=tickSize*(yVelocity+=yVResidual);
 		//z+=(zVelocity+=zVResidual);
 		xVResidual=(yVResidual=0);
+
+		if (Global.tailLength>0) {
+			tail[tailIndex][0]=(long)x;
+			tail[tailIndex][1]=(long)y;
+			tailIndex=(tailIndex+1)%Global.tailLength;
+		}
 	}
 	
 	//public double[] getCoordinates(double zFactor, double theta, double phi) {

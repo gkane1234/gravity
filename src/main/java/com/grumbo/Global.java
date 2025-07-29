@@ -17,12 +17,13 @@ public final class Global {
 	
 	
 	public static long chunkSize=10000000;
-
+    public static int tailLength=10;
 	public static final int numThreads=100;
+	public static boolean drawTail=false;
 	
 	//Planet constants
 	
-	public static final double DENSITY=1.0;
+	public static final double DENSITY=1/100.0;
 	public static final double EXPO=-2;
 	
 	
