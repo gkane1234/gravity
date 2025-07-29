@@ -34,14 +34,13 @@ public class GravitySimulator {
     
     // UI Components
     public WindowGravity window;
-    private GravityFrame renderFrame;
 
     // Multithreading infrastructure
     private ExecutorService threadPool;
     
     // Force accumulation for thread safety
     private ThreadLocal<Map<Planet, double[]>> threadLocalForces;
-    private ThreadLocal<ArrayList<Planet>> threadLocalChunklessPlanets;
+    //private ThreadLocal<ArrayList<Planet>> threadLocalChunklessPlanets;
     
     private volatile boolean running = true;
     
@@ -56,11 +55,11 @@ public class GravitySimulator {
         
         // Initialize thread-local force accumulation
         this.threadLocalForces = ThreadLocal.withInitial(HashMap::new);
+        //this.threadLocalChunklessPlanets = ThreadLocal.withInitial(ArrayList::new);
         
         // Create UI components
-        this.renderFrame = new GravityFrame(this);
         try {
-            this.window = new WindowGravity(this, renderFrame);
+            this.window = new WindowGravity(this);
             this.window.setVisible(true);
         } catch (Exception e) {
             e.printStackTrace();
@@ -74,9 +73,9 @@ public class GravitySimulator {
         addPlanetToCorrectChunk(new Planet(-8, 0, 1.0, 0, 100));
         addPlanetToCorrectChunk(new Planet(8, 0, -1, 0, 100));
         
-        addPlanetsToCorrectChunk(Planet.makeNew(1000, 
-            new double[] {-1000000, 1000000}, new double[] {-1000000, 1000000},
-            new double[] {-10, 10}, new double[] {-10, 10}, new double[] {1000000, 2000000}));
+        addPlanetsToCorrectChunk(Planet.makeNew(100, 
+            new double[] {-100000, 100000}, new double[] {-100000, 100000},
+            new double[] {-100000, 100000}, new double[] {-100000, 100000}, new double[] {1000000, 2000000}));
     }
     
     public void start() {
@@ -112,10 +111,6 @@ public class GravitySimulator {
         }
     }
 
-    public GravityFrame getRenderFrame() {
-        return renderFrame;
-    }
-    
     public WindowGravity getWindow() {
         return window;
     }
@@ -201,7 +196,7 @@ public class GravitySimulator {
         }
         
         // Trigger rendering after physics update
-        renderFrame.repaint();
+        window.frame.repaint();
 
     }
     
@@ -281,6 +276,7 @@ public class GravitySimulator {
         if (numChunks == 0) return;
         
         // Phase 1: Parallel movement calculations
+        ConcurrentHashMap<Thread, ArrayList<Planet>> allChunklessPlanets = new ConcurrentHashMap<>();
         CountDownLatch movementLatch = new CountDownLatch(numChunks);
         
         for (int chunk = 0; chunk < numChunks; chunk++) {
@@ -288,35 +284,38 @@ public class GravitySimulator {
             
             threadPool.submit(() -> {
                 try {
+                    //ArrayList<Planet> chunklessPlanets = threadLocalChunklessPlanets.get();
+                    //chunklessPlanets.clear();
+
                     Chunk c = listOfChunks.getChunk(chunkIndex);
-                    c.move(); // Move all planets in this chunk
+                    c.moveAllPlanets();
+                    //allChunklessPlanets.put(Thread.currentThread(), chunklessPlanets);
                 } finally {
                     movementLatch.countDown();
                 }
             });
         }
-        
+
         // Wait for all movement calculations to complete
         movementLatch.await();
+
+
+
         
-        // Phase 2: Sequential chunk reassignment (to avoid race conditions)
-        // We need to process chunks in reverse order to safely remove empty chunks
+        // Remove empty chunks. Needs to be done in reverse order.
         for (int chunk = listOfChunks.getNumChunks() - 1; chunk >= 0; chunk--) {
             Chunk c = listOfChunks.getChunk(chunk);
-            ArrayList<Planet> planets = c.planets;
-            
-            // Check each planet to see if it needs to move to a different chunk
-            for (int planet = planets.size() - 1; planet >= 0; planet--) {
-                if (planets.get(planet).updateChunkCenter()) {
-                    addPlanetToCorrectChunk(planets.get(planet));
-                    c.removePlanet(planet);
+            for (int i=c.planets.size()-1;i>=0;i--) {
+                Planet p = c.planets.get(i);
+                if (p.updateChunkCenter()) {
+                    addPlanetToCorrectChunk(p);
+                    c.removePlanet(i);
                     numPlanets--;
+                    
                 }
             }
-            
-            // Remove empty chunks
-            if (planets.size() == 0) {
-                //listOfChunks.removeChunk(c.center);
+            if (c.planets.size() == 0) {
+                listOfChunks.removeChunk(c.center);
             }
         }
     }
@@ -424,7 +423,7 @@ public class GravitySimulator {
         Chunk.counterCom.set(0);
         
         // Also reset render timing
-        renderFrame.totalRenderTime = 0;
+        window.frame.totalRenderTime = 0;
     }
     
     
@@ -438,7 +437,7 @@ public class GravitySimulator {
         double forceTime = forceCalcTime  / 1_000_000.0;
         double positionTime = positionUpdateTime / 1_000_000.0;
         double physicsTime = this.physicsTime / 1_000_000.0;
-        double renderTime = renderFrame.totalRenderTime / 1_000_000.0;
+        double renderTime = window.frame.totalRenderTime / 1_000_000.0;
         
         double forcePercentage = physicsTime > 0 ? forceTime / physicsTime * 100 : 0;
         double updatePercentage = physicsTime > 0 ? positionTime / physicsTime * 100 : 0;

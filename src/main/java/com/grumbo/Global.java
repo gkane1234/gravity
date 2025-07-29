@@ -10,13 +10,13 @@ public final class Global {
 	public static int width=1000;
 	public static int height=1000;
 	
-	public static double zoom=10;
+	public static double zoom=0.01;
 	
 	public static boolean follow=false;
 	public static  double[] shift=new double[] {0,0}; 
 	
 	
-	public static double chunkSize=100000;
+	public static long chunkSize=10000000;
 
 	public static final int numThreads=100;
 	

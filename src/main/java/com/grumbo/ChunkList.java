@@ -11,11 +11,12 @@ public class ChunkList {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     private static class CoordKey {
-        final double x, y;
+        final long x, y;
 
-        CoordKey(double[] coord) {
-            this.x = coord[0];
-            this.y = coord[1];
+        CoordKey(long[] coord) {
+            long[] chunkCenter = Chunk.getChunkCenter(coord);
+            this.x = chunkCenter[0];
+            this.y = chunkCenter[1];
         }
 
         @Override
@@ -27,7 +28,7 @@ public class ChunkList {
 
         @Override
         public int hashCode() {
-            return Double.hashCode(x) * 31 + Double.hashCode(y);
+            return Long.hashCode(x) * 31 + Long.hashCode(y);
         }
     }
 
@@ -36,7 +37,7 @@ public class ChunkList {
         chunkMap = new HashMap<CoordKey, Integer>();
     }
 
-    public void addChunk(double[] center) {
+    public void addChunk(long[] center) {
         lock.writeLock().lock();
         try {
             chunks.add(new Chunk(center));
@@ -56,7 +57,7 @@ public class ChunkList {
         }
     }
     
-    public void removeChunk(double[] center) {
+    public void removeChunk(long[] center) {
         lock.writeLock().lock();
         try {
             CoordKey key = new CoordKey(center);
@@ -77,7 +78,7 @@ public class ChunkList {
         }
     }
 
-    public Chunk getChunk(double[] center) {
+    public Chunk getChunk(long[] center) {
         lock.readLock().lock();
         try {
             Integer index = chunkMap.get(new CoordKey(center));
@@ -105,7 +106,7 @@ public class ChunkList {
         }
     }
 
-    public int getChunkIndex(double[] center) {
+    public int getChunkIndex(long[] center) {
         lock.readLock().lock();
         try {
             Integer index = chunkMap.get(new CoordKey(center));

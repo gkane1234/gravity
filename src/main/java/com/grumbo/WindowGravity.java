@@ -19,16 +19,16 @@ public class WindowGravity extends JFrame implements KeyListener, MouseListener,
     private boolean isDragging = false;
     private static final double ZOOM_FACTOR = 1.1;
     public int[] mouseLocation = new int[2];
-    private GravityFrame frame;
+    public GravityFrame frame;
     
-    public WindowGravity(GravitySimulator simulator, GravityFrame frame) throws Exception {
+    public WindowGravity(GravitySimulator simulator) throws Exception {
         super("Gravity Simulator Menu V. 1.0.0");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(Global.width, Global.height);
         
         this.simulator = simulator;
         this.ui = new GravityUI(simulator);
-        this.frame = frame;
+        this.frame = new GravityFrame(simulator);
         add(frame);
         // Add window listener to properly shut down threads when window closes
         addWindowListener(new WindowAdapter() {
@@ -91,7 +91,7 @@ public class WindowGravity extends JFrame implements KeyListener, MouseListener,
         int mouseY = e.getY();
         
         // Get simulation coordinates of mouse before zoom
-        int[] simCoordsBefore = simulator.getRenderFrame().getSimulationLocation(mouseX, mouseY);
+        int[] simCoordsBefore = frame.getSimulationLocation(mouseX, mouseY);
         
         if (e.getWheelRotation() < 0) {
             // Zoom in
@@ -102,7 +102,7 @@ public class WindowGravity extends JFrame implements KeyListener, MouseListener,
         }
         
         // Get new screen coordinates of the same simulation point
-        int[] screenCoordsAfter = simulator.getRenderFrame().getScreenLocation(
+        int[] screenCoordsAfter = frame.getScreenLocation(
             simCoordsBefore[0],
             simCoordsBefore[1]
         );

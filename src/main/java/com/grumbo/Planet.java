@@ -6,9 +6,6 @@ import java.util.HashMap;
 public class Planet {
 	
 
-	
-	public boolean exists=true;
-	
 	public static int num=0;
 	
 	public double x;
@@ -21,13 +18,12 @@ public class Planet {
 	public double yVResidual=0;
 	//public double zVResidual=0;
 	public double mass;
-	private int[] hitRegister;
 	
 	
 	private Color color;
 	
 	
-	public double[] chunkCenter;
+	public long[] chunkCenter;
 	
 	public int name;
 	
@@ -39,8 +35,7 @@ public class Planet {
 		this.yVelocity=yVelocity;
 		//this.zVelocity=zVelocity;
 		this.mass=mass;
-		this.hitRegister= new int[] {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
-		this.chunkCenter=new double[2];
+		this.chunkCenter=new long[2];
 		updateChunkCenter();
 		name=num++;
 		
@@ -71,8 +66,8 @@ public class Planet {
 		mass=mass+o.mass;
 	}
 	
-	public static void ricochet(Planet i,Planet j) {
-		
+	public static Map<Planet, double[]> ricochet(Planet i,Planet j) {
+		Map<Planet, double[]> forces = new HashMap<>();
 		
 		
 		//https://physics.stackexchange.com/questions/681396/elastic-collision-3d-eqaution
@@ -98,27 +93,25 @@ public class Planet {
 		double J = (1+Global.elasticity)*mEff*vImpact;
 		
 		
-		i.xVelocity+=J/i.mass*n[0];
-		i.yVelocity+=J/i.mass*n[1];
 
 		
-		j.xVelocity-=J/j.mass*n[0];
-		j.yVelocity-=J/j.mass*n[1];
-		
-		
+		forces.put(i, new double[]{J/i.mass*n[0], J/i.mass*n[1]});
+		forces.put(j, new double[]{-J/j.mass*n[0], -J/j.mass*n[1]});
+
+		return forces;
 	}
 	
-	public void destroy() {
-		exists=false;
-	}
-	
-	public static void attract(Planet i, Planet j, double tickSize) {
+	public static Map<Planet, double[]> gravitationalForces(Planet i, Planet j, double tickSize) {
+		Map<Planet, double[]> forces = new HashMap<>();
 		double force = Math.pow(distance(i,j),Global.EXPO)*tickSize;
 		double theta= Math.atan2(i.y-j.y, i.x-j.x);
-		i.xVResidual-=force*Math.cos(theta)*j.mass;
-		i.yVResidual-=force*Math.sin(theta)*j.mass;
-		j.xVResidual-=force*Math.cos(theta+Math.PI)*i.mass;
-		j.yVResidual-=force*Math.sin(theta+Math.PI)*i.mass;
+		double forceX = force * Math.cos(theta);
+		double forceY = force * Math.sin(theta);
+
+		forces.put(i, new double[]{-forceX * j.mass, -forceY * j.mass});
+		forces.put(j, new double[]{forceX * i.mass, forceY * i.mass});
+
+		return forces;
 	}
 	
 	/**
@@ -128,22 +121,20 @@ public class Planet {
 	 */
 	public static Map<Planet, double[]> calculateAttractionForces(Planet i, Planet j, double tickSize) {
 		Map<Planet, double[]> forces = new HashMap<>();
-		
-		double force = Math.pow(distance(i,j), Global.EXPO) * tickSize;
-		double theta = Math.atan2(i.y - j.y, i.x - j.x);
-		
-		double forceX = force * Math.cos(theta);
-		double forceY = force * Math.sin(theta);
-		
-		// Force on planet i (attracted towards j)
-		forces.put(i, new double[]{-forceX * j.mass, -forceY * j.mass});
-		
-		// Force on planet j (attracted towards i, opposite direction)
-		forces.put(j, new double[]{forceX * i.mass, forceY * i.mass});
+		forces = gravitationalForces(i, j, tickSize);
 		
 		return forces;
 	}
 	
+	public static Map<Planet, double[]> calculateCollisionForces(Planet i, Planet j, double tickSize) {
+		Map<Planet, double[]> forces = new HashMap<>();
+
+		forces = ricochet(i, j);
+		
+		return forces;
+	}
+		
+		
 	public static double[] forceOfAttract(Planet i, Planet j, double tickSize) {
 		double force = Math.pow(distance(i,j),Global.EXPO)*tickSize;
 		double theta= Math.atan2(i.y-j.y, i.x-j.x);
@@ -178,41 +169,15 @@ public class Planet {
 		return Math.random()*(range[1]-range[0])+range[0];
 	}
 
-	public void hit(int b) {
-		int i=0;
-		while (hitRegister[i]!=-1&&i<9) {
-			i++;
-		}
-		hitRegister[i]=b;
-		
-	}
-	
-	public boolean justHit(int b) {
-		int i=0;
-		while (hitRegister[i]!=-1&&i<9) {
-			i++;
-			if (hitRegister[i]==b) return true;
-		}
-		return false;
-	}
-
-	public void noHit(int b) {
-		int i=0;
-		while (hitRegister[i]!=b) {
-			i++;
-		}
-		hitRegister[i]=-1;
-		
-	}
-
 	    /**
      * Updates the chunk center of a planet if it has moved to a new chunk
      * @return true if the chunk center was updated, false otherwise
      */
     public boolean updateChunkCenter() {
         // Calculate new chunk coordinates
-        double chunkX = Math.floor(x / Global.chunkSize + 0.5);
-        double chunkY = Math.floor(y / Global.chunkSize + 0.5);
+		long[] chunkCoordinates = Chunk.getChunkCenter(new double[] {x, y});
+		long chunkX = chunkCoordinates[0];
+		long chunkY = chunkCoordinates[1];
         
         // Create new array for atomic update if needed
         if (chunkCenter[0] != chunkX || chunkCenter[1] != chunkY) {

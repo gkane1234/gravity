@@ -71,6 +71,9 @@ public class GravityFrame extends JComponent {
 		Graphics2D g2d = (Graphics2D) g;
 		g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		
+		// Draw chunk boundaries
+		drawChunkBoundaries(g2d);
+		
 		// Draw planets first (so text appears on top)
 		drawPlanets(g);
 		
@@ -120,6 +123,48 @@ public class GravityFrame extends JComponent {
 		for (String line : lines) {
 			drawOutlinedText(g2d, line, 10, y);
 			y += lineHeight;
+		}
+	}
+
+	/**
+	 * Draws red lines at chunk boundaries
+	 */
+	private void drawChunkBoundaries(Graphics2D g) {
+		g.setColor(Color.RED);
+		
+		// Get visible area in simulation coordinates
+		int[] topLeft = getSimulationLocation(0, 0);
+		int[] bottomRight = getSimulationLocation(getWidth(), getHeight());
+		
+		// Calculate chunk size from Global class
+		double chunkSize = Global.chunkSize;
+		
+		// Calculate chunk grid lines using the same logic as Planet class
+		// First, find the chunk coordinates for the corners
+		long[] topLeftChunk = Chunk.getChunkCenter(new double[] {topLeft[0], topLeft[1]});
+		long[] bottomRightChunk = Chunk.getChunkCenter(new double[] {bottomRight[0], bottomRight[1]});
+		
+		long startChunkX = topLeftChunk[0] - 1; // -1 to ensure we draw one chunk before
+		long endChunkX = bottomRightChunk[0] + 1; // +1 to ensure we draw one chunk after
+		long startChunkY = topLeftChunk[1] - 1;
+		long endChunkY = bottomRightChunk[1] + 1;
+		
+		// Draw vertical lines at chunk boundaries
+		for (double chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+			// Convert chunk coordinate back to simulation coordinate
+			double x = (chunkX - 0.5) * chunkSize; // Subtract 0.5 to get the boundary
+			int[] screenStart = getScreenLocation(x, startChunkY * chunkSize);
+			int[] screenEnd = getScreenLocation(x, endChunkY * chunkSize);
+			g.drawLine(screenStart[0], screenStart[1], screenEnd[0], screenEnd[1]);
+		}
+		
+		// Draw horizontal lines at chunk boundaries
+		for (double chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+			// Convert chunk coordinate back to simulation coordinate
+			double y = (chunkY - 0.5) * chunkSize; // Subtract 0.5 to get the boundary
+			int[] screenStart = getScreenLocation(startChunkX * chunkSize, y);
+			int[] screenEnd = getScreenLocation(endChunkX * chunkSize, y);
+			g.drawLine(screenStart[0], screenStart[1], screenEnd[0], screenEnd[1]);
 		}
 	}
 	public int[] getScreenLocation(double simX, double simY) {
