@@ -72,7 +72,9 @@ public class GravityFrame extends JComponent {
 		g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		
 		// Draw chunk boundaries
-		drawChunkBoundaries(g2d);
+		if (simulator.drawChunkBorders) {
+			drawChunkBoundaries(g2d);
+		}
 		
 		// Draw planets first (so text appears on top)
 		drawPlanets(g);
@@ -165,6 +167,21 @@ public class GravityFrame extends JComponent {
 			int[] screenStart = getScreenLocation(startChunkX * chunkSize, y);
 			int[] screenEnd = getScreenLocation(endChunkX * chunkSize, y);
 			g.drawLine(screenStart[0], screenStart[1], screenEnd[0], screenEnd[1]);
+		}
+
+		// Draw chunk coordinates at the top-left of each chunk
+		g.setColor(Color.YELLOW); // Make coordinates visible against both black background and red lines
+		for (double chunkX = startChunkX; chunkX <= endChunkX; chunkX++) {
+			for (double chunkY = startChunkY; chunkY <= endChunkY; chunkY++) {
+				// Get screen position for top-left corner of this chunk
+				double simX = (chunkX - 0.5) * chunkSize;
+				double simY = (chunkY - 0.5) * chunkSize;
+				int[] screenPos = getScreenLocation(simX, simY);
+				
+				// Draw the coordinates
+				String coords = String.format("(%d,%d)", (int)chunkX, (int)chunkY);
+				drawOutlinedText(g, coords, screenPos[0] + 5, screenPos[1] + 15);
+			}
 		}
 	}
 	public int[] getScreenLocation(double simX, double simY) {

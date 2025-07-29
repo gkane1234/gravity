@@ -60,6 +60,9 @@ public class GravityUI {
                 Global.chunkSize /= 1.1;
                 simulator.updateChunkSize(Global.chunkSize);
                 break;
+            case KeyEvent.VK_B:
+                simulator.drawChunkBorders = !simulator.drawChunkBorders;
+                break;
         }
     }
 

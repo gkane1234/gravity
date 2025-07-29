@@ -31,6 +31,7 @@ public class GravitySimulator {
     
     // Performance display toggle
     public boolean showPerformanceStats = false;
+    public boolean drawChunkBorders = false;
     
     // UI Components
     public WindowGravity window;
@@ -465,7 +466,7 @@ public class GravitySimulator {
             "Frame Rate: %.1f FPS (%.2f ms/frame)\n" +
             "Thread Utilization: ~%.1f%% (%d tasks)\n" +
             "Frames Processed: %d\n" +
-            "Controls: 'p' toggle | 'i' detailed console",
+            "Controls: 'p' toggle | 'i' detailed console | 'b' toggle chunk borders",
             Global.numThreads,
             physicsTime,
             forceTime, forcePercentage,
