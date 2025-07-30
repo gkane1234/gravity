@@ -10,13 +10,13 @@ public class Planet {
 	
 	public double x;
 	public double y;
-	//public double z;
+	public double z;
 	public double xVelocity;
 	public double yVelocity;
 	public double zVelocity;
 	public double xVResidual=0;
 	public double yVResidual=0;
-	//public double zVResidual=0;
+	public double zVResidual=0;
 	public double mass;
 	
 	
@@ -30,39 +30,47 @@ public class Planet {
 	public long[][] tail;
 	public int tailIndex= 0;
 	
-	public Planet(double x, double y, double xVelocity, double yVelocity, double mass) {
+	public Planet(double x, double y, double z, double xVelocity, double yVelocity, double zVelocity, double mass) {
 		this.x=x;
 		this.y=y;
-		//this.z=z;
+		this.z=z;
 		this.xVelocity=xVelocity;
 		this.yVelocity=yVelocity;
-		//this.zVelocity=zVelocity;
+		this.zVelocity=zVelocity;
 		this.mass=mass;
-		this.chunkCenter=new long[2];
+		this.chunkCenter=new long[3]; 
 		updateChunkCenter();
 		name=num++;
 		
-		color=Global.DEFAULT_PLANET_COLOR;
+		// Generate random color instead of using default
+		color = generateRandomColor();
 
 		//initialize tail
-		tail = new long[Global.tailLength][2];
-		for (int i=0;i<Global.tailLength;i++) {
-			tail[i]=new long[] {(long)x,(long)y};
+		tail = new long[Settings.getInstance().getTailLength()][3]; // 3D tail
+		for (int i=0;i<Settings.getInstance().getTailLength();i++) {
+			tail[i]=new long[] {(long)x,(long)y,(long)z};
 		}
 		tailIndex=0;
 		
 	}
 	
+	// Convenience constructor for 2D (sets z=0)
+	public Planet(double x, double y, double xVelocity, double yVelocity, double mass) {
+		this(x, y, 0.0, xVelocity, yVelocity, 0.0, mass);
+	}
+
 	public void move(double tickSize) {
 		x+=tickSize*(xVelocity+=xVResidual);
 		y+=tickSize*(yVelocity+=yVResidual);
-		//z+=(zVelocity+=zVResidual);
-		xVResidual=(yVResidual=0);
+		z+=tickSize*(zVelocity+=zVResidual);
+		xVResidual=(yVResidual=zVResidual=0);
 
-		if (Global.tailLength>0) {
-			tail[tailIndex][0]=(long)x;
-			tail[tailIndex][1]=(long)y;
-			tailIndex=(tailIndex+1)%Global.tailLength;
+		// Update tail
+		if (Settings.getInstance().isDrawTail()) {
+			tail[tailIndex][0] = (long)x;
+			tail[tailIndex][1] = (long)y;
+			tail[tailIndex][2] = (long)z;
+			tailIndex = (tailIndex + 1) % Settings.getInstance().getTailLength();
 		}
 	}
 	
@@ -106,7 +114,7 @@ public class Planet {
 		
 		double vImpact= (n[0]*dVX+n[1]*dVY);
 		
-		double J = (1+Global.elasticity)*mEff*vImpact;
+		double J = (1+Settings.getInstance().getElasticity())*mEff*vImpact;
 		
 		
 
@@ -119,13 +127,27 @@ public class Planet {
 	
 	public static Map<Planet, double[]> gravitationalForces(Planet i, Planet j, double tickSize) {
 		Map<Planet, double[]> forces = new HashMap<>();
-		double force = Math.pow(distance(i,j),Global.EXPO)*tickSize;
-		double theta= Math.atan2(i.y-j.y, i.x-j.x);
-		double forceX = force * Math.cos(theta);
-		double forceY = force * Math.sin(theta);
+		double distance = distance(i, j);
+		double force = Math.pow(distance, Settings.getInstance().getExpo()) * tickSize;
+		
+		// Calculate 3D direction vector
+		double dx = i.x - j.x;
+		double dy = i.y - j.y;
+		double dz = i.z - j.z;
+		
+		// Normalize direction vector
+		double length = distance;
+		dx /= length;
+		dy /= length;
+		dz /= length;
+		
+		// Apply force in 3D
+		double forceX = force * dx;
+		double forceY = force * dy;
+		double forceZ = force * dz;
 
-		forces.put(i, new double[]{-forceX * j.mass, -forceY * j.mass});
-		forces.put(j, new double[]{forceX * i.mass, forceY * i.mass});
+		forces.put(i, new double[]{-forceX * j.mass, -forceY * j.mass, -forceZ * j.mass});
+		forces.put(j, new double[]{forceX * i.mass, forceY * i.mass, forceZ * i.mass});
 
 		return forces;
 	}
@@ -133,13 +155,10 @@ public class Planet {
 	/**
 	 * Calculates attractive forces between two planets without modifying them.
 	 * Returns force vectors that should be applied to each planet.
-	 * @return Map with planets as keys and force vectors [fx, fy] as values
+	 * @return Map with planets as keys and force vectors [fx, fy, fz] as values
 	 */
 	public static Map<Planet, double[]> calculateAttractionForces(Planet i, Planet j, double tickSize) {
-		Map<Planet, double[]> forces = new HashMap<>();
-		forces = gravitationalForces(i, j, tickSize);
-		
-		return forces;
+		return gravitationalForces(i, j, tickSize);
 	}
 	
 	public static Map<Planet, double[]> calculateCollisionForces(Planet i, Planet j, double tickSize) {
@@ -152,7 +171,7 @@ public class Planet {
 		
 		
 	public static double[] forceOfAttract(Planet i, Planet j, double tickSize) {
-		double force = Math.pow(distance(i,j),Global.EXPO)*tickSize;
+		double force = Math.pow(distance(i,j),Settings.getInstance().getExpo())*tickSize;
 		double theta= Math.atan2(i.y-j.y, i.x-j.x);
 
 		return new double[] {force*Math.cos(theta)*j.mass,force*Math.sin(theta)*j.mass};
@@ -161,44 +180,65 @@ public class Planet {
 	
 
 	public static double distance(Planet i, Planet j) {
-		return Math.sqrt(Math.pow(i.x-j.x,2)+Math.pow(i.y-j.y,2));
+		return Math.sqrt(Math.pow(i.x-j.x,2) + Math.pow(i.y-j.y,2) + Math.pow(i.z-j.z,2));
 	}
 	
 	public double getRadius() {
-		return Math.sqrt(this.mass)*Global.DENSITY/2;
+		return Math.sqrt(this.mass)*Settings.getInstance().getDensity()/2;
 	}
 	
 	public Color getColor() {
 		return color;
 	}
 
-	public static Planet[] makeNew(int num,double[] x, double[] y, double[] xV, double[] yV,double[] m) {
+	public static Planet[] makeNew(int num, double[] x, double[] y, double[] z, double[] xV, double[] yV, double[] zV, double[] m) {
 		Planet[] ret = new Planet[num];
 		for (int i=0;i<num;i++) {
-			ret[i]=new Planet(rando(x),rando(y),rando(xV),rando(yV),rando(m));			
+			ret[i]=new Planet(rando(x), rando(y), rando(z), rando(xV), rando(yV), rando(zV), rando(m));			
 		}
 		return ret;
-		
 	}
-	
+
+	// Legacy 2D version for backward compatibility
+	public static Planet[] makeNew(int num, double[] x, double[] y, double[] xV, double[] yV, double[] m) {
+		double[] z = {0, 0};
+		double[] zV = {0, 0};
+		return makeNew(num, x, y, z, xV, yV, zV, m);
+	}
+
 	private static double rando(double[] range) {
 		return Math.random()*(range[1]-range[0])+range[0];
 	}
+	
+	/**
+	 * Generates a random color for planets
+	 * @return A random Color object
+	 */
+	private static Color generateRandomColor() {
+		// Generate random RGB values with some constraints for better visibility
+		int red = (int)(Math.random() * 200) + 55;   // 55-255 for good visibility
+		int green = (int)(Math.random() * 200) + 55; // 55-255 for good visibility  
+		int blue = (int)(Math.random() * 200) + 55;  // 55-255 for good visibility
+		
+		return new Color(red, green, blue);
+	}
 
-	    /**
+    /**
      * Updates the chunk center of a planet if it has moved to a new chunk
      * @return true if the chunk center was updated, false otherwise
      */
     public boolean updateChunkCenter() {
-        // Calculate new chunk coordinates
-		long[] chunkCoordinates = Chunk.getChunkCenter(new double[] {x, y});
+        // Calculate new chunk coordinates in 3D
+		long[] chunkCoordinates = Chunk.getChunkCenter(new double[] {x, y, z});
 		long chunkX = chunkCoordinates[0];
 		long chunkY = chunkCoordinates[1];
+		long chunkZ = chunkCoordinates[2];
         
-        // Create new array for atomic update if needed
-        if (chunkCenter[0] != chunkX || chunkCenter[1] != chunkY) {
-			chunkCenter[0]=chunkX;
-			chunkCenter[1]=chunkY;
+        // Check if any coordinate changed
+        if (chunkCenter[0] != chunkX || chunkCenter[1] != chunkY || chunkCenter[2] != chunkZ) {
+			chunkCenter[0] = chunkX;
+			chunkCenter[1] = chunkY;
+			chunkCenter[2] = chunkZ;
 
             return true;
         }

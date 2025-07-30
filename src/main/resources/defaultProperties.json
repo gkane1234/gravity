@@ -1,0 +1,103 @@
+{
+  "properties": {
+    "width": {
+      "type": "int",
+      "default": 1000,
+      "min": 100,
+      "max": 3000,
+      "description": "Window width in pixels"
+    },
+    "height": {
+      "type": "int",
+      "default": 1000,
+      "min": 100,
+      "max": 3000,
+      "description": "Window height in pixels"
+    },
+    "zoom": {
+      "type": "double",
+      "default": 0.01,
+      "description": "Camera zoom level"
+    },
+    "follow": {
+      "type": "boolean",
+      "default": false,
+      "description": "Follow mode enabled"
+    },
+    "shift": {
+      "type": "doubleArray",
+      "default": [0, 0, 0],
+      "description": "Camera shift position"
+    },
+    "chunkSize": {
+      "type": "double",
+      "default": 10,
+      "min": 1,
+      "max": 100000000,
+      "description": "Size of physics chunks"
+    },
+    "tailLength": {
+      "type": "int",
+      "default": 10,
+      "min": 0,
+      "max": 1000,
+      "description": "Length of planet trails"
+    },
+    "drawTail": {
+      "type": "boolean",
+      "default": false,
+      "description": "Draw planet trails"
+    },
+    "density": {
+      "type": "double",
+      "default": 0.01,
+      "min": 0.001,
+      "max": 1.0,
+      "description": "Planet density"
+    },
+    "expo": {
+      "type": "double",
+      "default": -2.0,
+      "min": -10.0,
+      "max": 10.0,
+      "description": "Force exponent"
+    },
+    "elasticity": {
+      "type": "double",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 2.0,
+      "description": "Collision elasticity"
+    },
+    "defaultPlanetColor": {
+      "type": "color",
+      "default": "0x6dbdef",
+      "description": "Default planet color"
+    },
+    "defaultBackgroundColor": {
+      "type": "color",
+      "default": "0x000000",
+      "description": "Default background color"
+    },
+    "defaultTextColor": {
+      "type": "color",
+      "default": "0xffffff",
+      "description": "Default text color"
+    },
+    "minMassForAttractByCenterOfMass": {
+      "type": "double",
+      "default": 100,
+      "description": "Minimum mass for attract by center of mass"
+    },
+    "maxDistanceForFullInteraction": {
+      "type": "int",
+      "default": 1,
+      "description": "Maximum distance for full interaction"
+    },
+    "tickSize": {
+      "type": "double",
+      "default": 0.1,
+      "description": "Tick size"
+    }
+  }
+} 

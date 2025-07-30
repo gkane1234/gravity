@@ -10,7 +10,7 @@ package com.grumbo;
  // - Cant put chunk size too low or else it will freeze or lose correct velocity of planets
 public class Main {
     public static void main(String[] args) {
-        GravitySimulator simulator = new GravitySimulator();
-        simulator.start();
+        WindowGravity3D window = new WindowGravity3D();
+        window.start();
     }
 }

@@ -11,24 +11,25 @@ public class ChunkList {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     private static class CoordKey {
-        final long x, y;
+        final long x, y, z;
 
         CoordKey(long[] coord) {
             long[] chunkCenter = Chunk.getChunkCenter(coord);
             this.x = chunkCenter[0];
             this.y = chunkCenter[1];
+            this.z = chunkCenter[2];
         }
 
         @Override
         public boolean equals(Object o) {
             if (!(o instanceof CoordKey)) return false;
             CoordKey other = (CoordKey) o;
-            return x == other.x && y == other.y;
+            return x == other.x && y == other.y && z == other.z;
         }
 
         @Override
         public int hashCode() {
-            return Long.hashCode(x) * 31 + Long.hashCode(y);
+            return Long.hashCode(x) * 62 + Long.hashCode(y) * 31 + Long.hashCode(z);
         }
     }
 
@@ -64,6 +65,12 @@ public class ChunkList {
             Integer index = chunkMap.get(key);
             if (index == null) return;
             
+            // Safety check: ensure index is valid
+            if (index < 0 || index >= chunks.size()) {
+                System.err.println("Warning: Invalid chunk index " + index + " for chunk at " + center[0] + "," + center[1] + "," + center[2]);
+                return;
+            }
+            
             chunks.remove(index.intValue());
             chunkMap.remove(key);
             
@@ -91,7 +98,10 @@ public class ChunkList {
     public Chunk getChunk(int index) {
         lock.readLock().lock();
         try {
-            return index >= 0 && index < chunks.size() ? chunks.get(index) : null;
+            if (index < 0 || index >= chunks.size()) {
+                return null; // Return null for invalid indices
+            }
+            return chunks.get(index);
         } finally {
             lock.readLock().unlock();
         }
