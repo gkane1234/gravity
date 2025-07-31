@@ -36,16 +36,6 @@ public class OpenGLWindow {
     private float yaw = -90.0f;
     private float pitch = 0.0f;
     private boolean firstMouse = true;
-    private boolean mouseWheelPressed = false; // Track mouse wheel button state
-    
-    // WASD movement variables
-    private int keyPressed = 0;
-    private float moveSpeed = 5.0f; // Movement speed
-    
-    // Sensitivity variables
-    private float wasdSensitivity = 0.1f; // WASD movement sensitivity
-    private float mouseWheelSensitivity = 20.0f; // Mouse wheel Z movement sensitivity
-    private float mouseRotationSensitivity = 0.2f; // Mouse rotation sensitivity (2x faster)
     
     // Mouse wheel for Z movement
     private float scrollOffset = 0.0f;
@@ -53,6 +43,12 @@ public class OpenGLWindow {
     // Reference to gravity simulator
     private GravitySimulator simulator;
     private GravityUI ui;
+    
+    // Settings panel state
+    private boolean settingsPanelVisible = false;
+    
+    // Bitmap font for UI text
+    private BitmapFont font;
 
     public OpenGLWindow() {
         this(null);
@@ -67,6 +63,11 @@ public class OpenGLWindow {
         init();
         loop();
 
+        // Cleanup font resources
+        if (font != null) {
+            font.cleanup();
+        }
+        
         // Free the window callbacks and destroy the window
         glfwFreeCallbacks(window);
         glfwDestroyWindow(window);
@@ -100,6 +101,7 @@ public class OpenGLWindow {
         // Center the window
         centerWindow();
 
+
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
         // Enable v-sync
@@ -115,15 +117,12 @@ public class OpenGLWindow {
     private void setupCallbacks() {
         // Key callback
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
+            if (key == GLFW_KEY_GRAVE_ACCENT && action == GLFW_PRESS) {
+                settingsPanelVisible = !settingsPanelVisible;
+            }
             if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
-                // Toggle cursor mode on escape - for debugging/menu access
-                int currentMode = glfwGetInputMode(window, GLFW_CURSOR);
-                if (currentMode == GLFW_CURSOR_DISABLED) {
-                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-                } else {
-                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-                    firstMouse = true; // Reset mouse tracking
-                }
+
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             }
             
             ui.updateKeys(key, action);
@@ -142,8 +141,8 @@ public class OpenGLWindow {
             lastX = xpos;
             lastY = ypos;
 
-            xoffset *= mouseRotationSensitivity;
-            yoffset *= mouseRotationSensitivity;
+            xoffset *= Settings.getInstance().getMouseRotationSensitivity();
+            yoffset *= Settings.getInstance().getMouseRotationSensitivity();
 
             yaw += xoffset;
             pitch += yoffset;
@@ -161,7 +160,7 @@ public class OpenGLWindow {
         glfwSetScrollCallback(window, (window, xoffset, yoffset) -> {
             scrollOffset += yoffset * 0.1f;
             // Move in the direction the camera is facing
-            Vector3f moveDirection = new Vector3f(cameraFront).mul((float)(yoffset * mouseWheelSensitivity));
+            Vector3f moveDirection = new Vector3f(cameraFront).mul((float)(yoffset * Settings.getInstance().getMouseWheelSensitivity()));
             cameraPos.add(moveDirection);
         });
         
@@ -199,6 +198,12 @@ public class OpenGLWindow {
 
     private void loop() {
         GL.createCapabilities();
+        
+        // Initialize bitmap font AFTER OpenGL context is created
+        font = new BitmapFont();
+        if (!font.isLoaded()) {
+            System.out.println("Warning: Bitmap font not loaded, using fallback text rendering");
+        }
         
         System.out.println("OpenGL Version: " + glGetString(GL_VERSION));
         System.out.println("OpenGL Vendor: " + glGetString(GL_VENDOR));
@@ -248,6 +253,9 @@ public class OpenGLWindow {
             
             // Draw crosshair last (on top)
             drawCrosshair();
+            
+            // Draw settings panel if visible (on top of everything)
+            drawSettingsPanel();
 
             glfwSwapBuffers(window);
             glfwPollEvents();
@@ -260,7 +268,7 @@ public class OpenGLWindow {
     private void processMovement() {
         // Handle relative camera movement based on key states
         Vector3f moveDirection = new Vector3f();
-        float moveSpeed = 5.0f * wasdSensitivity;
+        float moveSpeed = Settings.getInstance().getWASDSensitivity();
         
         // Calculate right vector (perpendicular to forward and up)
         Vector3f right = new Vector3f(cameraFront).cross(cameraUp).normalize();
@@ -301,9 +309,7 @@ public class OpenGLWindow {
         
         // Run other UI key functions (non-movement controls)
         for (GravityUI.KeyEvent event : ui.keyEvents) {
-            if (event.pressed && event.key != GLFW.GLFW_KEY_W && event.key != GLFW.GLFW_KEY_A && 
-                event.key != GLFW.GLFW_KEY_S && event.key != GLFW.GLFW_KEY_D && 
-                event.key != GLFW.GLFW_KEY_Q && event.key != GLFW.GLFW_KEY_E) {
+            if (event.pressed) {
                 event.action.run();
             }
         }
@@ -313,11 +319,10 @@ public class OpenGLWindow {
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
         
-        // Use a simpler perspective setup
-        float fov = 45.0f;
+        float fov = Settings.getInstance().getFov();
         float aspect = (float) width / (float) height;
-        float near = 0.1f;
-        float far = 1000000.0f; // Increase far plane for large simulations
+        float near = Settings.getInstance().getNearPlane();
+        float far = Settings.getInstance().getFarPlane();
         
         // Simple perspective matrix
         float fH = (float) java.lang.Math.tan(java.lang.Math.toRadians(fov) / 2.0) * near;
@@ -361,14 +366,6 @@ public class OpenGLWindow {
     }
     
     private void drawPlanets() {
-        if (simulator == null) {
-            // Draw a single test planet at origin
-            glPushMatrix();
-            glColor3f(0.0f, 0.5f, 1.0f); // Blue
-            drawSphere(0, 0, 0, 50.0f, 16); // radius 50, 16 segments
-            glPopMatrix();
-            return;
-        }
         
         // Get the render buffer read lock for thread-safe access
         ReentrantReadWriteLock.ReadLock readLock = simulator.getRenderBufferReadLock();
@@ -377,12 +374,7 @@ public class OpenGLWindow {
             // Get thread-safe snapshot of chunks and planets from render buffer
             ArrayList<Chunk> chunks = simulator.getRenderBuffer().getChunks(); // Already returns a copy
             int chunkC = 0;
-            System.out.println("Drawing " + chunks.size() + " chunks");
             for (Chunk chunk : chunks) {
-                if (chunkC<10) {
-                    System.out.print("Chunk: " + chunk.center.x + ", " + chunk.center.y + ", " + chunk.center.z + " has " + chunk.planets.size() + " planets");
-                }
-
                 chunkC++;
                 // Create a snapshot of planets to avoid concurrent modification
                 ArrayList<Planet> planets;
@@ -410,11 +402,9 @@ public class OpenGLWindow {
                     // Set planet color
                     glColor3f(red / 255.0f, green / 255.0f, blue / 255.0f);
                     
-                    // Scale radius for visibility
-                    float scaledRadius = radius * 100; // Scale up for visibility
                     
                     // Draw sphere at planet position
-                    drawSphere(x, y, z, scaledRadius, 12);
+                    drawSphere(x, y, z, radius, Settings.getInstance().getSphereSegments());
                     
                     glPopMatrix();
                 }
@@ -495,6 +485,151 @@ public class OpenGLWindow {
         glMatrixMode(GL_PROJECTION);
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
+    }
+    
+    private void drawSettingsPanel() {
+        if (!settingsPanelVisible) {
+            return;
+        }
+        
+        // Switch to 2D rendering mode
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0, width, height, 0, -1, 1);
+        
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Disable depth testing for UI
+        glDisable(GL_DEPTH_TEST);
+        
+        // Semi-transparent dark background
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        
+        float panelWidth = 400.0f;
+        float panelHeight = height;
+        
+        // Draw background panel
+        glColor4f(0.1f, 0.1f, 0.1f, 0.9f);
+        glBegin(GL_QUADS);
+        glVertex2f(0, 0);
+        glVertex2f(panelWidth, 0);
+        glVertex2f(panelWidth, panelHeight);
+        glVertex2f(0, panelHeight);
+        glEnd();
+        
+        // Draw border
+        glColor3f(0.5f, 0.5f, 0.5f);
+        glLineWidth(2.0f);
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(0, 0);
+        glVertex2f(panelWidth, 0);
+        glVertex2f(panelWidth, panelHeight);
+        glVertex2f(0, panelHeight);
+        glEnd();
+        
+        // For now, just display text indicating this is the settings panel
+        // Later we'll add actual property display and controls
+        glColor3f(1.0f, 1.0f, 1.0f);
+        
+        // Display properties (simplified text representation for now)
+        float yPos = 30.0f;
+        float lineHeight = 20.0f;
+        
+        // Draw title
+        drawText("=== SETTINGS ===", 20.0f, yPos);
+        yPos += lineHeight * 2;
+        
+        // Get all properties from Settings
+        Settings settings = Settings.getInstance();
+        ArrayList<String> propertyNames = settings.getPropertyNames();
+        
+        for (String propName : propertyNames) {
+            try {
+                Object value = settings.getValue(propName);
+                String displayText = propName + ": " + formatValue(value);
+                drawText(displayText, 20.0f, yPos);
+                yPos += lineHeight;
+            } catch (Exception e) {
+                // Skip if property doesn't exist
+            }
+        }
+        
+        // Instructions
+        yPos += lineHeight;
+        drawText("Press ESC to close", 20.0f, yPos);
+        
+        glDisable(GL_BLEND);
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+    
+    private String formatValue(Object value) {
+        if (value instanceof double[]) {
+            double[] arr = (double[]) value;
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < arr.length; i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(String.format("%.2f", arr[i]));
+            }
+            sb.append("]");
+            return sb.toString();
+        } else if (value instanceof Double) {
+            return String.format("%.3f", (Double) value);
+        } else if (value instanceof Float) {
+            return String.format("%.3f", (Float) value);
+        } else if (value instanceof java.awt.Color) {
+            java.awt.Color color = (java.awt.Color) value;
+            return String.format("RGB(%d,%d,%d)", color.getRed(), color.getGreen(), color.getBlue());
+        } else {
+            return value.toString();
+        }
+    }
+    
+    private void drawText(String text, float x, float y) {
+        drawText(text, x, y, 1.0f);
+    }
+    
+    private void drawText(String text, float x, float y, float scale) {
+        if (font != null && font.isLoaded()) {
+            font.drawText(text, x, y, scale);
+        } else {
+            // Fallback to simple line-based text
+            drawSimpleText(text, x, y);
+        }
+    }
+    
+    private void drawSimpleText(String text, float x, float y) {
+        // Fallback text rendering for when bitmap font fails to load
+        float charWidth = 8.0f;
+        float charHeight = 12.0f;
+        
+        glBegin(GL_LINES);
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            float charX = x + i * charWidth;
+            
+            if (c != ' ') {
+                // Draw a simple rectangle outline for each character
+                glVertex2f(charX, y);
+                glVertex2f(charX + charWidth - 2, y);
+                glVertex2f(charX + charWidth - 2, y);
+                glVertex2f(charX + charWidth - 2, y + charHeight);
+                glVertex2f(charX + charWidth - 2, y + charHeight);
+                glVertex2f(charX, y + charHeight);
+                glVertex2f(charX, y + charHeight);
+                glVertex2f(charX, y);
+            }
+        }
+        glEnd();
     }
     
     public int[] getScreenLocation(double simX, double simY) {

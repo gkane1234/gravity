@@ -10,8 +10,6 @@ public class ChunkList {
     private ArrayList<Chunk> chunks;
     private HashMap<CoordKey, Integer> chunkMap;
 
-
-
     public ChunkList() {
         chunks = new ArrayList<Chunk>();
         chunkMap = new HashMap<CoordKey, Integer>();
@@ -27,7 +25,7 @@ public class ChunkList {
         CoordKey planetCoordKey = p.chunkCenter;
         if (planetCoordKey == null) {
             // Planet doesn't have a CoordKey yet, create one
-            planetCoordKey = new CoordKey(new double[] {p.x, p.y, p.z});
+            planetCoordKey = CoordKey.getCoordKey(new double[] {p.x, p.y, p.z});
         }
         
         Integer existingIndex = chunkMap.get(planetCoordKey);
@@ -73,10 +71,6 @@ public class ChunkList {
             }
     }
 
-    public Chunk getChunk(long[] center) {
-            Integer index = chunkMap.get(new CoordKey(center[0], center[1], center[2]));
-            return index != null ? chunks.get(index) : null;
-    }
 
     public Chunk getChunk(int index) {
             return chunks.get(index);

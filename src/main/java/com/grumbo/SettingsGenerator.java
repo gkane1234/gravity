@@ -72,6 +72,8 @@ public class SettingsGenerator {
             import java.util.HashMap;
             import java.util.Map;
             import com.fasterxml.jackson.databind.ObjectMapper;
+            import java.util.ArrayList;
+            
 
             public class Settings {
                 
@@ -91,6 +93,9 @@ public class SettingsGenerator {
                         instance = new Settings();
                     }
                     return instance;
+                }
+                public ArrayList<String> getPropertyNames() {
+                    return new ArrayList<>(properties.keySet());
                 }
                 
             """;
@@ -116,17 +121,23 @@ public class SettingsGenerator {
             
             switch (type) {
                 case "int":
-                    int min = property.has("min") ? property.get("min").asInt() : Integer.MIN_VALUE;
-                    int max = property.has("max") ? property.get("max").asInt() : Integer.MAX_VALUE;
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createIntProperty(\"%s\", %s, %s, %d, %d));\n",
-                        propertyName, propertyName, defaultValue, defaultValue, min, max));
+                    String minIntStr = property.has("min") ? String.valueOf(property.get("min").asInt()) : "Integer.MIN_VALUE";
+                    String maxIntStr = property.has("max") ? String.valueOf(property.get("max").asInt()) : "Integer.MAX_VALUE";
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createIntProperty(\"%s\", %s, %s, %s, %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, minIntStr, maxIntStr));
                     break;
                     
                 case "double":
-                    double minD = property.has("min") ? property.get("min").asDouble() : Double.MIN_VALUE;
-                    double maxD = property.has("max") ? property.get("max").asDouble() : Double.MAX_VALUE;
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createDoubleProperty(\"%s\", %s, %s, %f, %f));\n",
-                        propertyName, propertyName, defaultValue, defaultValue, minD, maxD));
+                    String minDoubleStr = property.has("min") ? String.valueOf(property.get("min").asDouble()) : "-Double.MAX_VALUE";
+                    String maxDoubleStr = property.has("max") ? String.valueOf(property.get("max").asDouble()) : "Double.MAX_VALUE";
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createDoubleProperty(\"%s\", %s, %s, %s, %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, minDoubleStr, maxDoubleStr));
+                    break;
+                case "float":
+                    String minFloatStr = property.has("min") ? String.valueOf((float)property.get("min").asDouble()) + "f" : "-Float.MAX_VALUE";
+                    String maxFloatStr = property.has("max") ? String.valueOf((float)property.get("max").asDouble()) + "f" : "Float.MAX_VALUE";
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createFloatProperty(\"%s\", %sf, %sf, %s,  %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, minFloatStr, maxFloatStr));
                     break;
                     
                 case "boolean":
@@ -242,8 +253,6 @@ public class SettingsGenerator {
         String preservedMethods = extractPreservedMethods(existingContent);
         if (!preservedMethods.isEmpty()) {
             footer.append("\t// ===== PRESERVED: Custom Convenience Methods =====\n");
-            footer.append("\t// These methods are preserved from the previous generation\n");
-            footer.append("\t// You can modify these methods and they will be preserved\n");
             footer.append(preservedMethods);
             footer.append("\t// ===== END PRESERVED: Custom Convenience Methods =====\n\n");
         }
@@ -292,6 +301,11 @@ public class SettingsGenerator {
                 \t\t\t\t\t\t\t// Colors are stored as RGB integers
                 \t\t\t\t\t\t\tif (value instanceof Integer) {
                 \t\t\t\t\t\t\t\t((Property<Color>)prop).setRGBValue((Integer)value);
+                \t\t\t\t\t\t\t}
+                \t\t\t\t\t\t} else if (prop.getValue() instanceof Float) {
+                \t\t\t\t\t\t\t// JSON deserializes numbers as Double, need to convert to Float
+                \t\t\t\t\t\t\tif (value instanceof Number) {
+                \t\t\t\t\t\t\t\t((Property<Float>)prop).setValue(((Number)value).floatValue());
                 \t\t\t\t\t\t\t}
                 \t\t\t\t\t\t} else if (prop.getValue() instanceof double[]) {
                 \t\t\t\t\t\t\t// Arrays need special handling
@@ -381,45 +395,6 @@ public class SettingsGenerator {
             }
         }
         
-        // If no preserved section was found, look for specific methods to preserve
-        if (!foundPreservedStart) {
-            for (String line : lines) {
-                // Look for specific methods to preserve
-                if (line.contains("changeZoom(") ||
-                    line.contains("toggleFollow(") ||
-                    line.contains("moveCamera(") ||
-                    line.contains("resetToDefaults(") ||
-                    line.contains("reloadSettings(") ||
-                    line.contains("exportSettings(") ||
-                    line.contains("validateSettings(") ||
-                    line.contains("applyHighPerformanceSettings(") ||
-                    line.contains("applyVisualQualitySettings(")) {
-                    
-                    // Skip auto-generated getter/setter methods
-                    if (line.trim().startsWith("public ") && 
-                        (line.contains("getValue(") || line.contains("setValue(") || 
-                         line.contains("getWidth(") || line.contains("setWidth(") ||
-                         line.contains("getHeight(") || line.contains("setHeight(") ||
-                         line.contains("getZoom(") || line.contains("setZoom(") ||
-                         line.contains("isFollow(") || line.contains("setFollow(") ||
-                         line.contains("getShift(") || line.contains("setShift(") ||
-                         line.contains("getChunkSize(") || line.contains("setChunkSize(") ||
-                         line.contains("getTailLength(") || line.contains("setTailLength(") ||
-                         line.contains("isDrawTail(") || line.contains("setDrawTail(") ||
-                         line.contains("getDensity(") || line.contains("setDensity(") ||
-                         line.contains("getExpo(") || line.contains("setExpo(") ||
-                         line.contains("getElasticity(") || line.contains("setElasticity(") ||
-                         line.contains("getDefaultPlanetColor(") || line.contains("setDefaultPlanetColor(") ||
-                         line.contains("getDefaultBackgroundColor(") || line.contains("setDefaultBackgroundColor(") ||
-                         line.contains("getDefaultTextColor(") || line.contains("setDefaultTextColor("))) {
-                        continue;
-                    }
-                    
-                    preserved.append(line).append("\n");
-                }
-            }
-        }
-        
         return preserved.toString();
     }
     
@@ -427,6 +402,7 @@ public class SettingsGenerator {
         switch (jsonType) {
             case "int": return "int";
             case "double": return "double";
+            case "float": return "float";
             case "boolean": return "boolean";
             case "color": return "Color";
             case "doubleArray": return "double[]";

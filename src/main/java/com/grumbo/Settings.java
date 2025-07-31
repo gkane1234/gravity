@@ -6,10 +6,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+
 
 public class Settings {
 
-    private static final String SETTINGS_FILE = "settings.json";
+    private static final String SETTINGS_FILE = "C:/Users/gkane/Documents/Stuff/gravitychunk/src/main/resources/settings.json";
     private static Settings instance;
 
     // Property map to store all settings
@@ -26,28 +28,31 @@ public class Settings {
         }
         return instance;
     }
+    public ArrayList<String> getPropertyNames() {
+        return new ArrayList<>(properties.keySet());
+    }
 
 	// ===== AUTO-GENERATED: Property Initialization =====
 	// This section is automatically generated from defaultProperties.json
 	// Any changes made here will be overwritten when regenerating
 	private void initializeProperties() {
 		// Window width in pixels
-		properties.put("width", Property.createIntProperty("width", 1000, 1000, 100, 3000));
+		properties.put("width", Property.createIntProperty("width", 1000, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE));
 
 		// Window height in pixels
-		properties.put("height", Property.createIntProperty("height", 1000, 1000, 100, 3000));
+		properties.put("height", Property.createIntProperty("height", 1000, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE));
 
 		// Camera zoom level
-		properties.put("zoom", Property.createDoubleProperty("zoom", 0.01, 0.01, 0.001000, 1.000000));
+		properties.put("zoom", Property.createDoubleProperty("zoom", 0.01, 0.01, -Double.MAX_VALUE, Double.MAX_VALUE));
 
 		// Follow mode enabled
 		properties.put("follow", Property.createBooleanProperty("follow", false, false));
 
 		// Camera shift position
-		properties.put("shift", new Property<>("shift", new double[]{0.0, 0.0, -100.0}, new double[]{0.0, 0.0, -100.0}));
+		properties.put("shift", new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}));
 
 		// Size of physics chunks
-		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 100, 10, 1.000000, 100000000.000000));
+		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 10, 10, 1.0, Double.MAX_VALUE));
 
 		// Length of planet trails
 		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000));
@@ -56,13 +61,13 @@ public class Settings {
 		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false));
 
 		// Planet density
-		properties.put("density", Property.createDoubleProperty("density", 0.01, 0.01, 0.001000, 1.000000));
+		properties.put("density", Property.createDoubleProperty("density", 0.01, 0.01, -Double.MAX_VALUE, Double.MAX_VALUE));
 
 		// Force exponent
-		properties.put("expo", Property.createDoubleProperty("expo", -2.0, -2.0, -10.000000, 10.000000));
+		properties.put("expo", Property.createDoubleProperty("expo", -2.0, -2.0, -Double.MAX_VALUE, Double.MAX_VALUE));
 
 		// Collision elasticity
-		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.000000, 2.000000));
+		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0));
 
 		// Default planet color
 		properties.put("defaultPlanetColor", Property.createColorPropertyFromRGB("defaultPlanetColor", 0x6dbdef, 0x6dbdef));
@@ -74,13 +79,37 @@ public class Settings {
 		properties.put("defaultTextColor", Property.createColorPropertyFromRGB("defaultTextColor", 0xffffff, 0xffffff));
 
 		// Minimum mass for attract by center of mass
-		properties.put("minMassForAttractByCenterOfMass", Property.createDoubleProperty("minMassForAttractByCenterOfMass", 100, 100, 0.000000, 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.000000));
+		properties.put("minMassForAttractByCenterOfMass", Property.createDoubleProperty("minMassForAttractByCenterOfMass", 100, 100, -Double.MAX_VALUE, Double.MAX_VALUE));
 
 		// Maximum distance for full interaction
-		properties.put("maxDistanceForFullInteraction", Property.createIntProperty("maxDistanceForFullInteraction", 1, 1, -2147483648, 2147483647));
+		properties.put("maxDistanceForFullInteraction", Property.createIntProperty("maxDistanceForFullInteraction", 1, 1, Integer.MIN_VALUE, Integer.MAX_VALUE));
 
 		// Tick size
-		properties.put("tickSize", Property.createDoubleProperty("tickSize", 0.1, 0.1, 0.000000, 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.000000));
+		properties.put("tickSize", Property.createDoubleProperty("tickSize", 0.1, 0.1, -Double.MAX_VALUE, Double.MAX_VALUE));
+
+		// Number of segments for sphere rendering
+		properties.put("sphereSegments", Property.createIntProperty("sphereSegments", 12, 12, Integer.MIN_VALUE, Integer.MAX_VALUE));
+
+		// Field of view for camera
+		properties.put("fov", Property.createFloatProperty("fov", 45.0f, 45.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Near plane for camera
+		properties.put("nearPlane", Property.createFloatProperty("nearPlane", 0.1f, 0.1f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Far plane for camera
+		properties.put("farPlane", Property.createFloatProperty("farPlane", 1000000.0f, 1000000.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Camera move speed
+		properties.put("cameraMoveSpeed", Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// WASD movement sensitivity
+		properties.put("WASDSensitivity", Property.createFloatProperty("WASDSensitivity", 0.1f, 0.1f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Mouse wheel sensitivity
+		properties.put("mouseWheelSensitivity", Property.createFloatProperty("mouseWheelSensitivity", 20.0f, 20.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Mouse rotation sensitivity
+		properties.put("mouseRotationSensitivity", Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f, -Float.MAX_VALUE,  Float.MAX_VALUE));
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
@@ -162,6 +191,30 @@ public class Settings {
 	public double getTickSize() { return getValue("tickSize"); }
 	public void setTickSize(double value) { setValue("tickSize", value); }
 
+	public int getSphereSegments() { return getValue("sphereSegments"); }
+	public void setSphereSegments(int value) { setValue("sphereSegments", value); }
+
+	public float getFov() { return getValue("fov"); }
+	public void setFov(float value) { setValue("fov", value); }
+
+	public float getNearPlane() { return getValue("nearPlane"); }
+	public void setNearPlane(float value) { setValue("nearPlane", value); }
+
+	public float getFarPlane() { return getValue("farPlane"); }
+	public void setFarPlane(float value) { setValue("farPlane", value); }
+
+	public float getCameraMoveSpeed() { return getValue("cameraMoveSpeed"); }
+	public void setCameraMoveSpeed(float value) { setValue("cameraMoveSpeed", value); }
+
+	public float getWASDSensitivity() { return getValue("WASDSensitivity"); }
+	public void setWASDSensitivity(float value) { setValue("WASDSensitivity", value); }
+
+	public float getMouseWheelSensitivity() { return getValue("mouseWheelSensitivity"); }
+	public void setMouseWheelSensitivity(float value) { setValue("mouseWheelSensitivity", value); }
+
+	public float getMouseRotationSensitivity() { return getValue("mouseRotationSensitivity"); }
+	public void setMouseRotationSensitivity(float value) { setValue("mouseRotationSensitivity", value); }
+
 	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
 
 	// ===== FIXED: Non-Configurable Values =====
@@ -172,14 +225,8 @@ public class Settings {
 	// ===== PRESERVED: Custom Convenience Methods =====
 	// These methods are preserved from the previous generation
 	// You can modify these methods and they will be preserved
-	// These methods are preserved from the previous generation
-	// You can modify these methods and they will be preserved
-	// These methods are preserved from the previous generation
-	// You can modify these methods and they will be preserved
-		// These methods are preserved from the previous generation
-		// You can modify these methods and they will be preserved
-		// You can also override the methods in the auto-generated section by creating them
-		// with the same name
+	// You can also override the methods in the auto-generated section by creating them
+	// with the same name
 
 	public void changeZoom(double newZoom) {
 		setZoom(newZoom);
@@ -240,6 +287,11 @@ public class Settings {
 							if (value instanceof Integer) {
 								((Property<Color>)prop).setRGBValue((Integer)value);
 							}
+						} else if (prop.getValue() instanceof Float) {
+							// JSON deserializes numbers as Double, need to convert to Float
+							if (value instanceof Number) {
+								((Property<Float>)prop).setValue(((Number)value).floatValue());
+							}
 						} else if (prop.getValue() instanceof double[]) {
 							// Arrays need special handling
 							if (value instanceof java.util.List) {
@@ -267,7 +319,8 @@ public class Settings {
 				System.out.println("Using default settings");
 			}
 		} else {
-			System.out.println("Settings file not found, using default settings");
+			System.out.println("Settings file not found, using default settings and making settings file at " + SETTINGS_FILE);
+			saveSettings();
 		}
 	}
 	

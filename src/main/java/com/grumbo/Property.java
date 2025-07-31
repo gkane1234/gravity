@@ -112,6 +112,14 @@ public class Property<T> {
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, double min, double max) {
         return new Property<>(name, value, defaultValue, min, max);
     }
+
+    public static Property<Float> createFloatProperty(String name, float value, float defaultValue) {
+        return new Property<>(name, value, defaultValue);
+    }
+    
+    public static Property<Float> createFloatProperty(String name, float value, float defaultValue, float min, float max) {
+        return new Property<>(name, value, defaultValue, min, max);
+    }
     
     public static Property<Boolean> createBooleanProperty(String name, boolean value, boolean defaultValue) {
         return new Property<>(name, value, defaultValue);

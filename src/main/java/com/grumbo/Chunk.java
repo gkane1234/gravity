@@ -32,12 +32,7 @@ public class Chunk {
 		//System.out.println("Chunk created at " + this.center.x + "," + this.center.y + "," + this.center.z+" and chunk object "+this);
 	}
 
-	// Constructor for legacy support with long[] coordinates
-	public Chunk(long[] center) {
-		planets = new ArrayList<Planet>();
-		this.center = new CoordKey(center[0], center[1], center[2]);
-		//System.out.println("Chunk created at " + this.center.x + "," + this.center.y + "," + this.center.z+" and chunk object "+this);
-	}
+
 	
 	
 	public void addPlanet(Planet p) {

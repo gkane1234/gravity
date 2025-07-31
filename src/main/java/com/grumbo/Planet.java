@@ -218,8 +218,8 @@ public class Planet {
 	private static Color generateRandomColor() {
 		// Generate random RGB values with some constraints for better visibility
 		int red = (int)(Math.random() * 200) + 55;   // 55-255 for good visibility
-		int green = (int)(Math.random() * 200) + 55; // 55-255 for good visibility  
-		int blue = (int)(Math.random() * 200) + 55;  // 55-255 for good visibility
+		int green = (int)(Math.random() * 200) + 55;  
+		int blue = (int)(Math.random() * 200) + 55;  
 		
 		return new Color(red, green, blue);
 	}
@@ -229,16 +229,10 @@ public class Planet {
      * @return true if the chunk center was updated, false otherwise
      */
     public boolean updateChunkCenter() {
-        // Calculate new chunk coordinates in 3D
-		CoordKey newChunkCenter = new CoordKey(new double[] {x, y, z});
+		CoordKey newChunkCenter = CoordKey.getCoordKey(new double[] {x, y, z});
         
-        // Check if any coordinate changed
-        if (chunkCenter == null || 
-            chunkCenter.x != newChunkCenter.x || 
-            chunkCenter.y != newChunkCenter.y || 
-            chunkCenter.z != newChunkCenter.z) {
-            
-            // Create new CoordKey for the new chunk center
+		// Check if the planet has moved to a new chunk
+        if (!chunkCenter.equals(newChunkCenter)) {
             chunkCenter = newChunkCenter;
             return true;
         }

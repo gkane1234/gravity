@@ -63,7 +63,7 @@ public class GravitySimulator {
     
     private void setupInitialPlanets() {
         // Add initial planets to the buffer
-        Planet[] initialPlanets = Planet.makeNew(1000, 
+        Planet[] initialPlanets = Planet.makeNew(100, 
             new double[] {-100, 100}, new double[] {-100, 100}, new double[] {-100, 100},
             new double[] {-1, 1}, new double[] {-1, 1}, new double[] {-1, 1}, new double[] {1, 2});
         
@@ -420,7 +420,6 @@ public class GravitySimulator {
             "  - Same Chunk: %d ms\n" +
             "  - Different Chunks: %d ms\n" +
             "  - Center of Mass: %d ms\n" +
-            "Physics/Render Ratio: %.2f:1\n" +
             "Chunks: %d | Planets: %d\n" +
             "Frame Rate: %.1f FPS (%.2f ms/frame)\n" +
             "Thread Utilization: ~%.1f%% (%d tasks)\n" +
