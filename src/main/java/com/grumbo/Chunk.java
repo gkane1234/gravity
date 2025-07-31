@@ -18,7 +18,7 @@ public class Chunk {
 	
 	double mass;
 	
-	long[] center;
+	CoordKey center;
 	
 
 	public Chunk(Planet p) {
@@ -26,10 +26,17 @@ public class Chunk {
 		addPlanet(p);
 	}
 
+	public Chunk(CoordKey center) {
+		planets = new ArrayList<Planet>();
+		this.center = center;
+		//System.out.println("Chunk created at " + this.center.x + "," + this.center.y + "," + this.center.z+" and chunk object "+this);
+	}
+
+	// Constructor for legacy support with long[] coordinates
 	public Chunk(long[] center) {
 		planets = new ArrayList<Planet>();
-		this.center = Chunk.getChunkCenter(center);
-
+		this.center = new CoordKey(center[0], center[1], center[2]);
+		//System.out.println("Chunk created at " + this.center.x + "," + this.center.y + "," + this.center.z+" and chunk object "+this);
 	}
 	
 	
@@ -37,6 +44,7 @@ public class Chunk {
 		synchronized (planets) {
 			planets.add(p);
 			mass+=p.mass;
+			p.chunkCenter = this.center; // Set planet's reference to this chunk's CoordKey
 		}
 	}
 	
@@ -116,25 +124,21 @@ public class Chunk {
 		//checks if the x and y coordinates are correct
 		if (o.getClass()==Chunk.class) {
 			Chunk c= (Chunk)o;
-			return equalComponents(c.center,center);
+			return c.center.equals(center);
 		}
-		if (o.getClass()==long[].class) {
+		if (o.getClass()==CoordKey.class) {
 			
-			long[] d=(long[])o;
+			CoordKey d=(CoordKey)o;
 			
-			return equalComponents(d,center);
+			return d.equals(center);
 		}
 		return false;
 	}
 	
-	private boolean equalComponents(long[] d1,long[] d2) {
-		
-		return d1[0]==d2[0]&&d1[1]==d2[1]&&d1[2]==d2[2];
-	}
 
 
 	private static double distance(Chunk chunk1, Chunk chunk2) {
-		return Math.sqrt(Math.pow(chunk1.center[0]-chunk2.center[0],2) + Math.pow(chunk1.center[1]-chunk2.center[1],2) + Math.pow(chunk1.center[2]-chunk2.center[2],2));
+		return Math.sqrt(Math.pow(chunk1.center.x-chunk2.center.x,2) + Math.pow(chunk1.center.y-chunk2.center.y,2) + Math.pow(chunk1.center.z-chunk2.center.z,2));
 	}
 
 	
@@ -184,9 +188,9 @@ public class Chunk {
 		
 		long t = System.currentTimeMillis();
 		
-		Planet centerOfMass2 = new Planet(Settings.getInstance().getChunkSize()*chunk2.center[0],Settings.getInstance().getChunkSize()*chunk2.center[1], Settings.getInstance().getChunkSize()*chunk2.center[2],
+		Planet centerOfMass2 = new Planet(Settings.getInstance().getChunkSize()*chunk2.center.x,Settings.getInstance().getChunkSize()*chunk2.center.y, Settings.getInstance().getChunkSize()*chunk2.center.z,
 		0, 0, 0, chunk2.mass);
-		Planet centerOfMass1 = new Planet(Settings.getInstance().getChunkSize()*center[0], Settings.getInstance().getChunkSize()*center[1], Settings.getInstance().getChunkSize()*center[2],
+		Planet centerOfMass1 = new Planet(Settings.getInstance().getChunkSize()*center.x, Settings.getInstance().getChunkSize()*center.y, Settings.getInstance().getChunkSize()*center.z,
 		 0, 0, 0, 0);
 		
 		double[] residuals = Planet.forceOfAttract(centerOfMass1, centerOfMass2, Settings.getInstance().getTickSize());
@@ -203,15 +207,5 @@ public class Chunk {
 		counterCom.addAndGet(System.currentTimeMillis()-t);
 	}
 	
-	public static long[] getChunkCenter(double[] spaceCoordinates) {
-		double chunkX = Math.floor(spaceCoordinates[0] / Settings.getInstance().getChunkSize() + 0.5);
-        double chunkY = Math.floor(spaceCoordinates[1] / Settings.getInstance().getChunkSize() + 0.5);
-		double chunkZ = Math.floor(spaceCoordinates[2] / Settings.getInstance().getChunkSize() + 0.5);
-		return new long[] {(long) chunkX, (long) chunkY, (long) chunkZ};
-	}
 
-	public static long[] getChunkCenter(long[] spaceCoordinates) {
-		return getChunkCenter(new double[] {spaceCoordinates[0], spaceCoordinates[1], spaceCoordinates[2]});
-	}
-	
 }

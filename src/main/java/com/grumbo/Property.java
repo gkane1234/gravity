@@ -129,7 +129,7 @@ public class Property<T> {
     public static Property<Color> createColorPropertyFromRGB(String name, int rgbValue, int defaultRGB) {
         Property<Color> prop = new Property<>(name, new Color(rgbValue), new Color(defaultRGB));
         // Add custom validator to ensure valid RGB values
-        prop.validator = color -> color != null && color.getRGB() >= 0 && color.getRGB() <= 0xFFFFFF;
+        prop.validator = color -> color != null ;
         return prop;
     }
     

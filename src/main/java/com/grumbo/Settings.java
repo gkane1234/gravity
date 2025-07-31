@@ -44,10 +44,10 @@ public class Settings {
 		properties.put("follow", Property.createBooleanProperty("follow", false, false));
 
 		// Camera shift position
-		properties.put("shift", new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}));
+		properties.put("shift", new Property<>("shift", new double[]{0.0, 0.0, -100.0}, new double[]{0.0, 0.0, -100.0}));
 
 		// Size of physics chunks
-		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 10, 10, 1.000000, 100000000.000000));
+		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 100, 10, 1.000000, 100000000.000000));
 
 		// Length of planet trails
 		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000));

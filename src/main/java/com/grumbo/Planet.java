@@ -22,13 +22,14 @@ public class Planet {
 	
 	private Color color;
 	
-	
-	public long[] chunkCenter;
+
 	
 	public int name;
 
 	public long[][] tail;
 	public int tailIndex= 0;
+
+	public CoordKey chunkCenter;
 	
 	public Planet(double x, double y, double z, double xVelocity, double yVelocity, double zVelocity, double mass) {
 		this.x=x;
@@ -38,8 +39,8 @@ public class Planet {
 		this.yVelocity=yVelocity;
 		this.zVelocity=zVelocity;
 		this.mass=mass;
-		this.chunkCenter=new long[3]; 
-		updateChunkCenter();
+		this.chunkCenter = null; // Will be set when added to a chunk
+		
 		name=num++;
 		
 		// Generate random color instead of using default
@@ -223,23 +224,22 @@ public class Planet {
 		return new Color(red, green, blue);
 	}
 
-    /**
+	/**
      * Updates the chunk center of a planet if it has moved to a new chunk
      * @return true if the chunk center was updated, false otherwise
      */
     public boolean updateChunkCenter() {
         // Calculate new chunk coordinates in 3D
-		long[] chunkCoordinates = Chunk.getChunkCenter(new double[] {x, y, z});
-		long chunkX = chunkCoordinates[0];
-		long chunkY = chunkCoordinates[1];
-		long chunkZ = chunkCoordinates[2];
+		CoordKey newChunkCenter = new CoordKey(new double[] {x, y, z});
         
         // Check if any coordinate changed
-        if (chunkCenter[0] != chunkX || chunkCenter[1] != chunkY || chunkCenter[2] != chunkZ) {
-			chunkCenter[0] = chunkX;
-			chunkCenter[1] = chunkY;
-			chunkCenter[2] = chunkZ;
-
+        if (chunkCenter == null || 
+            chunkCenter.x != newChunkCenter.x || 
+            chunkCenter.y != newChunkCenter.y || 
+            chunkCenter.z != newChunkCenter.z) {
+            
+            // Create new CoordKey for the new chunk center
+            chunkCenter = newChunkCenter;
             return true;
         }
         return false;

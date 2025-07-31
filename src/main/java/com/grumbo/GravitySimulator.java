@@ -8,6 +8,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * GravitySimulator - Main Physics Engine & Simulation Controller
@@ -19,6 +20,9 @@ public class GravitySimulator {
     
     public int numPlanets;
     public ChunkList listOfChunks;
+    
+    // Double-buffered physics system
+    private PhysicsBuffer physicsBuffer;
     
     // Performance profiling variables
     public long forceCalcTime = 0;
@@ -42,7 +46,9 @@ public class GravitySimulator {
 
     
     public GravitySimulator(WindowGravity3D window) {
-        listOfChunks = new ChunkList();
+        // Initialize thread-safe physics system
+        this.physicsBuffer = new PhysicsBuffer();
+        this.listOfChunks = physicsBuffer.getBuffer();
         
         // Initialize thread pool - use number of CPU cores
         this.threadPool = Executors.newFixedThreadPool(Settings.getInstance().getNumThreads());
@@ -56,9 +62,13 @@ public class GravitySimulator {
     }
     
     private void setupInitialPlanets() {
-        addPlanetsToCorrectChunk(Planet.makeNew(1000, 
+        // Add initial planets to the buffer
+        Planet[] initialPlanets = Planet.makeNew(1000, 
             new double[] {-100, 100}, new double[] {-100, 100}, new double[] {-100, 100},
-            new double[] {-1, 1}, new double[] {-1, 1}, new double[] {-1, 1}, new double[] {1, 2}));
+            new double[] {-1, 1}, new double[] {-1, 1}, new double[] {-1, 1}, new double[] {1, 2});
+        
+        // Add to buffer
+        addPlanetsToCorrectChunk(initialPlanets);
     }
     
     public void stop() {
@@ -80,13 +90,18 @@ public class GravitySimulator {
         Chunk.counterCom.set(0);
         
         try {
+            // Get write lock for physics calculations
+            ReentrantReadWriteLock.WriteLock writeLock = physicsBuffer.getWriteLock();
+            writeLock.lock();
+            try {
+                // Update listOfChunks to point to the buffer
+                listOfChunks = physicsBuffer.getBuffer();
+            
             // FORCE CALCULATION PHASE (Multithreaded)
-
             long forceStartTime = showPerformanceStats ? System.nanoTime() : 0;
             
             calculateAttraction();
 
-            
             if (showPerformanceStats) {
                 long forceEndTime = System.nanoTime();
                 forceCalcTime = (forceEndTime - forceStartTime);
@@ -98,16 +113,19 @@ public class GravitySimulator {
             moveAndUpdateChunks();
 
             if (showPerformanceStats) {
-
                 long physicsEndTime = System.nanoTime();
                 physicsTime = (physicsEndTime - physicsStartTime);
 
                 long positionEndTime = System.nanoTime();
                 positionUpdateTime = (positionEndTime - positionStartTime);
                 
-
-                
                 frameCount++;
+            }
+            
+                // Mark physics update as complete
+                physicsBuffer.updateComplete();
+            } finally {
+                writeLock.unlock();
             }
             
         } catch (InterruptedException e) {
@@ -215,46 +233,37 @@ public class GravitySimulator {
 
 
         
-        // Remove empty chunks. Needs to be done in reverse order.
-        ArrayList<Long[]> chunksToRemove = new ArrayList<>();
-        
+        // Remove empty chunks. Needs to be done in reverse order. Done on one thread.
+
+        // First, collect all planets that need to be moved
+        ArrayList<Planet> planetsToMove = new ArrayList<>();
+        for (Chunk c : listOfChunks.getChunks()) {
+            
+            for (int i = c.planets.size() - 1; i >= 0; i--) {
+                Planet p = c.planets.get(i);
+                if (p.updateChunkCenter()) {
+                    planetsToMove.add(p);
+                    c.removePlanet(i);
+                    numPlanets--;
+                }
+            }
+        }
+
+        // Then move all collected planets to their correct chunks
+        for (Planet p : planetsToMove) {
+            addPlanetToCorrectChunk(p);
+        }
+
+        // Finally remove empty chunks
         for (int chunk = listOfChunks.getNumChunks() - 1; chunk >= 0; chunk--) {
             Chunk c = listOfChunks.getChunk(chunk);
-            if (c == null) continue; // Skip if chunk is null
-            
-            // Create a copy of planets to avoid concurrent modification
-            ArrayList<Planet> planetsCopy;
-            synchronized (c.planets) {
-                planetsCopy = new ArrayList<>(c.planets);
-            }
-            
-            for (int i = planetsCopy.size() - 1; i >= 0; i--) {
-                Planet p = planetsCopy.get(i);
-                if (p.updateChunkCenter()) {
-                    addPlanetToCorrectChunk(p);
-                    synchronized (c.planets) {
-                        int index = c.planets.indexOf(p);
-                        if (index != -1) {
-                            c.removePlanet(index);
-                            numPlanets--;
-                        }
-                    }
-                }
-            }
-            
-            // Check if chunk is empty after processing
-            synchronized (c.planets) {
-                if (c.planets.size() == 0) {
-                    chunksToRemove.add(new Long[]{c.center[0], c.center[1], c.center[2]});
-                }
+
+            if (c.planets.size() == 0) {
+                //System.out.println("Removing empty chunk at " + c.center.x + "," + c.center.y + "," + c.center.z + " and number of planets " + c.planets.size()+" and index "+chunk+" chunk object "+c);
+                listOfChunks.removeChunk(c.center);
             }
         }
-        
-        // Remove empty chunks after processing all planets
-        for (Long[] center : chunksToRemove) {
-            long[] centerArray = new long[]{center[0], center[1], center[2]};
-            listOfChunks.removeChunk(centerArray);
-        }
+
     }
     
     /**
@@ -343,6 +352,20 @@ public class GravitySimulator {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+    
+    /**
+     * Get the buffer for safe reading during rendering
+     */
+    public ChunkList getRenderBuffer() {
+        return physicsBuffer.getBuffer();
+    }
+    
+    /**
+     * Get the read lock for the buffer
+     */
+    public ReentrantReadWriteLock.ReadLock getRenderBufferReadLock() {
+        return physicsBuffer.getReadLock();
     }
     
     /**

@@ -8,6 +8,7 @@ import org.joml.*;
 
 import java.nio.*;
 import java.util.ArrayList;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -104,6 +105,9 @@ public class OpenGLWindow {
         // Enable v-sync
         glfwSwapInterval(1);
 
+        // Set cursor to disabled (hidden and locked to window)
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
         // Make the window visible
         glfwShowWindow(window);
     }
@@ -111,27 +115,22 @@ public class OpenGLWindow {
     private void setupCallbacks() {
         // Key callback
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
-                glfwSetWindowShouldClose(window, true);
+            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
+                // Toggle cursor mode on escape - for debugging/menu access
+                int currentMode = glfwGetInputMode(window, GLFW_CURSOR);
+                if (currentMode == GLFW_CURSOR_DISABLED) {
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                } else {
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    firstMouse = true; // Reset mouse tracking
+                }
+            }
             
             ui.updateKeys(key, action);
         });
         
-        // Mouse button callback for mouse wheel button
-        glfwSetMouseButtonCallback(window, (window, button, action, mods) -> {
-            if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
-                mouseWheelPressed = (action == GLFW_PRESS);
-                if (mouseWheelPressed) {
-                    // Reset mouse tracking when starting to rotate
-                    firstMouse = true;
-                }
-            }
-        });
-        
-        // Mouse callback for camera rotation (only when mouse wheel is pressed)
+        // Mouse callback for FPS-style camera rotation (always active)
         glfwSetCursorPosCallback(window, (window, xpos, ypos) -> {
-            if (!mouseWheelPressed) return; // Only rotate when mouse wheel button is pressed
-            
             if (firstMouse) {
                 lastX = xpos;
                 lastY = ypos;
@@ -139,7 +138,7 @@ public class OpenGLWindow {
             }
 
             double xoffset = xpos - lastX;
-            double yoffset = lastY - ypos;
+            double yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
             lastX = xpos;
             lastY = ypos;
 
@@ -149,6 +148,7 @@ public class OpenGLWindow {
             yaw += xoffset;
             pitch += yoffset;
 
+            // Constrain pitch to prevent camera flipping
             if (pitch > 89.0f)
                 pitch = 89.0f;
             if (pitch < -89.0f)
@@ -203,7 +203,26 @@ public class OpenGLWindow {
         System.out.println("OpenGL Version: " + glGetString(GL_VERSION));
         System.out.println("OpenGL Vendor: " + glGetString(GL_VENDOR));
         System.out.println("OpenGL Renderer: " + glGetString(GL_RENDERER));
-        System.out.println("Press SPACE to toggle between test cube and planets");
+        System.out.println("=== CONTROLS ===");
+        System.out.println("Mouse: Look around (FPS-style)");
+        System.out.println("WASD: Move camera (relative to view direction)");
+        System.out.println("QE: Move up/down");
+        System.out.println("Mouse wheel: Zoom in/out");
+        System.out.println("ESC: Toggle mouse cursor (press to release/capture mouse)");
+        System.out.println("P: Toggle performance stats");
+        System.out.println("I: Print detailed performance info");
+        System.out.println("B: Toggle chunk borders");
+        System.out.println("T: Toggle planet trails");
+        System.out.println("F: Toggle follow mode");
+        System.out.println("R: Reset performance counters");
+        System.out.println("Up/Down arrows: Change chunk size");
+        System.out.println("[/]: Change simulation speed");
+        System.out.println("+/-: Zoom in/out");
+        System.out.println("==================");
+        System.out.println("Initial camera position: " + cameraPos.x + ", " + cameraPos.y + ", " + cameraPos.z);
+        System.out.println("Initial zoom: " + Settings.getInstance().getZoom());
+        System.out.println("Initial shift: " + java.util.Arrays.toString(Settings.getInstance().getShift()));
+        System.out.println("Camera front: " + cameraFront.x + ", " + cameraFront.y + ", " + cameraFront.z);
 
         // Enable depth testing for 3D
         glEnable(GL_DEPTH_TEST);
@@ -226,6 +245,9 @@ public class OpenGLWindow {
             setupCamera();
 
             drawPlanets();
+            
+            // Draw crosshair last (on top)
+            drawCrosshair();
 
             glfwSwapBuffers(window);
             glfwPollEvents();
@@ -236,20 +258,54 @@ public class OpenGLWindow {
 
     
     private void processMovement() {
+        // Handle relative camera movement based on key states
         Vector3f moveDirection = new Vector3f();
+        float moveSpeed = 5.0f * wasdSensitivity;
         
-        // W/S: Move up/down (Y axis)
-        //if (ui.keyEvents.get(ui.keyEvents.indexOf(GLFW.GLFW_KEY_W)).pressed) moveDirection.y += 1.0f; // Move up
-        //if (ui.keyEvents.get(ui.keyEvents.indexOf(GLFW.GLFW_KEY_S)).pressed) moveDirection.y -= 1.0f; // Move down
-        
-        // A/D: Move left/right (X axis, but relative to camera orientation)
+        // Calculate right vector (perpendicular to forward and up)
         Vector3f right = new Vector3f(cameraFront).cross(cameraUp).normalize();
-        //if (ui.keyEvents.get(ui.keyEvents.indexOf(GLFW.GLFW_KEY_A)).pressed) moveDirection.sub(right); // Move left
-        //if (ui.keyEvents.get(ui.keyEvents.indexOf(GLFW.GLFW_KEY_D)).pressed) moveDirection.add(right); // Move right
-
+        
+        // Check key states and calculate relative movement
+        for (GravityUI.KeyEvent event : ui.keyEvents) {
+            if (event.pressed) {
+                switch (event.key) {
+                    case GLFW.GLFW_KEY_W: // Forward in camera direction
+                        moveDirection.add(new Vector3f(cameraFront).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_S: // Backward from camera direction
+                        moveDirection.sub(new Vector3f(cameraFront).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_A: // Left relative to camera
+                        moveDirection.sub(new Vector3f(right).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_D: // Right relative to camera
+                        moveDirection.add(new Vector3f(right).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_Q: // Up in world space
+                        moveDirection.y += moveSpeed;
+                        break;
+                    case GLFW.GLFW_KEY_E: // Down in world space
+                        moveDirection.y -= moveSpeed;
+                        break;
+                }
+            }
+        }
+        
+        // Apply movement to camera position
         if (moveDirection.length() > 0) {
-            moveDirection.normalize();
-            cameraPos.add(moveDirection.mul(moveSpeed * wasdSensitivity)); // Use WASD sensitivity
+            cameraPos.add(moveDirection);
+            
+            // Update Settings to reflect new camera position
+            Settings.getInstance().setShift(new double[] {cameraPos.x, cameraPos.y, cameraPos.z});
+        }
+        
+        // Run other UI key functions (non-movement controls)
+        for (GravityUI.KeyEvent event : ui.keyEvents) {
+            if (event.pressed && event.key != GLFW.GLFW_KEY_W && event.key != GLFW.GLFW_KEY_A && 
+                event.key != GLFW.GLFW_KEY_S && event.key != GLFW.GLFW_KEY_D && 
+                event.key != GLFW.GLFW_KEY_Q && event.key != GLFW.GLFW_KEY_E) {
+                event.action.run();
+            }
         }
     }
     
@@ -274,10 +330,20 @@ public class OpenGLWindow {
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
         
-        // Simple camera setup
+        // Get camera position from Settings
         Vector3f eye = new Vector3f(cameraPos);
-        Vector3f center = new Vector3f(cameraPos).add(cameraFront);
+        Vector3f center;
         Vector3f up = new Vector3f(cameraUp);
+        
+        // Handle follow mode
+        if (Settings.getInstance().isFollow() && simulator != null) {
+            // Get reference point from simulator
+            int[] reference = simulator.getReference(true);
+            center = new Vector3f(reference[0], reference[1], reference[2]);
+        } else {
+            // Look in the direction the camera is facing
+            center = new Vector3f(eye).add(cameraFront);
+        }
         
         // Manual lookAt implementation
         Vector3f f = new Vector3f(center).sub(eye).normalize();
@@ -304,44 +370,58 @@ public class OpenGLWindow {
             return;
         }
         
-        // Get thread-safe snapshot of chunks and planets
-        ArrayList<Chunk> chunks = simulator.listOfChunks.getChunks(); // Already returns a copy
-        
-        for (Chunk chunk : chunks) {
-            // Create a snapshot of planets to avoid concurrent modification
-            ArrayList<Planet> planets;
-            synchronized (chunk.planets) {
-                planets = new ArrayList<>(chunk.planets);
-            }
-            
-            for (Planet planet : planets) {
-                // Read planet properties atomically
-                float x, y, z, radius;
-                int red, green, blue;
-                
-                synchronized (planet) {
-                    x = (float) planet.x;
-                    y = (float) planet.y;
-                    z = (float) planet.z;
-                    radius = (float) planet.getRadius();
-                    red = planet.getColor().getRed();
-                    green = planet.getColor().getGreen();
-                    blue = planet.getColor().getBlue();
+        // Get the render buffer read lock for thread-safe access
+        ReentrantReadWriteLock.ReadLock readLock = simulator.getRenderBufferReadLock();
+        readLock.lock();
+        try {
+            // Get thread-safe snapshot of chunks and planets from render buffer
+            ArrayList<Chunk> chunks = simulator.getRenderBuffer().getChunks(); // Already returns a copy
+            int chunkC = 0;
+            System.out.println("Drawing " + chunks.size() + " chunks");
+            for (Chunk chunk : chunks) {
+                if (chunkC<10) {
+                    System.out.print("Chunk: " + chunk.center.x + ", " + chunk.center.y + ", " + chunk.center.z + " has " + chunk.planets.size() + " planets");
+                }
+
+                chunkC++;
+                // Create a snapshot of planets to avoid concurrent modification
+                ArrayList<Planet> planets;
+                synchronized (chunk.planets) {
+                    planets = new ArrayList<>(chunk.planets);
                 }
                 
-                glPushMatrix();
-                
-                // Set planet color
-                glColor3f(red / 255.0f, green / 255.0f, blue / 255.0f);
-                
-                // Scale radius for visibility
-                float scaledRadius = radius * 100; // Scale up for visibility
-                
-                // Draw sphere at planet position
-                drawSphere(x, y, z, scaledRadius, 12);
-                
-                glPopMatrix();
+                for (Planet planet : planets) {
+                    // Read planet properties atomically
+                    float x, y, z, radius;
+                    int red, green, blue;
+                    
+                    synchronized (planet) {
+                        x = (float) planet.x;
+                        y = (float) planet.y;
+                        z = (float) planet.z;
+                        radius = (float) planet.getRadius();
+                        red = planet.getColor().getRed();
+                        green = planet.getColor().getGreen();
+                        blue = planet.getColor().getBlue();
+                    }
+                    
+                    glPushMatrix();
+                    
+                    // Set planet color
+                    glColor3f(red / 255.0f, green / 255.0f, blue / 255.0f);
+                    
+                    // Scale radius for visibility
+                    float scaledRadius = radius * 100; // Scale up for visibility
+                    
+                    // Draw sphere at planet position
+                    drawSphere(x, y, z, scaledRadius, 12);
+                    
+                    glPopMatrix();
+                }
             }
+
+        } finally {
+            readLock.unlock();
         }
     }
     
@@ -372,53 +452,51 @@ public class OpenGLWindow {
         }
     }
     
-    private void drawCube() {
-        glBegin(GL_QUADS);
+    private void drawCrosshair() {
+        // Save current matrices
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
         
-        // Front face (red)
-        glColor3f(1.0f, 0.0f, 0.0f);
-        glVertex3f(-0.5f, -0.5f,  0.5f);
-        glVertex3f( 0.5f, -0.5f,  0.5f);
-        glVertex3f( 0.5f,  0.5f,  0.5f);
-        glVertex3f(-0.5f,  0.5f,  0.5f);
+        // Set up 2D orthographic projection for crosshair
+        glOrtho(0, width, height, 0, -1, 1);
         
-        // Back face (green)
-        glColor3f(0.0f, 1.0f, 0.0f);
-        glVertex3f(-0.5f, -0.5f, -0.5f);
-        glVertex3f(-0.5f,  0.5f, -0.5f);
-        glVertex3f( 0.5f,  0.5f, -0.5f);
-        glVertex3f( 0.5f, -0.5f, -0.5f);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
         
-        // Top face (blue)
-        glColor3f(0.0f, 0.0f, 1.0f);
-        glVertex3f(-0.5f,  0.5f, -0.5f);
-        glVertex3f(-0.5f,  0.5f,  0.5f);
-        glVertex3f( 0.5f,  0.5f,  0.5f);
-        glVertex3f( 0.5f,  0.5f, -0.5f);
+        // Disable depth testing for crosshair
+        glDisable(GL_DEPTH_TEST);
         
-        // Bottom face (yellow)
-        glColor3f(1.0f, 1.0f, 0.0f);
-        glVertex3f(-0.5f, -0.5f, -0.5f);
-        glVertex3f( 0.5f, -0.5f, -0.5f);
-        glVertex3f( 0.5f, -0.5f,  0.5f);
-        glVertex3f(-0.5f, -0.5f,  0.5f);
+        // Set crosshair color (white)
+        glColor3f(1.0f, 1.0f, 1.0f);
+        glLineWidth(2.0f);
         
-        // Right face (magenta)
-        glColor3f(1.0f, 0.0f, 1.0f);
-        glVertex3f( 0.5f, -0.5f, -0.5f);
-        glVertex3f( 0.5f,  0.5f, -0.5f);
-        glVertex3f( 0.5f,  0.5f,  0.5f);
-        glVertex3f( 0.5f, -0.5f,  0.5f);
+        // Calculate center of screen
+        float centerX = width / 2.0f;
+        float centerY = height / 2.0f;
+        float crosshairSize = 10.0f;
         
-        // Left face (cyan)
-        glColor3f(0.0f, 1.0f, 1.0f);
-        glVertex3f(-0.5f, -0.5f, -0.5f);
-        glVertex3f(-0.5f, -0.5f,  0.5f);
-        glVertex3f(-0.5f,  0.5f,  0.5f);
-        glVertex3f(-0.5f,  0.5f, -0.5f);
-        
+        // Draw crosshair lines
+        glBegin(GL_LINES);
+        // Horizontal line
+        glVertex2f(centerX - crosshairSize, centerY);
+        glVertex2f(centerX + crosshairSize, centerY);
+        // Vertical line
+        glVertex2f(centerX, centerY - crosshairSize);
+        glVertex2f(centerX, centerY + crosshairSize);
         glEnd();
+        
+        // Re-enable depth testing
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
     }
+    
     public int[] getScreenLocation(double simX, double simY) {
 		int[] followLocation = simulator.getReference(Settings.getInstance().isFollow());
 		int screenWidth = width;
@@ -451,8 +529,11 @@ public class OpenGLWindow {
             long[] tailNext = p.tail[(p.tailIndex+i)%Settings.getInstance().getTailLength()];
             int[] screenPosLast = getScreenLocation(tailLast[0], tailLast[1]);
             int[] screenPosNext = getScreenLocation(tailNext[0], tailNext[1]);
-           // glVertex3f(screenPosLast[0], screenPosLast[1], screenPosNext[0], screenPosNext[1]);
-           // tailLast = tailNext;
+            glBegin(GL_LINES);
+            glVertex3f(screenPosLast[0], screenPosLast[1], 0.0f);
+            glVertex3f(screenPosNext[0], screenPosNext[1], 0.0f);
+            glEnd();
+            tailLast = tailNext;
             }
         }
     }
