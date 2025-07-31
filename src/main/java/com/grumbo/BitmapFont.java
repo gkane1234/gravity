@@ -20,13 +20,17 @@ import java.nio.ByteBuffer;
 public class BitmapFont {
     private static String DEFAULT_FONT_PATH = "C:/Users/gkane/Documents/Stuff/gravitychunk/src/main/resources/font.png";
     private int fontTexture = 0;
-    private int charWidth = 8;
-    private int charHeight = 16;
+    private int desiredCharWidth = 16;
+    private int desiredCharHeight = 32;
     private int charsPerRow = 16;
     private int firstChar = 32; // ASCII space character
     private int numRows = 8;    // Covers ASCII 32-159 (128 characters)
     private boolean loaded = false;
     private String fontPath;
+    private int padding = 2;
+
+    private int readCharWidth = 0;
+    private int readCharHeight = 0;
     
     /**
      * Creates a new bitmap font from the specified PNG file.
@@ -51,10 +55,10 @@ public class BitmapFont {
             
             int width = image.getWidth();
             int height = image.getHeight();
-            
+
             // Calculate character dimensions
-            this.charWidth = width / charsPerRow;
-            this.charHeight = height / numRows;
+            this.readCharWidth = width / charsPerRow;
+            this.readCharHeight = height / numRows;
             
             // Convert BufferedImage to ByteBuffer for OpenGL
             ByteBuffer buffer = convertImageToBuffer(image, width, height);
@@ -73,7 +77,7 @@ public class BitmapFont {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
             
             loaded = true;
-            System.out.println("Bitmap font loaded: " + fontPath + " (" + charWidth + "x" + charHeight + " chars)");
+            System.out.println("Bitmap font loaded: " + fontPath + " (" + readCharWidth + "x" + readCharHeight + " chars)");
             
         } catch (IOException e) {
             System.err.println("Failed to load bitmap font: " + fontPath);
@@ -112,7 +116,7 @@ public class BitmapFont {
      * @param y Screen Y coordinate
      */
     public void drawText(String text, float x, float y) {
-        drawText(text, x, y, 1.0f);
+        drawText(text, x, y, 1.0f, 1.0f);
     }
     
     /**
@@ -122,7 +126,7 @@ public class BitmapFont {
      * @param y Screen Y coordinate
      * @param scale Scale factor (1.0 = normal size)
      */
-    public void drawText(String text, float x, float y, float scale) {
+    public void drawText(String text, float x, float y,float spacing, float scale) {
         if (!loaded || fontTexture == 0) {
             return; // Font not loaded
         }
@@ -133,14 +137,14 @@ public class BitmapFont {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         
-        float scaledCharWidth = charWidth * scale;
-        float scaledCharHeight = charHeight * scale;
+        float scaledCharWidth = desiredCharWidth * scale;
+        float scaledCharHeight = desiredCharHeight * scale;
         
         glBegin(GL_QUADS);
         
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            float charX = x + i * scaledCharWidth;
+            float charX = x + i * (scaledCharWidth+spacing);
             
             if (c == ' ') {
                 continue; // Skip spaces (don't draw anything)
@@ -213,7 +217,7 @@ public class BitmapFont {
      * @return Width in pixels
      */
     public float getTextWidth(String text, float scale) {
-        return text.length() * charWidth * scale;
+        return text.length() * desiredCharWidth * scale;
     }
     
     /**
@@ -221,7 +225,7 @@ public class BitmapFont {
      * @return Character height in pixels at scale 1.0
      */
     public float getCharHeight() {
-        return charHeight;
+        return desiredCharHeight;
     }
     
     /**
@@ -230,7 +234,7 @@ public class BitmapFont {
      * @return Character height in pixels
      */
     public float getCharHeight(float scale) {
-        return charHeight * scale;
+        return desiredCharHeight * scale;
     }
     
     /**
@@ -259,6 +263,6 @@ public class BitmapFont {
     @Override
     public String toString() {
         return String.format("BitmapFont{path='%s', size=%dx%d, loaded=%s}", 
-                           fontPath, charWidth, charHeight, loaded);
+                           fontPath, desiredCharWidth, desiredCharHeight, loaded);
     }
 }

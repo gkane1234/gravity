@@ -1,6 +1,5 @@
 package com.grumbo;
 
-import org.lwjgl.*;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.*;
@@ -24,7 +23,7 @@ public class OpenGLWindow {
     // Window dimensions
     private int width = 1000;
     private int height = 1000;
-    
+    private float fontScale = 1.0f;
     // Camera variables
     private Vector3f cameraPos = new Vector3f(0.0f, 0.0f, 100.0f);
     private Vector3f cameraFront = new Vector3f(0.0f, 0.0f, -1.0f);
@@ -373,9 +372,7 @@ public class OpenGLWindow {
         try {
             // Get thread-safe snapshot of chunks and planets from render buffer
             ArrayList<Chunk> chunks = simulator.getRenderBuffer().getChunks(); // Already returns a copy
-            int chunkC = 0;
             for (Chunk chunk : chunks) {
-                chunkC++;
                 // Create a snapshot of planets to avoid concurrent modification
                 ArrayList<Planet> planets;
                 synchronized (chunk.planets) {
@@ -505,31 +502,7 @@ public class OpenGLWindow {
         // Disable depth testing for UI
         glDisable(GL_DEPTH_TEST);
         
-        // Semi-transparent dark background
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        
-        float panelWidth = 400.0f;
-        float panelHeight = height;
-        
-        // Draw background panel
-        glColor4f(0.1f, 0.1f, 0.1f, 0.9f);
-        glBegin(GL_QUADS);
-        glVertex2f(0, 0);
-        glVertex2f(panelWidth, 0);
-        glVertex2f(panelWidth, panelHeight);
-        glVertex2f(0, panelHeight);
-        glEnd();
-        
-        // Draw border
-        glColor3f(0.5f, 0.5f, 0.5f);
-        glLineWidth(2.0f);
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(0, 0);
-        glVertex2f(panelWidth, 0);
-        glVertex2f(panelWidth, panelHeight);
-        glVertex2f(0, panelHeight);
-        glEnd();
+
         
         // For now, just display text indicating this is the settings panel
         // Later we'll add actual property display and controls
@@ -540,7 +513,7 @@ public class OpenGLWindow {
         float lineHeight = 20.0f;
         
         // Draw title
-        drawText("=== SETTINGS ===", 20.0f, yPos);
+        drawText("=== SETTINGS ===", 20.0f, yPos, fontScale);
         yPos += lineHeight * 2;
         
         // Get all properties from Settings
@@ -551,7 +524,7 @@ public class OpenGLWindow {
             try {
                 Object value = settings.getValue(propName);
                 String displayText = propName + ": " + formatValue(value);
-                drawText(displayText, 20.0f, yPos);
+                drawText(displayText, 20.0f, yPos, fontScale);
                 yPos += lineHeight;
             } catch (Exception e) {
                 // Skip if property doesn't exist
@@ -560,7 +533,7 @@ public class OpenGLWindow {
         
         // Instructions
         yPos += lineHeight;
-        drawText("Press ESC to close", 20.0f, yPos);
+        drawText("Press ESC to close", 20.0f, yPos, fontScale);
         
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
@@ -600,7 +573,7 @@ public class OpenGLWindow {
     
     private void drawText(String text, float x, float y, float scale) {
         if (font != null && font.isLoaded()) {
-            font.drawText(text, x, y, scale);
+            font.drawText(text, x, y, 1.0f, scale);
         } else {
             // Fallback to simple line-based text
             drawSimpleText(text, x, y);
