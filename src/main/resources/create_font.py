@@ -32,19 +32,20 @@ def create_simple_font():
     while too_large:
         too_large = False
         font = ImageFont.truetype("consola.ttf", largest_possible_font_size)
-        max_left_offset =0;
-        max_top_offset =0;
+        max_horizontal_offsets = [0,0]
+        max_vertical_offsets = [0,0]
         for char_code in char_range:
             char = chr(char_code)
             bbox = draw.textbbox((0,0), char, font=font, stroke_width=outline_width)
-            char_w = bbox[2]-bbox[0]
-            char_h = bbox[3]-bbox[1]
-            max_left_offset = max(max_left_offset, bbox[0])
-            max_top_offset = max(max_top_offset, bbox[1])
-            if char_w > char_width or char_h > char_height:
+            max_horizontal_offsets[0] = min(max_horizontal_offsets[0], bbox[0])
+            max_horizontal_offsets[1] = max(max_horizontal_offsets[1], bbox[2])
+            max_vertical_offsets[0] = min(max_vertical_offsets[0], bbox[1])
+            max_vertical_offsets[1] = max(max_vertical_offsets[1], bbox[3])
+            if max_horizontal_offsets[1] - max_horizontal_offsets[0] > char_width or max_vertical_offsets[1] - max_vertical_offsets[0] > char_height:
                 largest_possible_font_size -= 1
                 too_large = True
                 break
+            print(max_horizontal_offsets,max_vertical_offsets)
     print(f"Largest possible font size: {largest_possible_font_size}")
     font = ImageFont.truetype("consola.ttf", largest_possible_font_size)  # Windows
     

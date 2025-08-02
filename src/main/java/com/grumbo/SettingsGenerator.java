@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import org.joml.Vector3f;
 
 public class SettingsGenerator {
     
@@ -73,6 +74,7 @@ public class SettingsGenerator {
             import java.util.Map;
             import com.fasterxml.jackson.databind.ObjectMapper;
             import java.util.ArrayList;
+            import org.joml.Vector3f;
             
 
             public class Settings {
@@ -149,8 +151,21 @@ public class SettingsGenerator {
                     code.append(String.format("\t\tproperties.put(\"%s\", Property.createColorPropertyFromRGB(\"%s\", %s, %s));\n",
                         propertyName, propertyName, defaultValue, defaultValue));
                     break;
-                    
-                case "doubleArray":
+
+                case "vector3f":
+                    StringBuilder vector3fBuilder = new StringBuilder();
+                    vector3fBuilder.append("new Vector3f(");
+                    for (int i =0; i<3; i++) {
+                        if (i > 0) vector3fBuilder.append(", ");
+                        vector3fBuilder.append(property.get("default").get(i).asDouble()+"f");
+                    }
+                    vector3fBuilder.append(")");
+                    String vector3f = vector3fBuilder.toString();
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createVector3fProperty(\"%s\", %s, %s));\n",
+                        propertyName, propertyName, vector3f, vector3f));
+                    break;
+
+                    case "doubleArray":
                     // Convert the default value (a JSON array) to a Java double array initializer
                     StringBuilder arrayBuilder = new StringBuilder();
                     arrayBuilder.append("{");
@@ -213,6 +228,8 @@ public class SettingsGenerator {
             String propertyName = entry.getKey();
             JsonNode property = entry.getValue();
             String type = property.get("type").asText();
+
+            System.out.println("propertyName: " + propertyName + " type: " + type);
             
             // Generate getter
             String javaType = getJavaType(type);
@@ -307,7 +324,16 @@ public class SettingsGenerator {
                 \t\t\t\t\t\t\tif (value instanceof Number) {
                 \t\t\t\t\t\t\t\t((Property<Float>)prop).setValue(((Number)value).floatValue());
                 \t\t\t\t\t\t\t}
-                \t\t\t\t\t\t} else if (prop.getValue() instanceof double[]) {
+                \t\t\t\t\t\t} else if (prop.getValue() instanceof Vector3f) {
+                \t\t\t\t\t\t\tif (value instanceof java.util.List) {
+                \t\t\t\t\t\t\t\tjava.util.List<?> list = (java.util.List<?>)value;
+                \t\t\t\t\t\t\t\tfloat[] array = new float[list.size()];
+                \t\t\t\t\t\t\t\tfor (int i = 0; i < list.size(); i++) {
+                \t\t\t\t\t\t\t\t\tarray[i] = ((Number)list.get(i)).floatValue();
+                \t\t\t\t\t\t\t\t}
+                \t\t\t\t\t\t\t\t((Property<Vector3f>)prop).setValue(new Vector3f(array));
+                \t\t\t\t\t\t\t}
+                \t\t\t\t\t\t\t} else if (prop.getValue() instanceof double[]) {
                 \t\t\t\t\t\t\t// Arrays need special handling
                 \t\t\t\t\t\t\tif (value instanceof java.util.List) {
                 \t\t\t\t\t\t\t\tjava.util.List<?> list = (java.util.List<?>)value;
@@ -406,6 +432,7 @@ public class SettingsGenerator {
             case "boolean": return "boolean";
             case "color": return "Color";
             case "doubleArray": return "double[]";
+            case "vector3f": return "Vector3f";
             default: return "String";
         }
     }

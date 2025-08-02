@@ -2,6 +2,7 @@ package com.grumbo;
 
 import java.awt.Color;
 import java.util.function.Predicate;
+import org.joml.Vector3f;
 
 public class Property<T> {
     private String name;
@@ -130,6 +131,10 @@ public class Property<T> {
     }
     
     public static Property<Color> createColorProperty(String name, Color value, Color defaultValue) {
+        return new Property<>(name, value, defaultValue);
+    }
+
+    public static Property<Vector3f> createVector3fProperty(String name, Vector3f value, Vector3f defaultValue) {
         return new Property<>(name, value, defaultValue);
     }
     

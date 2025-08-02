@@ -7,11 +7,12 @@ import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import org.joml.Vector3f;
 
 
 public class Settings {
 
-    private static final String SETTINGS_FILE = "C:/Users/gkane/Documents/Stuff/gravitychunk/src/main/resources/settings.json";
+    private static final String SETTINGS_FILE = "settings.json";
     private static Settings instance;
 
     // Property map to store all settings
@@ -52,7 +53,7 @@ public class Settings {
 		properties.put("shift", new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}));
 
 		// Size of physics chunks
-		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 10, 10, 1.0, Double.MAX_VALUE));
+		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 100, 100, 1.0, Double.MAX_VALUE));
 
 		// Length of planet trails
 		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000));
@@ -61,7 +62,7 @@ public class Settings {
 		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false));
 
 		// Planet density
-		properties.put("density", Property.createDoubleProperty("density", 0.01, 0.01, -Double.MAX_VALUE, Double.MAX_VALUE));
+		properties.put("density", Property.createDoubleProperty("density", 1, 1, -Double.MAX_VALUE, Double.MAX_VALUE));
 
 		// Force exponent
 		properties.put("expo", Property.createDoubleProperty("expo", -2.0, -2.0, -Double.MAX_VALUE, Double.MAX_VALUE));
@@ -110,6 +111,21 @@ public class Settings {
 
 		// Mouse rotation sensitivity
 		properties.put("mouseRotationSensitivity", Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Camera position
+		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 100.0f), new Vector3f(0.0f, 0.0f, 100.0f)));
+
+		// Camera front vector
+		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f)));
+
+		// Camera up vector
+		properties.put("cameraUp", Property.createVector3fProperty("cameraUp", new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(0.0f, 1.0f, 0.0f)));
+
+		// Camera yaw
+		properties.put("yaw", Property.createFloatProperty("yaw", -90.0f, -90.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+
+		// Camera pitch
+		properties.put("pitch", Property.createFloatProperty("pitch", 0.0f, 0.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
@@ -215,6 +231,21 @@ public class Settings {
 	public float getMouseRotationSensitivity() { return getValue("mouseRotationSensitivity"); }
 	public void setMouseRotationSensitivity(float value) { setValue("mouseRotationSensitivity", value); }
 
+	public Vector3f getCameraPos() { return getValue("cameraPos"); }
+	public void setCameraPos(Vector3f value) { setValue("cameraPos", value); }
+
+	public Vector3f getCameraFront() { return getValue("cameraFront"); }
+	public void setCameraFront(Vector3f value) { setValue("cameraFront", value); }
+
+	public Vector3f getCameraUp() { return getValue("cameraUp"); }
+	public void setCameraUp(Vector3f value) { setValue("cameraUp", value); }
+
+	public float getYaw() { return getValue("yaw"); }
+	public void setYaw(float value) { setValue("yaw", value); }
+
+	public float getPitch() { return getValue("pitch"); }
+	public void setPitch(float value) { setValue("pitch", value); }
+
 	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
 
 	// ===== FIXED: Non-Configurable Values =====
@@ -292,7 +323,16 @@ public class Settings {
 							if (value instanceof Number) {
 								((Property<Float>)prop).setValue(((Number)value).floatValue());
 							}
-						} else if (prop.getValue() instanceof double[]) {
+						} else if (prop.getValue() instanceof Vector3f) {
+							if (value instanceof java.util.List) {
+								java.util.List<?> list = (java.util.List<?>)value;
+								float[] array = new float[list.size()];
+								for (int i = 0; i < list.size(); i++) {
+									array[i] = ((Number)list.get(i)).floatValue();
+								}
+								((Property<Vector3f>)prop).setValue(new Vector3f(array));
+							}
+							} else if (prop.getValue() instanceof double[]) {
 							// Arrays need special handling
 							if (value instanceof java.util.List) {
 								java.util.List<?> list = (java.util.List<?>)value;
@@ -319,8 +359,7 @@ public class Settings {
 				System.out.println("Using default settings");
 			}
 		} else {
-			System.out.println("Settings file not found, using default settings and making settings file at " + SETTINGS_FILE);
-			saveSettings();
+			System.out.println("Settings file not found, using default settings");
 		}
 	}
 	

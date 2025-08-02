@@ -130,6 +130,31 @@
       "type": "float",
       "default": 0.2,
       "description": "Mouse rotation sensitivity"
+    },
+    "cameraPos": {
+      "type": "vector3f",
+      "default": [0.0, 0.0, 100.0],
+      "description": "Camera position"
+    },
+    "cameraFront": {
+      "type": "vector3f",
+      "default": [0.0, 0.0, -1.0],
+      "description": "Camera front vector"
+    },
+    "cameraUp": {
+      "type": "vector3f",
+      "default": [0.0, 1.0, 0.0],
+      "description": "Camera up vector"
+    },
+    "yaw": {
+      "type": "float",
+      "default": -90.0,
+      "description": "Camera yaw"
+    },
+    "pitch": {
+      "type": "float",
+      "default": 0.0,
+      "description": "Camera pitch"
     }
   }
 } 

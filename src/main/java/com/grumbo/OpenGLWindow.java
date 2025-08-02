@@ -20,20 +20,9 @@ public class OpenGLWindow {
     // The window handle
     private long window;
     
-    // Window dimensions
-    private int width = 1000;
-    private int height = 1000;
-    private float fontScale = 1.0f;
-    // Camera variables
-    private Vector3f cameraPos = new Vector3f(0.0f, 0.0f, 100.0f);
-    private Vector3f cameraFront = new Vector3f(0.0f, 0.0f, -1.0f);
-    private Vector3f cameraUp = new Vector3f(0.0f, 1.0f, 0.0f);
-    
     // Mouse variables
-    private double lastX = width / 2.0;
-    private double lastY = height / 2.0;
-    private float yaw = -90.0f;
-    private float pitch = 0.0f;
+    private double lastX = Settings.getInstance().getWidth() / 2.0;
+    private double lastY = Settings.getInstance().getHeight() / 2.0;
     private boolean firstMouse = true;
     
     // Mouse wheel for Z movement
@@ -90,7 +79,7 @@ public class OpenGLWindow {
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         // Create the window
-        window = glfwCreateWindow(width, height, "Gravity Simulator 3D", NULL, NULL);
+        window = glfwCreateWindow(Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), "Gravity Simulator 3D", NULL, NULL);
         if (window == NULL)
             throw new RuntimeException("Failed to create the GLFW window");
 
@@ -143,14 +132,14 @@ public class OpenGLWindow {
             xoffset *= Settings.getInstance().getMouseRotationSensitivity();
             yoffset *= Settings.getInstance().getMouseRotationSensitivity();
 
-            yaw += xoffset;
-            pitch += yoffset;
+            Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + xoffset));
+            Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + yoffset));
 
             // Constrain pitch to prevent camera flipping
-            if (pitch > 89.0f)
-                pitch = 89.0f;
-            if (pitch < -89.0f)
-                pitch = -89.0f;
+            if (Settings.getInstance().getPitch() > 89.0f)
+                Settings.getInstance().setPitch(89.0f);
+            if (Settings.getInstance().getPitch() < -89.0f)
+                Settings.getInstance().setPitch(-89.0f);
 
             updateCameraDirection();
         });
@@ -159,24 +148,22 @@ public class OpenGLWindow {
         glfwSetScrollCallback(window, (window, xoffset, yoffset) -> {
             scrollOffset += yoffset * 0.1f;
             // Move in the direction the camera is facing
-            Vector3f moveDirection = new Vector3f(cameraFront).mul((float)(yoffset * Settings.getInstance().getMouseWheelSensitivity()));
-            cameraPos.add(moveDirection);
+            Vector3f moveDirection = new Vector3f(Settings.getInstance().getCameraFront()).mul((float)(yoffset * Settings.getInstance().getMouseWheelSensitivity()));
+            Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
         });
         
         // Window resize callback
         glfwSetFramebufferSizeCallback(window, (window, width, height) -> {
-            this.width = width;
-            this.height = height;
-            glViewport(0, 0, width, height);
+            glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
         });
     }
     
     private void updateCameraDirection() {
         Vector3f direction = new Vector3f();
-        direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(yaw)) * java.lang.Math.cos(java.lang.Math.toRadians(pitch)));
-        direction.y = (float)java.lang.Math.sin(java.lang.Math.toRadians(pitch));
-        direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(yaw)) * java.lang.Math.cos(java.lang.Math.toRadians(pitch)));
-        cameraFront = direction.normalize();
+        direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
+        direction.y = (float)java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getPitch()));
+        direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
+        Settings.getInstance().setCameraFront(direction.normalize());
     }
     
     private void centerWindow() {
@@ -223,10 +210,10 @@ public class OpenGLWindow {
         System.out.println("[/]: Change simulation speed");
         System.out.println("+/-: Zoom in/out");
         System.out.println("==================");
-        System.out.println("Initial camera position: " + cameraPos.x + ", " + cameraPos.y + ", " + cameraPos.z);
+        System.out.println("Initial camera position: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z);
         System.out.println("Initial zoom: " + Settings.getInstance().getZoom());
         System.out.println("Initial shift: " + java.util.Arrays.toString(Settings.getInstance().getShift()));
-        System.out.println("Camera front: " + cameraFront.x + ", " + cameraFront.y + ", " + cameraFront.z);
+        System.out.println("Camera front: " + Settings.getInstance().getCameraFront().x + ", " + Settings.getInstance().getCameraFront().y + ", " + Settings.getInstance().getCameraFront().z);
 
         // Enable depth testing for 3D
         glEnable(GL_DEPTH_TEST);
@@ -270,17 +257,17 @@ public class OpenGLWindow {
         float moveSpeed = Settings.getInstance().getWASDSensitivity();
         
         // Calculate right vector (perpendicular to forward and up)
-        Vector3f right = new Vector3f(cameraFront).cross(cameraUp).normalize();
+        Vector3f right = new Vector3f(Settings.getInstance().getCameraFront()).cross(Settings.getInstance().getCameraUp()).normalize();
         
         // Check key states and calculate relative movement
         for (GravityUI.KeyEvent event : ui.keyEvents) {
             if (event.pressed) {
                 switch (event.key) {
                     case GLFW.GLFW_KEY_W: // Forward in camera direction
-                        moveDirection.add(new Vector3f(cameraFront).mul(moveSpeed));
+                        moveDirection.add(new Vector3f(Settings.getInstance().getCameraFront()).mul(moveSpeed));
                         break;
                     case GLFW.GLFW_KEY_S: // Backward from camera direction
-                        moveDirection.sub(new Vector3f(cameraFront).mul(moveSpeed));
+                        moveDirection.sub(new Vector3f(Settings.getInstance().getCameraFront()).mul(moveSpeed));
                         break;
                     case GLFW.GLFW_KEY_A: // Left relative to camera
                         moveDirection.sub(new Vector3f(right).mul(moveSpeed));
@@ -300,10 +287,10 @@ public class OpenGLWindow {
         
         // Apply movement to camera position
         if (moveDirection.length() > 0) {
-            cameraPos.add(moveDirection);
+            Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
             
             // Update Settings to reflect new camera position
-            Settings.getInstance().setShift(new double[] {cameraPos.x, cameraPos.y, cameraPos.z});
+            Settings.getInstance().setShift(new double[] {Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z});
         }
         
         // Run other UI key functions (non-movement controls)
@@ -319,7 +306,7 @@ public class OpenGLWindow {
         glLoadIdentity();
         
         float fov = Settings.getInstance().getFov();
-        float aspect = (float) width / (float) height;
+        float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
         float near = Settings.getInstance().getNearPlane();
         float far = Settings.getInstance().getFarPlane();
         
@@ -335,9 +322,9 @@ public class OpenGLWindow {
         glLoadIdentity();
         
         // Get camera position from Settings
-        Vector3f eye = new Vector3f(cameraPos);
+        Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
         Vector3f center;
-        Vector3f up = new Vector3f(cameraUp);
+        Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
         
         // Handle follow mode
         if (Settings.getInstance().isFollow() && simulator != null) {
@@ -346,7 +333,7 @@ public class OpenGLWindow {
             center = new Vector3f(reference[0], reference[1], reference[2]);
         } else {
             // Look in the direction the camera is facing
-            center = new Vector3f(eye).add(cameraFront);
+            center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
         }
         
         // Manual lookAt implementation
@@ -446,7 +433,7 @@ public class OpenGLWindow {
         glLoadIdentity();
         
         // Set up 2D orthographic projection for crosshair
-        glOrtho(0, width, height, 0, -1, 1);
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
         
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
@@ -460,8 +447,8 @@ public class OpenGLWindow {
         glLineWidth(2.0f);
         
         // Calculate center of screen
-        float centerX = width / 2.0f;
-        float centerY = height / 2.0f;
+        float centerX = Settings.getInstance().getWidth() / 2.0f;
+        float centerY = Settings.getInstance().getHeight() / 2.0f;
         float crosshairSize = 10.0f;
         
         // Draw crosshair lines
@@ -493,7 +480,7 @@ public class OpenGLWindow {
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
         glLoadIdentity();
-        glOrtho(0, width, height, 0, -1, 1);
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
         
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
@@ -513,7 +500,7 @@ public class OpenGLWindow {
         float lineHeight = 20.0f;
         
         // Draw title
-        drawText("=== SETTINGS ===", 20.0f, yPos, fontScale);
+        drawText("=== SETTINGS ===", 20.0f, yPos, font.getFontSize());
         yPos += lineHeight * 2;
         
         // Get all properties from Settings
@@ -524,7 +511,7 @@ public class OpenGLWindow {
             try {
                 Object value = settings.getValue(propName);
                 String displayText = propName + ": " + formatValue(value);
-                drawText(displayText, 20.0f, yPos, fontScale);
+                drawText(displayText, 20.0f, yPos, font.getFontSize());
                 yPos += lineHeight;
             } catch (Exception e) {
                 // Skip if property doesn't exist
@@ -533,7 +520,7 @@ public class OpenGLWindow {
         
         // Instructions
         yPos += lineHeight;
-        drawText("Press ESC to close", 20.0f, yPos, fontScale);
+        drawText("Press ESC to close", 20.0f, yPos, font.getFontSize());
         
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
@@ -607,8 +594,8 @@ public class OpenGLWindow {
     
     public int[] getScreenLocation(double simX, double simY) {
 		int[] followLocation = simulator.getReference(Settings.getInstance().isFollow());
-		int screenWidth = width;
-		int screenHeight = height;
+		int screenWidth = Settings.getInstance().getWidth();
+		int screenHeight = Settings.getInstance().getHeight();
 		
 		// Convert simulation coordinates to screen coordinates
 		return new int[] {
@@ -619,8 +606,8 @@ public class OpenGLWindow {
 
 	public int[] getSimulationLocation(double screenX, double screenY) {
 		int[] followLocation = simulator.getReference(Settings.getInstance().isFollow());
-		int screenWidth = width;
-		int screenHeight = height;
+		int screenWidth = Settings.getInstance().getWidth();
+		int screenHeight = Settings.getInstance().getHeight();
 		
 		// Convert screen coordinates to simulation coordinates
 		return new int[] {
