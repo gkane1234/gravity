@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
  * - Standard layout: !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
  */
 public class BitmapFont {
-    private static final String DEFAULT_FONT_PATH = "C:/Users/gkane/Documents/Stuff/gravitychunk/src/main/resources/font.png";
+    private static final String DEFAULT_FONT_PATH = "/Users/gabrielkane/Documents/stuff/gravitychunk/gravity/src/main/resources/font.png";
     private static final float FONT_HEIGHT_RATIO = 2f;
     private static final float DEFAULT_FONT_SIZE = 16.0f;
     private static final int CHARS_PER_ROW = 16;

@@ -13,7 +13,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <lwjgl.version>3.3.3</lwjgl.version>
         <joml.version>1.10.5</joml.version>
-        <lwjgl.natives>natives-windows</lwjgl.natives>
+        <lwjgl.natives>natives-macos</lwjgl.natives>
     </properties>
 
     <dependencyManagement>
@@ -97,6 +97,28 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>generate-settings</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>java</goal>
+            </goals>
+            <configuration>
+              <mainClass>com.grumbo.SettingsGenerator</mainClass>
+              <arguments>
+                <argument>/Users/gabrielkane/Documents/stuff/gravitychunk/gravity/src/main/resources/defaultProperties.json</argument>
+                <argument>/Users/gabrielkane/Documents/stuff/gravitychunk/gravity/src/main/java/com/grumbo/Settings.java</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+                <configuration>
+                    <mainClass>com.grumbo.Main</mainClass>
+                    <options>
+                        <option>-XstartOnFirstThread</option>
+                    </options>
+                </configuration>
             </plugin>
         </plugins>
     </build>

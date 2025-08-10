@@ -12,6 +12,8 @@ public class Property<T> {
     private T maxValue;
     private Predicate<T> validator;
     private boolean isNumeric;
+    private boolean editable = true;
+    private String typeName; // e.g., "int", "double", "float", "boolean", "color", "doubleArray", "vector3f", "string"
     
     // Constructors
     public Property(String name, T value, T defaultValue) {
@@ -54,6 +56,19 @@ public class Property<T> {
     public void setMaxValue(T maxValue) { this.maxValue = maxValue; }
     
     public boolean isNumeric() { return isNumeric; }
+    public boolean isEditable() { return editable; }
+    public void setEditable(boolean editable) { this.editable = editable; }
+    public String getTypeName() { return typeName; }
+    public void setTypeName(String typeName) { this.typeName = typeName; }
+    public boolean hasRange() { return isNumeric && minValue != null && maxValue != null; }
+    public Double getMinAsDouble() {
+        if (!isNumeric || minValue == null) return null;
+        return ((Number) minValue).doubleValue();
+    }
+    public Double getMaxAsDouble() {
+        if (!isNumeric || maxValue == null) return null;
+        return ((Number) maxValue).doubleValue();
+    }
     
     // Validation methods
     private void validateAndSet(T newValue) {
@@ -99,51 +114,142 @@ public class Property<T> {
     
     // Convenience methods for common types
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<Integer> p = new Property<>(name, value, defaultValue);
+        p.typeName = "int";
+        return p;
     }
     
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue, int min, int max) {
-        return new Property<>(name, value, defaultValue, min, max);
+        Property<Integer> p = new Property<>(name, value, defaultValue, min, max);
+        p.typeName = "int";
+        return p;
+    }
+    public static Property<Integer> createIntProperty(String name, int value, int defaultValue, int min, int max, boolean editable) {
+        Property<Integer> p = createIntProperty(name, value, defaultValue, min, max);
+        p.setEditable(editable);
+        return p;
+    }
+    public static Property<Integer> createIntProperty(String name, int value, int defaultValue, Integer min, Integer max, boolean editable) {
+        Property<Integer> p = (min != null && max != null)
+            ? new Property<>(name, value, defaultValue, min, max)
+            : new Property<>(name, value, defaultValue);
+        p.typeName = "int";
+        p.setEditable(editable);
+        if (min != null) p.setMinValue(min);
+        if (max != null) p.setMaxValue(max);
+        return p;
     }
     
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<Double> p = new Property<>(name, value, defaultValue);
+        p.typeName = "double";
+        return p;
     }
     
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, double min, double max) {
-        return new Property<>(name, value, defaultValue, min, max);
+        Property<Double> p = new Property<>(name, value, defaultValue, min, max);
+        p.typeName = "double";
+        return p;
+    }
+    public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, double min, double max, boolean editable) {
+        Property<Double> p = createDoubleProperty(name, value, defaultValue, min, max);
+        p.setEditable(editable);
+        return p;
+    }
+    public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, Double min, Double max, boolean editable) {
+        Property<Double> p = (min != null && max != null)
+            ? new Property<>(name, value, defaultValue, min, max)
+            : new Property<>(name, value, defaultValue);
+        p.typeName = "double";
+        p.setEditable(editable);
+        if (min != null) p.setMinValue(min);
+        if (max != null) p.setMaxValue(max);
+        return p;
     }
 
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<Float> p = new Property<>(name, value, defaultValue);
+        p.typeName = "float";
+        return p;
     }
     
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue, float min, float max) {
-        return new Property<>(name, value, defaultValue, min, max);
+        Property<Float> p = new Property<>(name, value, defaultValue, min, max);
+        p.typeName = "float";
+        return p;
+    }
+    public static Property<Float> createFloatProperty(String name, float value, float defaultValue, float min, float max, boolean editable) {
+        Property<Float> p = createFloatProperty(name, value, defaultValue, min, max);
+        p.setEditable(editable);
+        return p;
+    }
+    public static Property<Float> createFloatProperty(String name, float value, float defaultValue, Float min, Float max, boolean editable) {
+        Property<Float> p = (min != null && max != null)
+            ? new Property<>(name, value, defaultValue, min, max)
+            : new Property<>(name, value, defaultValue);
+        p.typeName = "float";
+        p.setEditable(editable);
+        if (min != null) p.setMinValue(min);
+        if (max != null) p.setMaxValue(max);
+        return p;
     }
     
     public static Property<Boolean> createBooleanProperty(String name, boolean value, boolean defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<Boolean> p = new Property<>(name, value, defaultValue);
+        p.typeName = "boolean";
+        return p;
+    }
+    public static Property<Boolean> createBooleanProperty(String name, boolean value, boolean defaultValue, boolean editable) {
+        Property<Boolean> p = createBooleanProperty(name, value, defaultValue);
+        p.setEditable(editable);
+        return p;
     }
     
     public static Property<String> createStringProperty(String name, String value, String defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<String> p = new Property<>(name, value, defaultValue);
+        p.typeName = "string";
+        return p;
+    }
+    public static Property<String> createStringProperty(String name, String value, String defaultValue, boolean editable) {
+        Property<String> p = createStringProperty(name, value, defaultValue);
+        p.setEditable(editable);
+        return p;
     }
     
     public static Property<Color> createColorProperty(String name, Color value, Color defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<Color> p = new Property<>(name, value, defaultValue);
+        p.typeName = "color";
+        return p;
+    }
+    public static Property<Color> createColorProperty(String name, Color value, Color defaultValue, boolean editable) {
+        Property<Color> p = createColorProperty(name, value, defaultValue);
+        p.setEditable(editable);
+        return p;
     }
 
     public static Property<Vector3f> createVector3fProperty(String name, Vector3f value, Vector3f defaultValue) {
-        return new Property<>(name, value, defaultValue);
+        Property<Vector3f> p = new Property<>(name, value, defaultValue);
+        p.typeName = "vector3f";
+        return p;
+    }
+    public static Property<Vector3f> createVector3fProperty(String name, Vector3f value, Vector3f defaultValue, boolean editable) {
+        Property<Vector3f> p = createVector3fProperty(name, value, defaultValue);
+        p.setEditable(editable);
+        return p;
     }
     
     // Special method for Color properties that work with RGB integers
     public static Property<Color> createColorPropertyFromRGB(String name, int rgbValue, int defaultRGB) {
         Property<Color> prop = new Property<>(name, new Color(rgbValue), new Color(defaultRGB));
+        prop.typeName = "color";
         // Add custom validator to ensure valid RGB values
         prop.validator = color -> color != null ;
         return prop;
+    }
+    public static Property<Color> createColorPropertyFromRGB(String name, int rgbValue, int defaultRGB, boolean editable) {
+        Property<Color> p = createColorPropertyFromRGB(name, rgbValue, defaultRGB);
+        p.setEditable(editable);
+        return p;
     }
     
     // Utility method to get RGB value for Color properties

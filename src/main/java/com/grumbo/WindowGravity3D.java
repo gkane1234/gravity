@@ -50,6 +50,9 @@ public class WindowGravity3D {
         if (physicsThread != null) {
             physicsThread.interrupt();
         }
+        if (simulator != null) {
+            simulator.shutdown();
+        }
     }
     
     private void runPhysicsLoop() {
@@ -60,7 +63,9 @@ public class WindowGravity3D {
             
             try {
                 // Run one physics tick
-                simulator.chunkPhysicsTick();
+                if (simulator.isNotPaused()) {
+                    simulator.chunkPhysicsTick();
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }

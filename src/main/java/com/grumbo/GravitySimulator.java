@@ -386,7 +386,12 @@ public class GravitySimulator {
         //window.frame.totalRenderTime = 0;
     }
     
-    
+    public void togglePause() {
+        running = !running;
+    }
+    public boolean isNotPaused() {
+        return running;
+    }
     
     /**
      * Gets comprehensive performance statistics formatted for display

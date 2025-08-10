@@ -10,7 +10,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-import org.joml.Vector3f;
 
 public class SettingsGenerator {
     
@@ -118,38 +117,62 @@ public class SettingsGenerator {
             
             String type = property.get("type").asText();
             String defaultValue = property.get("default").asText();
+            boolean editable = property.has("editable") && property.get("editable").asBoolean(false);
             
             code.append("\t\t// ").append(property.get("description").asText()).append("\n");
             
             switch (type) {
-                case "int":
-                    String minIntStr = property.has("min") ? String.valueOf(property.get("min").asInt()) : "Integer.MIN_VALUE";
-                    String maxIntStr = property.has("max") ? String.valueOf(property.get("max").asInt()) : "Integer.MAX_VALUE";
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createIntProperty(\"%s\", %s, %s, %s, %s));\n",
-                        propertyName, propertyName, defaultValue, defaultValue, minIntStr, maxIntStr));
+                case "int": {
+                    boolean hasMin = property.has("min");
+                    boolean hasMax = property.has("max");
+                    if (hasMin && hasMax) {
+                        String minIntStr = String.valueOf(property.get("min").asInt());
+                        String maxIntStr = String.valueOf(property.get("max").asInt());
+                        code.append(String.format("\t\tproperties.put(\"%s\", Property.createIntProperty(\"%s\", %s, %s, %s, %s, %s));\n",
+                            propertyName, propertyName, defaultValue, defaultValue, minIntStr, maxIntStr, editable));
+                    } else {
+                        code.append(String.format("\t\t{ Property<Integer> p = Property.createIntProperty(\"%s\", %s, %s); p.setEditable(%s); properties.put(\"%s\", p); }\n",
+                            propertyName, defaultValue, defaultValue, editable, propertyName));
+                    }
                     break;
-                    
-                case "double":
-                    String minDoubleStr = property.has("min") ? String.valueOf(property.get("min").asDouble()) : "-Double.MAX_VALUE";
-                    String maxDoubleStr = property.has("max") ? String.valueOf(property.get("max").asDouble()) : "Double.MAX_VALUE";
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createDoubleProperty(\"%s\", %s, %s, %s, %s));\n",
-                        propertyName, propertyName, defaultValue, defaultValue, minDoubleStr, maxDoubleStr));
+                }
+                case "double": {
+                    boolean hasMin = property.has("min");
+                    boolean hasMax = property.has("max");
+                    if (hasMin && hasMax) {
+                        String minDoubleStr = String.valueOf(property.get("min").asDouble());
+                        String maxDoubleStr = String.valueOf(property.get("max").asDouble());
+                        code.append(String.format("\t\tproperties.put(\"%s\", Property.createDoubleProperty(\"%s\", %s, %s, %s, %s, %s));\n",
+                            propertyName, propertyName, defaultValue, defaultValue, minDoubleStr, maxDoubleStr, editable));
+                    } else {
+                        code.append(String.format("\t\t{ Property<Double> p = Property.createDoubleProperty(\"%s\", %s, %s); p.setEditable(%s); properties.put(\"%s\", p); }\n",
+                            propertyName, defaultValue, defaultValue, editable, propertyName));
+                    }
                     break;
-                case "float":
-                    String minFloatStr = property.has("min") ? String.valueOf((float)property.get("min").asDouble()) + "f" : "-Float.MAX_VALUE";
-                    String maxFloatStr = property.has("max") ? String.valueOf((float)property.get("max").asDouble()) + "f" : "Float.MAX_VALUE";
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createFloatProperty(\"%s\", %sf, %sf, %s,  %s));\n",
-                        propertyName, propertyName, defaultValue, defaultValue, minFloatStr, maxFloatStr));
+                }
+                case "float": {
+                    boolean hasMin = property.has("min");
+                    boolean hasMax = property.has("max");
+                    if (hasMin && hasMax) {
+                        String minFloatStr = String.valueOf((float)property.get("min").asDouble()) + "f";
+                        String maxFloatStr = String.valueOf((float)property.get("max").asDouble()) + "f";
+                        code.append(String.format("\t\tproperties.put(\"%s\", Property.createFloatProperty(\"%s\", %sf, %sf, %s,  %s, %s));\n",
+                            propertyName, propertyName, defaultValue, defaultValue, minFloatStr, maxFloatStr, editable));
+                    } else {
+                        code.append(String.format("\t\t{ Property<Float> p = Property.createFloatProperty(\"%s\", %sf, %sf); p.setEditable(%s); properties.put(\"%s\", p); }\n",
+                            propertyName, defaultValue, defaultValue, editable, propertyName));
+                    }
                     break;
+                }
                     
                 case "boolean":
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createBooleanProperty(\"%s\", %s, %s));\n",
-                        propertyName, propertyName, defaultValue, defaultValue));
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createBooleanProperty(\"%s\", %s, %s, %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, editable));
                     break;
                     
                 case "color":
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createColorPropertyFromRGB(\"%s\", %s, %s));\n",
-                        propertyName, propertyName, defaultValue, defaultValue));
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createColorPropertyFromRGB(\"%s\", %s, %s, %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, editable));
                     break;
 
                 case "vector3f":
@@ -161,8 +184,8 @@ public class SettingsGenerator {
                     }
                     vector3fBuilder.append(")");
                     String vector3f = vector3fBuilder.toString();
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createVector3fProperty(\"%s\", %s, %s));\n",
-                        propertyName, propertyName, vector3f, vector3f));
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createVector3fProperty(\"%s\", %s, %s, %s));\n",
+                        propertyName, propertyName, vector3f, vector3f, editable));
                     break;
 
                     case "doubleArray":
@@ -175,12 +198,12 @@ public class SettingsGenerator {
                     }
                     arrayBuilder.append("}");
                     String javaArray = arrayBuilder.toString();
-                    code.append(String.format("\t\tproperties.put(\"%s\", new Property<>(\"%s\", new double[]%s, new double[]%s));\n",
-                        propertyName, propertyName, javaArray, javaArray));
+                    code.append(String.format("\t\t{ Property<double[]> p = new Property<>(\"%s\", new double[]%s, new double[]%s); p.setTypeName(\"doubleArray\"); p.setEditable(%s); properties.put(\"%s\", p); }\n",
+                        propertyName, javaArray, javaArray, editable, propertyName));
                     break;
                 default:
-                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createStringProperty(\"%s\", \"%s\", \"%s\"));\n",
-                        propertyName, propertyName, defaultValue, defaultValue));
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createStringProperty(\"%s\", \"%s\", \"%s\", %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, editable));
                     break;
             }
             code.append("\n");

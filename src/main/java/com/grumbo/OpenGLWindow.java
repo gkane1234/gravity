@@ -7,6 +7,8 @@ import org.joml.*;
 
 import java.nio.*;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.lwjgl.glfw.Callbacks.*;
@@ -24,6 +26,7 @@ public class OpenGLWindow {
     private double lastX = Settings.getInstance().getWidth() / 2.0;
     private double lastY = Settings.getInstance().getHeight() / 2.0;
     private boolean firstMouse = true;
+    private boolean mouseCaptured = true;
     
     // Mouse wheel for Z movement
     private float scrollOffset = 0.0f;
@@ -31,12 +34,50 @@ public class OpenGLWindow {
     // Reference to gravity simulator
     private GravitySimulator simulator;
     private GravityUI ui;
+    private Map<String, Slider> sliders = new HashMap<>();
+    private Map<String, UITextField> textFields = new HashMap<>();
+    private Map<String, UIButton> incButtons = new HashMap<>();
+    private Map<String, UIButton> decButtons = new HashMap<>();
+    private Slider activeSlider = null;
+    private void bumpValue(Settings settings, Property<?> prop, String name, double factor) {
+        String type = prop.getTypeName();
+        try {
+            if ("int".equals(type)) {
+                int current = (Integer) settings.getValue(name);
+                settings.setValue(name, (int) java.lang.Math.round(current * factor));
+            } else if ("double".equals(type)) {
+                double current = (Double) settings.getValue(name);
+                settings.setValue(name, current * factor);
+            } else if ("float".equals(type)) {
+                float current = (Float) settings.getValue(name);
+                settings.setValue(name, (float) (current * factor));
+            }
+            settings.saveSettings();
+        } catch (Exception ignore) {}
+    }
+    private void syncTextField(String name, Settings settings) {
+        UITextField tf = textFields.get(name);
+        if (tf != null && !tf.isFocused()) {
+            Object v = settings.getValue(name);
+            tf.setTextFromValue(v);
+        }
+    }
+    private double mouseX = 0.0;
+    private double mouseY = 0.0;
     
     // Settings panel state
-    private boolean settingsPanelVisible = false;
+    private boolean debug = false;
     
     // Bitmap font for UI text
     private BitmapFont font;
+
+    private enum State {
+        LOADING,
+        RUNNING,
+        PAUSED,
+    }
+    private State state = State.RUNNING;
+
 
     public OpenGLWindow() {
         this(null);
@@ -78,6 +119,9 @@ public class OpenGLWindow {
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
+        // Restore default settings on startup
+        Settings.getInstance().restoreDefaults();
+
         // Create the window
         window = glfwCreateWindow(Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), "Gravity Simulator 3D", NULL, NULL);
         if (window == NULL)
@@ -88,7 +132,6 @@ public class OpenGLWindow {
 
         // Center the window
         centerWindow();
-
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
@@ -106,11 +149,22 @@ public class OpenGLWindow {
         // Key callback
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
             if (key == GLFW_KEY_GRAVE_ACCENT && action == GLFW_PRESS) {
-                settingsPanelVisible = !settingsPanelVisible;
+                debug = !debug;
             }
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
-
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+                mouseCaptured = !mouseCaptured;
+                glfwSetInputMode(window, GLFW_CURSOR, mouseCaptured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+                if (mouseCaptured) {
+                    firstMouse = true;
+                }
+            }
+            // Route keys to focused textfields when not captured
+            if (!mouseCaptured && debug) {
+                for (UITextField tf : textFields.values()) {
+                    if (tf.isFocused() && tf.handleKey(key, action, mods)) {
+                        return;
+                    }
+                }
             }
             
             ui.updateKeys(key, action);
@@ -118,6 +172,9 @@ public class OpenGLWindow {
         
         // Mouse callback for FPS-style camera rotation (always active)
         glfwSetCursorPosCallback(window, (window, xpos, ypos) -> {
+            // Track mouse for UI hit testing
+            mouseX = xpos;
+            mouseY = ypos;
             if (firstMouse) {
                 lastX = xpos;
                 lastY = ypos;
@@ -128,20 +185,60 @@ public class OpenGLWindow {
             double yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
             lastX = xpos;
             lastY = ypos;
+            if (mouseCaptured) {
+                xoffset *= Settings.getInstance().getMouseRotationSensitivity();
+                yoffset *= Settings.getInstance().getMouseRotationSensitivity();
 
-            xoffset *= Settings.getInstance().getMouseRotationSensitivity();
-            yoffset *= Settings.getInstance().getMouseRotationSensitivity();
+                Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + xoffset));
+                Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + yoffset));
 
-            Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + xoffset));
-            Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + yoffset));
+                // Constrain pitch to prevent camera flipping
+                if (Settings.getInstance().getPitch() > 89.0f)
+                    Settings.getInstance().setPitch(89.0f);
+                if (Settings.getInstance().getPitch() < -89.0f)
+                    Settings.getInstance().setPitch(-89.0f);
 
-            // Constrain pitch to prevent camera flipping
-            if (Settings.getInstance().getPitch() > 89.0f)
-                Settings.getInstance().setPitch(89.0f);
-            if (Settings.getInstance().getPitch() < -89.0f)
-                Settings.getInstance().setPitch(-89.0f);
+                updateCameraDirection();
+            } else if (debug && activeSlider != null) {
+                activeSlider.handleMouseDrag(xpos, ypos);
+            }
+        });
 
-            updateCameraDirection();
+        // Mouse button callback for UI
+        glfwSetMouseButtonCallback(window, (window, button, action, mods) -> {
+            if (!mouseCaptured && debug && button == GLFW_MOUSE_BUTTON_LEFT) {
+                if (action == GLFW_PRESS) {
+                    activeSlider = null;
+                    for (Slider slider : sliders.values()) {
+                        if (slider.handleMouseDown(mouseX, mouseY)) { activeSlider = slider; break; }
+                    }
+                    if (activeSlider == null) {
+                        // Text fields
+                        for (UITextField tf : textFields.values()) {
+                            if (tf.handleMouseDown(mouseX, mouseY)) break;
+                        }
+                        // Buttons
+                        for (UIButton b : incButtons.values()) { if (b.handleMouseDown(mouseX, mouseY)) break; }
+                        for (UIButton b : decButtons.values()) { if (b.handleMouseDown(mouseX, mouseY)) break; }
+                    }
+                } else if (action == GLFW_RELEASE) {
+                    if (activeSlider != null) {
+                        activeSlider.handleMouseUp();
+                        activeSlider = null;
+                    }
+                }
+            }
+        });
+
+        // Text input callback
+        glfwSetCharCallback(window, (window, codepoint) -> {
+            if (!mouseCaptured && debug) {
+                for (UITextField tf : textFields.values()) {
+                    if (tf.isFocused() && tf.handleChar(codepoint)) {
+                        break;
+                    }
+                }
+            }
         });
         
         // Mouse wheel callback for Z movement
@@ -155,6 +252,11 @@ public class OpenGLWindow {
         // Window resize callback
         glfwSetFramebufferSizeCallback(window, (window, width, height) -> {
             glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
+        });
+        
+        // Window close callback
+        glfwSetWindowCloseCallback(window, (window) -> {
+            glfwSetWindowShouldClose(window, true);
         });
     }
     
@@ -224,27 +326,36 @@ public class OpenGLWindow {
         System.out.println("Starting render loop...");
         
         while (!glfwWindowShouldClose(window)) {
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // Process WASD movement
-            processMovement();
+            if (state == State.RUNNING) {
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // Set up 3D projection matrix
-            setupProjection();
-            
-            // Set up view matrix (camera)
-            setupCamera();
+                // Process WASD movement
+                processMovement();
 
-            drawPlanets();
-            
-            // Draw crosshair last (on top)
-            drawCrosshair();
-            
-            // Draw settings panel if visible (on top of everything)
-            drawSettingsPanel();
+                // Set up 3D projection matrix
+                setupProjection();
+                
+                // Set up view matrix (camera)
+                setupCamera();
+
+                drawPlanets();
+                
+                // Draw crosshair last (on top)
+                drawCrosshair();
+                
+                // Draw settings panel if visible (on top of everything)
+
+            }
+
+            if (debug) {
+                drawSettingsPanel();
+
+            }
 
             glfwSwapBuffers(window);
             glfwPollEvents();
+            
         }
         
         System.out.println("Render loop ended");
@@ -472,9 +583,6 @@ public class OpenGLWindow {
     }
     
     private void drawSettingsPanel() {
-        if (!settingsPanelVisible) {
-            return;
-        }
         
         // Switch to 2D rendering mode
         glMatrixMode(GL_PROJECTION);
@@ -495,32 +603,140 @@ public class OpenGLWindow {
         // Later we'll add actual property display and controls
         glColor3f(1.0f, 1.0f, 1.0f);
         
-        // Display properties (simplified text representation for now)
+        // Display properties
         float yPos = 30.0f;
-        float lineHeight = 20.0f;
+        float rowHeight = (float) java.lang.Math.max(18.0f, font != null ? font.getCharHeight() * 1.3f : 18.0f);
         
         // Draw title
         drawText("=== SETTINGS ===", 20.0f, yPos, font.getFontSize());
-        yPos += lineHeight * 2;
+        yPos += rowHeight * 2;
         
-        // Get all properties from Settings
+        // Build editable controls (once)
+        // - Text input for all editable props (value only shown in text field)
+        // - Sliders for numeric props with real, finite min/max
+        // - +/- buttons for numeric text inputs without full range (factor 1.1)
         Settings settings = Settings.getInstance();
-        ArrayList<String> propertyNames = settings.getPropertyNames();
-        
-        for (String propName : propertyNames) {
+        if (sliders.isEmpty()) {
+            for (String name : settings.getPropertyNames()) {
+                Property<?> prop = settings.getProperty(name);
+                if (prop == null || !prop.isEditable()) continue;
+                // Always create a text field for the value display
+                float tfX = 0f, tfY = 0f, tfW = 250.0f, tfH = (float) java.lang.Math.max(16.0f, font.getCharHeight());
+                UITextField tf = new UITextField(tfX, tfY, tfW, tfH, String.valueOf(prop.getValue()));
+                tf.setOnCommit(() -> {
+                    String type = prop.getTypeName();
+                    String txt = tf.getText();
+                    try {
+                        if ("int".equals(type)) settings.setValue(name, Integer.parseInt(txt.trim()));
+                        else if ("double".equals(type)) settings.setValue(name, Double.parseDouble(txt.trim()));
+                        else if ("float".equals(type)) settings.setValue(name, Float.parseFloat(txt.trim()));
+                        else if ("string".equals(type)) settings.setValue(name, txt);
+                        settings.saveSettings();
+                        // If a slider exists for this property, sync it to the typed value
+                        if (sliders.containsKey(name) && (prop.isNumeric())) {
+                            double val = ((Number) settings.getValue(name)).doubleValue();
+                            sliders.get(name).setValue(val);
+                        }
+                    } catch (Exception ignore) {}
+                });
+                textFields.put(name, tf);
+
+                // Create slider for ranged numerics
+                if (prop.isNumeric() && prop.hasRange() &&
+                    java.lang.Double.isFinite(prop.getMinAsDouble()) && java.lang.Double.isFinite(prop.getMaxAsDouble()) &&
+                    java.lang.Math.abs(prop.getMinAsDouble()) < 1e300 && java.lang.Math.abs(prop.getMaxAsDouble()) < 1e300) {
+                    double current = ((Number) prop.getValue()).doubleValue();
+                    float sx = 0f, sy = 0f;
+                    float sw = 300.0f;
+                    float sh = (float) java.lang.Math.max(16.0f, font.getCharHeight());
+                    double min = prop.getMinAsDouble();
+                    double max = prop.getMaxAsDouble();
+                    Slider slider = new Slider(sx, sy, sw, sh, min, max, current, (val) -> {
+                        // On change, set value and save
+                        String type = prop.getTypeName();
+                        if ("int".equals(type)) settings.setValue(name, (int) java.lang.Math.round(val));
+                        else if ("double".equals(type)) settings.setValue(name, val);
+                        else if ("float".equals(type)) settings.setValue(name, (float)val.doubleValue());
+                        settings.saveSettings();
+                        // Sync text field with slider value
+                        syncTextField(name, settings);
+                    });
+                    sliders.put(name, slider);
+                } else if (prop.isNumeric()) {
+                    // +/- buttons for non-ranged numeric
+                    float btnH = tfH;
+                    float btnW = 28.0f;
+                    UIButton plus = new UIButton(0f, 0f, btnW, btnH, "+", () -> {
+                        bumpValue(settings, prop, name, 1.1);
+                        syncTextField(name, settings);
+                    });
+                    UIButton minus = new UIButton(0f, 0f, btnW, btnH, "-", () -> {
+                        bumpValue(settings, prop, name, 1.0/1.1);
+                        syncTextField(name, settings);
+                    });
+                    incButtons.put(name, plus);
+                    decButtons.put(name, minus);
+                }
+            }
+        }
+
+        for (String name : settings.getPropertyNames()) {
+            Property<?> prop = settings.getProperty(name);
+            if (prop == null || !prop.isEditable()) continue;
             try {
-                Object value = settings.getValue(propName);
-                String displayText = propName + ": " + formatValue(value);
-                drawText(displayText, 20.0f, yPos, font.getFontSize());
-                yPos += lineHeight;
+                Object value = settings.getValue(name);
+                String label = name + ":";
+                float labelX = 20.0f;
+                drawText(label, labelX, yPos, font.getFontSize());
+                // Compute dynamic control positions based on label width
+                float padding = 10.0f;
+                float labelWidth = (font != null && font.isLoaded()) ? font.getTextWidth(label, font.getFontSize()) : 100.0f;
+                float controlsX = labelX + labelWidth + padding;
+                float baselineY = yPos - font.getCharHeight() * 0.5f;
+
+                // Text field always present
+                if (textFields.containsKey(name)) {
+                    UITextField tf = textFields.get(name);
+                    float tfW = 220.0f;
+                    float tfH = (float) java.lang.Math.max(16.0f, font.getCharHeight());
+                    tf.setPosition(controlsX, baselineY);
+                    tf.setSize(tfW, tfH);
+                    if (!tf.isFocused()) tf.setTextFromValue(value);
+                    tf.draw(font);
+
+                    // Slider for ranged numerics placed after text field
+                    if (sliders.containsKey(name)) {
+                        Slider slider = sliders.get(name);
+                        float sx = controlsX + tfW + 8.0f;
+                        slider.setPosition(sx, baselineY);
+                        slider.setSize(220.0f, (float) java.lang.Math.max(16.0f, font.getCharHeight()));
+                        slider.setValue(((Number) value).doubleValue());
+                        slider.draw();
+                    }
+
+                    // +/- buttons for non-ranged numerics placed after text field
+                    if (incButtons.containsKey(name)) {
+                        UIButton plus = incButtons.get(name);
+                        UIButton minus = decButtons.get(name);
+                        float btnW = 28.0f;
+                        float btnH = (float) java.lang.Math.max(16.0f, font.getCharHeight());
+                        plus.setPosition(controlsX + tfW + 8.0f, baselineY);
+                        plus.setSize(btnW, btnH);
+                        minus.setPosition(controlsX + tfW + 8.0f + btnW + 6.0f, baselineY);
+                        minus.setSize(btnW, btnH);
+                        plus.draw(font);
+                        minus.draw(font);
+                    }
+                }
+                yPos += rowHeight;
             } catch (Exception e) {
-                // Skip if property doesn't exist
+                // Skip if property missing
             }
         }
         
         // Instructions
-        yPos += lineHeight;
-        drawText("Press ESC to close", 20.0f, yPos, font.getFontSize());
+        yPos += rowHeight;
+        drawText("Press ESC to capture/release mouse. Click fields to edit. Enter to commit.", 20.0f, yPos, font.getFontSize());
         
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
@@ -557,6 +773,7 @@ public class OpenGLWindow {
     private void drawText(String text, float x, float y) {
         drawText(text, x, y, 1.0f);
     }
+    
     
     private void drawText(String text, float x, float y, float scale) {
         if (font != null && font.isLoaded()) {

@@ -38,94 +38,94 @@ public class Settings {
 	// Any changes made here will be overwritten when regenerating
 	private void initializeProperties() {
 		// Window width in pixels
-		properties.put("width", Property.createIntProperty("width", 1000, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE));
+		{ Property<Integer> p = Property.createIntProperty("width", 1000, 1000); p.setEditable(true); properties.put("width", p); }
 
 		// Window height in pixels
-		properties.put("height", Property.createIntProperty("height", 1000, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE));
+		{ Property<Integer> p = Property.createIntProperty("height", 1000, 1000); p.setEditable(true); properties.put("height", p); }
 
 		// Camera zoom level
-		properties.put("zoom", Property.createDoubleProperty("zoom", 0.01, 0.01, -Double.MAX_VALUE, Double.MAX_VALUE));
+		{ Property<Double> p = Property.createDoubleProperty("zoom", 0.01, 0.01); p.setEditable(true); properties.put("zoom", p); }
 
 		// Follow mode enabled
-		properties.put("follow", Property.createBooleanProperty("follow", false, false));
+		properties.put("follow", Property.createBooleanProperty("follow", false, false, true));
 
 		// Camera shift position
-		properties.put("shift", new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}));
+		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("doubleArray"); p.setEditable(true); properties.put("shift", p); }
 
 		// Size of physics chunks
-		properties.put("chunkSize", Property.createDoubleProperty("chunkSize", 100, 100, 1.0, Double.MAX_VALUE));
+		{ Property<Double> p = Property.createDoubleProperty("chunkSize", 100, 100); p.setEditable(true); properties.put("chunkSize", p); }
 
 		// Length of planet trails
-		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000));
+		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000, true));
 
 		// Draw planet trails
-		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false));
+		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false, true));
 
 		// Planet density
-		properties.put("density", Property.createDoubleProperty("density", 1, 1, -Double.MAX_VALUE, Double.MAX_VALUE));
+		{ Property<Double> p = Property.createDoubleProperty("density", 1, 1); p.setEditable(true); properties.put("density", p); }
 
 		// Force exponent
-		properties.put("expo", Property.createDoubleProperty("expo", -2.0, -2.0, -Double.MAX_VALUE, Double.MAX_VALUE));
+		{ Property<Double> p = Property.createDoubleProperty("expo", -2.0, -2.0); p.setEditable(true); properties.put("expo", p); }
 
 		// Collision elasticity
-		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0));
+		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));
 
 		// Default planet color
-		properties.put("defaultPlanetColor", Property.createColorPropertyFromRGB("defaultPlanetColor", 0x6dbdef, 0x6dbdef));
+		properties.put("defaultPlanetColor", Property.createColorPropertyFromRGB("defaultPlanetColor", 0x6dbdef, 0x6dbdef, true));
 
 		// Default background color
-		properties.put("defaultBackgroundColor", Property.createColorPropertyFromRGB("defaultBackgroundColor", 0x000000, 0x000000));
+		properties.put("defaultBackgroundColor", Property.createColorPropertyFromRGB("defaultBackgroundColor", 0x000000, 0x000000, true));
 
 		// Default text color
-		properties.put("defaultTextColor", Property.createColorPropertyFromRGB("defaultTextColor", 0xffffff, 0xffffff));
+		properties.put("defaultTextColor", Property.createColorPropertyFromRGB("defaultTextColor", 0xffffff, 0xffffff, true));
 
 		// Minimum mass for attract by center of mass
-		properties.put("minMassForAttractByCenterOfMass", Property.createDoubleProperty("minMassForAttractByCenterOfMass", 100, 100, -Double.MAX_VALUE, Double.MAX_VALUE));
+		{ Property<Double> p = Property.createDoubleProperty("minMassForAttractByCenterOfMass", 100, 100); p.setEditable(true); properties.put("minMassForAttractByCenterOfMass", p); }
 
 		// Maximum distance for full interaction
-		properties.put("maxDistanceForFullInteraction", Property.createIntProperty("maxDistanceForFullInteraction", 1, 1, Integer.MIN_VALUE, Integer.MAX_VALUE));
+		{ Property<Integer> p = Property.createIntProperty("maxDistanceForFullInteraction", 1, 1); p.setEditable(true); properties.put("maxDistanceForFullInteraction", p); }
 
 		// Tick size
-		properties.put("tickSize", Property.createDoubleProperty("tickSize", 0.1, 0.1, -Double.MAX_VALUE, Double.MAX_VALUE));
+		{ Property<Double> p = Property.createDoubleProperty("tickSize", 0.1, 0.1); p.setEditable(true); properties.put("tickSize", p); }
 
 		// Number of segments for sphere rendering
-		properties.put("sphereSegments", Property.createIntProperty("sphereSegments", 12, 12, Integer.MIN_VALUE, Integer.MAX_VALUE));
+		{ Property<Integer> p = Property.createIntProperty("sphereSegments", 12, 12); p.setEditable(true); properties.put("sphereSegments", p); }
 
 		// Field of view for camera
-		properties.put("fov", Property.createFloatProperty("fov", 45.0f, 45.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
 
 		// Near plane for camera
-		properties.put("nearPlane", Property.createFloatProperty("nearPlane", 0.1f, 0.1f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
-		properties.put("farPlane", Property.createFloatProperty("farPlane", 1000000.0f, 1000000.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("farPlane", 1000000.0f, 1000000.0f); p.setEditable(true); properties.put("farPlane", p); }
 
 		// Camera move speed
-		properties.put("cameraMoveSpeed", Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
 
 		// WASD movement sensitivity
-		properties.put("WASDSensitivity", Property.createFloatProperty("WASDSensitivity", 0.1f, 0.1f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 0.1f, 0.1f); p.setEditable(true); properties.put("WASDSensitivity", p); }
 
 		// Mouse wheel sensitivity
-		properties.put("mouseWheelSensitivity", Property.createFloatProperty("mouseWheelSensitivity", 20.0f, 20.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 20.0f, 20.0f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }
 
 		// Mouse rotation sensitivity
-		properties.put("mouseRotationSensitivity", Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f); p.setEditable(true); properties.put("mouseRotationSensitivity", p); }
 
 		// Camera position
-		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 100.0f), new Vector3f(0.0f, 0.0f, 100.0f)));
+		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 100.0f), new Vector3f(0.0f, 0.0f, 100.0f), true));
 
 		// Camera front vector
-		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f)));
+		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f), true));
 
 		// Camera up vector
-		properties.put("cameraUp", Property.createVector3fProperty("cameraUp", new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(0.0f, 1.0f, 0.0f)));
+		properties.put("cameraUp", Property.createVector3fProperty("cameraUp", new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(0.0f, 1.0f, 0.0f), true));
 
 		// Camera yaw
-		properties.put("yaw", Property.createFloatProperty("yaw", -90.0f, -90.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("yaw", -90.0f, -90.0f); p.setEditable(true); properties.put("yaw", p); }
 
 		// Camera pitch
-		properties.put("pitch", Property.createFloatProperty("pitch", 0.0f, 0.0f, -Float.MAX_VALUE,  Float.MAX_VALUE));
+		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
@@ -277,6 +277,14 @@ public class Settings {
 			currentShift[1] + ds[1],
 			currentShift[2] + ds[2]
 		});
+		saveSettings();
+	}
+
+	// Reset all properties to their default values (kept across regenerations)
+	public void restoreDefaults() {
+		for (Property<?> prop : properties.values()) {
+			prop.reset();
+		}
 		saveSettings();
 	}
 
