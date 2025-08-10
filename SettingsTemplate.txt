@@ -1,0 +1,109 @@
+SETTINGS TEMPLATE - Custom Convenience Methods
+===============================================
+
+This template shows how to add custom convenience methods to your Settings.java file
+that will be preserved by the SettingsGenerator when it regenerates the file.
+
+The generated Settings.java file will have clear comment sections:
+
+1. AUTO-GENERATED sections: These are regenerated from defaultProperties.json
+2. FIXED sections: These contain non-configurable values
+3. PRESERVED sections: These contain your custom methods that are preserved
+
+Add your custom methods in the PRESERVED section or after the auto-generated sections.
+
+EXAMPLE CUSTOM METHODS:
+
+// Convenience methods for backward compatibility
+public void changeZoom(double newZoom) {
+    setZoom(newZoom);
+    saveSettings();
+}
+
+public void toggleFollow() {
+    setFollow(!isFollow());
+    setShift(new double[] {0, 0, 0});
+    saveSettings();
+}
+
+public void moveCamera(double[] ds) {
+    double[] currentShift = getShift();
+    setShift(new double[] {
+        currentShift[0] + ds[0],
+        currentShift[1] + ds[1],
+        currentShift[2] + ds[2]
+    });
+    saveSettings();
+}
+
+// Additional utility methods
+public void resetToDefaults() {
+    for (Property<?> prop : properties.values()) {
+        prop.reset();
+    }
+    saveSettings();
+}
+
+public void reloadSettings() {
+    loadSettings();
+}
+
+public void exportSettings(String filename) {
+    try {
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> jsonData = new HashMap<>();
+        
+        for (Map.Entry<String, Property<?>> entry : properties.entrySet()) {
+            String key = entry.getKey();
+            Property<?> prop = entry.getValue();
+            
+            if (prop.getValue() instanceof Color) {
+                jsonData.put(key, ((Property<Color>)prop).getRGBValue());
+            } else {
+                jsonData.put(key, prop.getValue());
+            }
+        }
+        
+        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(filename), jsonData);
+        System.out.println("Settings exported to " + filename);
+    } catch (IOException e) {
+        System.err.println("Failed to export settings: " + e.getMessage());
+    }
+}
+
+// Custom validation methods
+public boolean validateSettings() {
+    boolean valid = true;
+    for (Map.Entry<String, Property<?>> entry : properties.entrySet()) {
+        try {
+            Property<?> prop = entry.getValue();
+            prop.getValue(); // This will trigger validation
+        } catch (Exception e) {
+            System.err.println("Invalid setting " + entry.getKey() + ": " + e.getMessage());
+            valid = false;
+        }
+    }
+    return valid;
+}
+
+// Custom business logic methods
+public void applyHighPerformanceSettings() {
+    setChunkSize(20);
+    setTailLength(5);
+    setDrawTail(false);
+    saveSettings();
+}
+
+public void applyVisualQualitySettings() {
+    setChunkSize(5);
+    setTailLength(50);
+    setDrawTail(true);
+    saveSettings();
+}
+
+HOW TO USE:
+1. Add your custom methods to Settings.java after the auto-generated getters/setters
+2. Run the generator: mvn compile or generate-settings.bat
+3. Your custom methods will be preserved and included in the new generated file
+
+The generator will automatically detect and preserve methods that are not auto-generated getters/setters. 

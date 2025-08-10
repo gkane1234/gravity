@@ -5,11 +5,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class Chunk {
 	
-	private static final double MIN_MASS_FOR_ATTRACT_BY_CENTER_OF_MASS = 100;
 
-	private static final int MAX_DISTANCE_FOR_FULL_INTERACTION = 1; //in chunks
-
-	private static final double TICK_SIZE=0.1;
 
 	public static AtomicLong counterSame = new AtomicLong(0);
 	
@@ -22,7 +18,7 @@ public class Chunk {
 	
 	double mass;
 	
-	long[] center;
+	CoordKey center;
 	
 
 	public Chunk(Planet p) {
@@ -30,21 +26,28 @@ public class Chunk {
 		addPlanet(p);
 	}
 
-	public Chunk(long[] center) {
+	public Chunk(CoordKey center) {
 		planets = new ArrayList<Planet>();
-		this.center = Chunk.getChunkCenter(center);
-
+		this.center = center;
+		//System.out.println("Chunk created at " + this.center.x + "," + this.center.y + "," + this.center.z+" and chunk object "+this);
 	}
+
+
 	
 	
 	public void addPlanet(Planet p) {
-		planets.add(p);
-		mass+=p.mass;
+		synchronized (planets) {
+			planets.add(p);
+			mass+=p.mass;
+			p.chunkCenter = this.center; // Set planet's reference to this chunk's CoordKey
+		}
 	}
 	
 	public void removePlanet(int p) {
-		mass-=planets.get(p).mass;
-		planets.remove(p);
+		synchronized (planets) {
+			mass-=planets.get(p).mass;
+			planets.remove(p);
+		}
 	}
 	
 	/**
@@ -56,7 +59,7 @@ public class Chunk {
 			return;
 		}
 		
-		if (distance(this,chunk2)>MAX_DISTANCE_FOR_FULL_INTERACTION) {
+		if (distance(this,chunk2)>Settings.getInstance().getMaxDistanceForFullInteraction()) {
 			attractByCenterOfMassWithAccumulation(chunk2, forceAccumulator);
 			return;
 		}
@@ -68,16 +71,17 @@ public class Chunk {
 				Planet q = chunk2.planets.get(j);
 				
 				// Calculate forces without modifying planets
-				Map<Planet, double[]> forces = Planet.calculateAttractionForces(p, q, TICK_SIZE);
+				Map<Planet, double[]> forces = Planet.calculateAttractionForces(p, q, Settings.getInstance().getTickSize());
 				
 				// Accumulate forces
 				for (Map.Entry<Planet, double[]> entry : forces.entrySet()) {
 					Planet planet = entry.getKey();
 					double[] force = entry.getValue();
 					
-					forceAccumulator.computeIfAbsent(planet, k -> new double[2]);
+					forceAccumulator.computeIfAbsent(planet, k -> new double[3]);
 					forceAccumulator.get(planet)[0] += force[0]; // x component
 					forceAccumulator.get(planet)[1] += force[1]; // y component
+					forceAccumulator.get(planet)[2] += force[2]; // z component
 				}
 			}
 		}
@@ -93,7 +97,7 @@ public class Chunk {
 	}
 
 	public void moveOnePlanet(Planet p) {
-		p.move(TICK_SIZE);
+		p.move(Settings.getInstance().getTickSize());
 		planets.set(planets.indexOf(p), p);
 	}
 
@@ -115,25 +119,21 @@ public class Chunk {
 		//checks if the x and y coordinates are correct
 		if (o.getClass()==Chunk.class) {
 			Chunk c= (Chunk)o;
-			return equalComponents(c.center,center);
+			return c.center.equals(center);
 		}
-		if (o.getClass()==long[].class) {
+		if (o.getClass()==CoordKey.class) {
 			
-			long[] d=(long[])o;
+			CoordKey d=(CoordKey)o;
 			
-			return equalComponents(d,center);
+			return d.equals(center);
 		}
 		return false;
 	}
 	
-	private boolean equalComponents(long[] d1,long[] d2) {
-		
-		return d1[0]==d2[0]&&d1[1]==d2[1];
-	}
 
 
 	private static double distance(Chunk chunk1, Chunk chunk2) {
-		return Math.hypot(chunk1.center[0]-chunk2.center[0],chunk1.center[1]-chunk2.center[1]);
+		return Math.sqrt(Math.pow(chunk1.center.x-chunk2.center.x,2) + Math.pow(chunk1.center.y-chunk2.center.y,2) + Math.pow(chunk1.center.z-chunk2.center.z,2));
 	}
 
 	
@@ -153,7 +153,7 @@ public class Chunk {
 					//accumulateForces(a,b,forces,forceAccumulator);
 				}
 				else {
-					forces = Planet.calculateAttractionForces(a, b, TICK_SIZE);
+					forces = Planet.calculateAttractionForces(a, b, Settings.getInstance().getTickSize());
 					accumulateForces(a,b,forces,forceAccumulator);
 				}
 				
@@ -167,9 +167,10 @@ public class Chunk {
 			Planet planet = entry.getKey();
 			double[] force = entry.getValue();
 			
-			forceAccumulator.computeIfAbsent(planet, k -> new double[2]);
+			forceAccumulator.computeIfAbsent(planet, k -> new double[3]);
 			forceAccumulator.get(planet)[0] += force[0]; // x component
 			forceAccumulator.get(planet)[1] += force[1]; // y component
+			forceAccumulator.get(planet)[2] += force[2]; // z component
 		}
 	}
 		
@@ -178,34 +179,28 @@ public class Chunk {
 	 * Thread-safe version for center of mass attraction with force accumulation
 	 */
 	private void attractByCenterOfMassWithAccumulation(Chunk chunk2, Map<Planet, double[]> forceAccumulator) {
-		if (chunk2.mass < MIN_MASS_FOR_ATTRACT_BY_CENTER_OF_MASS) return;
+		if (chunk2.mass < Settings.getInstance().getMinMassForAttractByCenterOfMass()) return;
 		
 		long t = System.currentTimeMillis();
 		
-		Planet centerOfMass2 = new Planet(Global.chunkSize*chunk2.center[0], Global.chunkSize*chunk2.center[1], 0, 0, chunk2.mass);
-		Planet centerOfMass1 = new Planet(Global.chunkSize*center[0], Global.chunkSize*center[1], 0, 0, 0);
+		Planet centerOfMass2 = new Planet(Settings.getInstance().getChunkSize()*chunk2.center.x,Settings.getInstance().getChunkSize()*chunk2.center.y, Settings.getInstance().getChunkSize()*chunk2.center.z,
+		0, 0, 0, chunk2.mass);
+		Planet centerOfMass1 = new Planet(Settings.getInstance().getChunkSize()*center.x, Settings.getInstance().getChunkSize()*center.y, Settings.getInstance().getChunkSize()*center.z,
+		 0, 0, 0, 0);
 		
-		double[] residuals = Planet.forceOfAttract(centerOfMass1, centerOfMass2, TICK_SIZE);
+		double[] residuals = Planet.forceOfAttract(centerOfMass1, centerOfMass2, Settings.getInstance().getTickSize());
 		
 		// Accumulate forces for all planets in this chunk
 		for (int i = 0; i < planets.size(); i++) {
 			Planet p = planets.get(i);
 			
-			forceAccumulator.computeIfAbsent(p, k -> new double[2]);
+			forceAccumulator.computeIfAbsent(p, k -> new double[3]);
 			forceAccumulator.get(p)[0] -= residuals[0]; // x component
 			forceAccumulator.get(p)[1] -= residuals[1]; // y component
+			forceAccumulator.get(p)[2] -= residuals[2]; // z component
 		}
 		counterCom.addAndGet(System.currentTimeMillis()-t);
 	}
 	
-	public static long[] getChunkCenter(double[] spaceCoordinates) {
-		double chunkX = Math.floor(spaceCoordinates[0] / Global.chunkSize + 0.5);
-        double chunkY = Math.floor(spaceCoordinates[1] / Global.chunkSize + 0.5);
-		return new long[] {(long) chunkX, (long) chunkY};
-	}
 
-	public static long[] getChunkCenter(long[] spaceCoordinates) {
-		return getChunkCenter(new double[] {spaceCoordinates[0], spaceCoordinates[1]});
-	}
-	
 }
