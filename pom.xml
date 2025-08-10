@@ -94,6 +94,25 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <executions>
+                    <execution>
+                        <id>compile-settings-generator</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>com/grumbo/SettingsGenerator.java</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
@@ -107,8 +126,8 @@
             <configuration>
               <mainClass>com.grumbo.SettingsGenerator</mainClass>
               <arguments>
-                <argument>/Users/gabrielkane/Documents/stuff/gravitychunk/gravity/src/main/resources/defaultProperties.json</argument>
-                <argument>/Users/gabrielkane/Documents/stuff/gravitychunk/gravity/src/main/java/com/grumbo/Settings.java</argument>
+                <argument>${project.basedir}/src/main/resources/defaultProperties.json</argument>
+                <argument>${project.basedir}/src/main/java/com/grumbo/Settings.java</argument>
               </arguments>
             </configuration>
           </execution>
