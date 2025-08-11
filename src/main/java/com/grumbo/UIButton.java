@@ -21,6 +21,9 @@ public class UIButton extends UIElement {
     public void setLabel(String label) {
         this.label = label;
     }
+    public String getLabel() {
+        return label;
+    }
 
     @Override
     public boolean handleMousePress(double mouseX, double mouseY) {
@@ -50,7 +53,7 @@ public class UIButton extends UIElement {
     @Override
     public void draw(BitmapFont font) {
         // Background
-        glColor3f(0.2f, 0.2f, 0.2f);
+        glColor3f(defaultBackgroundColor[0], defaultBackgroundColor[1], defaultBackgroundColor[2]);
         glBegin(GL_QUADS);
         glVertex2f(x, y);
         glVertex2f(x + width, y);
@@ -59,7 +62,7 @@ public class UIButton extends UIElement {
         glEnd();
 
         // Border
-        glColor3f(0.9f, 0.9f, 0.9f);
+        glColor3f(defaultTextColor[0], defaultTextColor[1], defaultTextColor[2]);
         glBegin(GL_LINE_LOOP);
         glVertex2f(x, y);
         glVertex2f(x + width, y);

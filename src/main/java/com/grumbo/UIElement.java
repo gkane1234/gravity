@@ -8,6 +8,9 @@ public abstract class UIElement {
     protected float minWidth;
     protected float minHeight;
 
+    protected static final float[] defaultBackgroundColor = {0.2f, 0.2f, 0.2f};
+    protected static final float[] defaultTextColor = {0.9f, 0.9f, 0.9f};
+
     public UIElement(float x, float y, float width, float height, float minWidth, float minHeight) {
         this.x = x;
         this.y = y;
@@ -23,8 +26,8 @@ public abstract class UIElement {
     }
 
     public void setSize(float width, float height) {    
-        this.width = width;
-        this.height = height;
+        this.width = Math.max(width, minWidth);
+        this.height = Math.max(height, minHeight);
     }
 
     public float getWidth(BitmapFont font, String text) {

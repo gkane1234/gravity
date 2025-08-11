@@ -13,13 +13,22 @@ public class SettingsPane {
 
 
     private final Map<String, UIElement> propertyNameToElements = new HashMap<>();
+    private final Map<UIElement, Boolean> propertyRendered = new HashMap<>();
+
+    private UIButton nextPage;
+    private UIButton prevPage;
 
     private UISlider activeSlider = null;
     private double mouseX = 0.0;
     private double mouseY = 0.0;
 
+    private int currentPage = 0;
+    private double pageHeight = 0.0;
+    private int maxPage = 1; // make this dynamic
 
-    public SettingsPane() {}
+
+    public SettingsPane() {
+    }
 
     // -------- Public input hooks (to be called from window callbacks) --------
     public void onMouseMove(double x, double y) {
@@ -30,17 +39,18 @@ public class SettingsPane {
         }
     }
 
+
     public void onMouseButton(int button, int action) {
         if (button != GLFW_MOUSE_BUTTON_LEFT) return;
 
         if (action == GLFW_PRESS) {
+
             activeSlider = null;
             for (UIElement element : propertyNameToElements.values()) {
-                if (element.handleMousePress(mouseX, mouseY)) {
+                if (wasRendered(element) && element.handleMousePress(mouseX, mouseY)) {
                     if (element instanceof UISlider) {
                             activeSlider = (UISlider) element;
                         }
-                    return;
                 }
             }
         } else if (action == GLFW_RELEASE) {
@@ -71,6 +81,8 @@ public class SettingsPane {
 
     // -------- Rendering --------
     public void draw(BitmapFont font) {
+        beginUiFrame();
+
         // Switch to 2D rendering mode
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
@@ -87,14 +99,27 @@ public class SettingsPane {
         glColor3f(1.0f, 1.0f, 1.0f);
 
         float yPos = 30.0f;
+        float xOffset = 20.0f;
+        float bottomSpace = 80.0f;
+        float topSpace = 30.0f;
+
+
         float charH = (font != null ? font.getCharHeight() : 16.0f);
         float verticalPad = Math.max(4.0f, charH * 0.25f);
         float tfHGlobal = charH + verticalPad; // box taller than text so text centers automatically
         float rowHeight = Math.max(18.0f, Math.max(charH * 1.3f, tfHGlobal + 4.0f));
 
+        float bottomY = Settings.getInstance().getHeight() - bottomSpace;
+
+
         // Title
-        drawText("=== SETTINGS ===", 20.0f, yPos, font);
-        yPos += rowHeight * 2;
+        drawText("=== SETTINGS " + (currentPage + 1)+  " ===", xOffset, yPos, font);
+        yPos += rowHeight;
+
+        float pageY = yPos;
+        pageHeight = bottomY - pageY;
+
+
 
         // Layout and draw per-property controls
         Settings settings = Settings.getInstance();
@@ -102,51 +127,64 @@ public class SettingsPane {
             Property<?> prop = settings.getProperty(name);
             if (prop == null || !prop.isEditable()) continue;
 
-            try {
-                Object value = settings.getValue(name);
-                String label = name + ":";
-                float labelX = 20.0f;
-                drawText(label, labelX, yPos, font);
+            float yPosOnPage = (float) (yPos - pageHeight*currentPage);
+            if (yPosOnPage>=pageY && yPosOnPage+tfHGlobal<=pageY+pageHeight) {
+                try {
+                    
+                    Object value = settings.getValue(name);
+                    String label = name + ":";
+                    drawText(label, xOffset, yPosOnPage, font);
 
-                // Match renderer width = chars * charWidth + (chars-1) * spacing
-                float charWidth = (font != null ? font.getCharWidth(font.getFontSize()) : 8.0f);
-                float spacing = 1.0f; // default spacing used by renderer
-                int numChars = label.length();
-                float labelWidth = (numChars <= 0) ? 0 : (numChars * charWidth + (numChars - 1) * spacing);
+                    // Match renderer width = chars * charWidth + (chars-1) * spacing
+                    float charWidth = (font != null ? font.getCharWidth(font.getFontSize()) : 8.0f);
+                    float spacing = 1.0f; // default spacing used by renderer
+                    int numChars = label.length();
+                    float labelWidth = (numChars <= 0) ? 0 : (numChars * charWidth + (numChars - 1) * spacing);
 
-                float padding = 10.0f; // keep existing padding
-                float controlsX = labelX + labelWidth + padding;
-                float textFieldHeight = tfHGlobal;
-                float topY = yPos + (charH - textFieldHeight) / 2.0f; // center box around the label line
+                    float padding = 10.0f; // keep existing padding
+                    float controlsX = xOffset + labelWidth + padding;
 
-                // Dispatch to type-specific editor renderers
-                String type = prop.getTypeName();
-                if ("int".equals(type)) {
-                    renderIntEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("double".equals(type)) {
-                    renderDoubleEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("float".equals(type)) {
-                    renderFloatEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("boolean".equals(type)) {
-                    renderBooleanEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("string".equals(type)) {
-                    renderStringEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("color".equals(type)) {
-                    renderColorEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("vector3f".equals(type)) {
-                    renderVector3fEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else if ("doubleArray".equals(type)) {
-                    renderDoubleArrayEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
-                } else {
-                    // Fallback: generic text field
-                    renderStringEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    float textFieldHeight = tfHGlobal;
+                    float topY = yPosOnPage + (charH - textFieldHeight) / 2.0f; // center box around the label line
+
+                
+                    // Dispatch to type-specific editor renderers
+                    String type = prop.getTypeName();
+                    if ("int".equals(type)) {
+                        renderIntEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("double".equals(type)) {
+                        renderDoubleEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("float".equals(type)) {
+                        renderFloatEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("boolean".equals(type)) {
+                        renderBooleanEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("string".equals(type)) {
+                        renderStringEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("color".equals(type)) {
+                        renderColorEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("vector3f".equals(type)) {
+                        renderVector3fEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else if ("doubleArray".equals(type)) {
+                        renderDoubleArrayEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    } else {
+                        // Fallback: generic text field
+                        renderStringEditor(name, prop, controlsX, topY, textFieldHeight, font, value);
+                    }
+                    
+                } catch (Exception ignore) {
+                    // Skip missing/invalid property
                 }
-
-                yPos += rowHeight;
-            } catch (Exception ignore) {
-                // Skip missing/invalid property
             }
+            yPos += rowHeight;
         }
+
+        // Draw the next and previous page buttons
+        nextPage = ensureNextPageButton(font);
+        prevPage = ensurePrevPageButton(font);
+        nextPage.setPosition(xOffset, bottomY);
+        prevPage.setPosition(xOffset+nextPage.width+10, bottomY);
+        drawAndMark(nextPage, "nextPage", font);
+        drawAndMark(prevPage, "prevPage", font);
 
         // Instructions
         yPos += rowHeight;
@@ -168,17 +206,19 @@ public class SettingsPane {
         float textFieldWidth = 220.0f;
         textField.setPosition(x, y);
         textField.setSize(textFieldWidth, h);
+
+        float nextX = x + textField.width + 8.0f;
         if (!textField.isFocused()) textField.setTextFromValue(value);
-        textField.draw(font);
+        drawAndMark(textField, name, "textField", font);
 
         if (prop.isNumeric() && prop.hasRange()) {
             UISlider slider = ensureSlider(name, prop, font);
-            slider.setPosition(x + textFieldWidth + 8.0f, y);
+            slider.setPosition(nextX, y);
             slider.setSize(220.0f, h);
             slider.setValue(((Number) value).doubleValue());
-            slider.draw(font);
+            drawAndMark(slider, name, "slider", font);
         } else {
-            ensurePlusMinus(name, prop, x + textFieldWidth + 8.0f, y, h, font);
+            ensurePlusMinus(name, prop, nextX, y, h, font);
         }
     }
 
@@ -196,7 +236,7 @@ public class SettingsPane {
         textField.setPosition(x, y);
         textField.setSize(textFieldWidth, h);
         if (!textField.isFocused()) textField.setTextFromValue(value);
-        textField.draw(font);
+        drawAndMark(textField, name, "textField", font);
     }
 
     private void renderBooleanEditor(String name, Property<?> prop, float x, float y, float h, BitmapFont font, Object value) {
@@ -205,7 +245,7 @@ public class SettingsPane {
         button.setPosition(x, y);
         button.setSize(buttonWidth, h);
         button.setLabel(((Boolean) value) ? "True" : "False");
-        button.draw(font);
+        drawAndMark(button, name, "button", font);
     }
 
     private void renderColorEditor(String name, Property<?> prop, float x, float y, float h, BitmapFont font, Object value) {
@@ -215,7 +255,7 @@ public class SettingsPane {
         textField.setPosition(x, y);
         textField.setSize(textFieldWidth, h);
         if (!textField.isFocused()) textField.setTextFromValue(value);
-        textField.draw(font);
+        drawAndMark(textField, name, "textField", font);
     }
 
     private void renderVector3fEditor(String name, Property<?> prop, float x, float y, float h, BitmapFont font, Object value) {
@@ -301,8 +341,36 @@ public class SettingsPane {
         plusButton.setSize(btnW, h);
         minusButton.setPosition(startX + btnW + 6.0f, y);
         minusButton.setSize(btnW, h);
-        plusButton.draw(font);
-        minusButton.draw(font);
+        drawAndMark(plusButton, name, "plus", font);
+        drawAndMark(minusButton, name, "minus", font);
+    }
+
+    private UIButton ensureNextPageButton(BitmapFont font) {
+        final String buttonName = "nextPage";
+        UIButton button = (UIButton) propertyNameToElements.get(buttonName);
+        if (button == null) {
+            button = new UIButton(0f, 0f, textLength("Next", font)+4, font.getCharHeight()+4, "Next", () -> {
+                currentPage++;
+                if (currentPage > maxPage) currentPage = maxPage;
+
+            });
+            propertyNameToElements.put(buttonName, button);
+        }
+        return button;
+    }
+
+    private UIButton ensurePrevPageButton(BitmapFont font) {
+
+        final String buttonName = "prevPage";
+        UIButton button = (UIButton) propertyNameToElements.get(buttonName);
+        if (button == null) {
+            button = new UIButton(0f, 0f, textLength("Prev", font)+4, font.getCharHeight()+4, "Prev", () -> {
+                currentPage--;
+                if (currentPage < 0) currentPage = 0;
+            });
+            propertyNameToElements.put(buttonName, button);
+        }
+        return button;
     }
 
     private void bumpValue(Settings settings, Property<?> prop, String name, double factor) {
@@ -343,12 +411,18 @@ public class SettingsPane {
     }
 
     private void drawText(String text, float x, float y, BitmapFont font) {
+        glColor3f(UIElement.defaultTextColor[0], UIElement.defaultTextColor[1], UIElement.defaultTextColor[2]);
         if (font != null && font.isLoaded()) {
             font.drawText(text, x, y, 1.0f, font.getFontSize());
         } else {
             drawSimpleText(text, x, y);
         }
     }
+
+    private float textLength(String text, BitmapFont font) {
+        return font.getCharWidth(font.getFontSize()) * text.length();
+    }
+
 
     private void drawSimpleText(String text, float x, float y) {
         float charWidth = 8.0f;
@@ -371,5 +445,26 @@ public class SettingsPane {
             }
         }
         glEnd();
+    }
+
+    // -------- Render tracking helpers --------
+    private void beginUiFrame() {
+        propertyRendered.clear();
+    }
+
+    private void drawAndMark(UIElement element, String propertyName, String elementSuffix, BitmapFont font) {
+        if (element == null) return;
+        element.draw(font);
+        propertyRendered.put(element, true);
+    }
+
+    private void drawAndMark(UIElement element, String uniqueKey, BitmapFont font) {
+        if (element == null) return;
+        element.draw(font);
+        propertyRendered.put(element, true);
+    }
+
+    public boolean wasRendered(UIElement element) {
+        return Boolean.TRUE.equals(propertyRendered.get(element));
     }
 }

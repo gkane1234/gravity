@@ -27,7 +27,10 @@ public class UITextField extends UIElement {
 
     @Override
     public boolean handleMousePress(double mouseX, double mouseY) {
-        focused = hitTest(mouseX, mouseY);
+        focused = hitTest(mouseX, mouseY) && !focused;
+        if (focused) {
+            System.out.println("focused: " + focused);
+        }
         return focused;
     }
 
