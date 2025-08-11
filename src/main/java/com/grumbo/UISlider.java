@@ -3,11 +3,10 @@ package com.grumbo;
 import static org.lwjgl.opengl.GL11.*;
 import java.util.function.Consumer;
 
-public class Slider {
-    private float x;
-    private float y;
-    private float width;
-    private float height;
+public class UISlider extends UIElement {
+
+    private static final float MIN_SLIDER_WIDTH = 220.0f;
+    private static final float MIN_SLIDER_HEIGHT = 16.0f;
 
     private double minValue;
     private double maxValue;
@@ -16,26 +15,15 @@ public class Slider {
     private boolean dragging;
     private Consumer<Double> onChange;
 
-    public Slider(float x, float y, float width, float height, double minValue, double maxValue, double initialValue, Consumer<Double> onChange) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
+
+    public UISlider(float x, float y, float width, float height, double minValue, double maxValue, double initialValue, Consumer<Double> onChange) {
+        super(x, y, width, height, MIN_SLIDER_WIDTH, MIN_SLIDER_HEIGHT);
         this.minValue = minValue;
         this.maxValue = maxValue <= minValue ? minValue + 1.0 : maxValue;
         this.value = clamp(initialValue);
         this.onChange = onChange;
     }
 
-    public void setPosition(float x, float y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    public void setSize(float width, float height) {
-        this.width = width;
-        this.height = height;
-    }
 
     public void setRange(double min, double max) {
         this.minValue = min;
@@ -50,8 +38,8 @@ public class Slider {
     public void setValue(double newValue) {
         this.value = clamp(newValue);
     }
-
-    public void draw() {
+    @Override
+    public void draw(BitmapFont font) {
         // Track
         glColor3f(0.7f, 0.7f, 0.7f);
         glBegin(GL_QUADS);
@@ -72,8 +60,8 @@ public class Slider {
         glVertex2f(knobX - knobHalf, y + height);
         glEnd();
     }
-
-    public boolean handleMouseDown(double mouseX, double mouseY) {
+    @Override
+    public boolean handleMousePress(double mouseX, double mouseY) {
         if (isOverKnob(mouseX, mouseY) || isOverTrack(mouseX, mouseY)) {
             dragging = true;
             updateValueFromMouse(mouseX);
@@ -81,15 +69,26 @@ public class Slider {
         }
         return false;
     }
-
+    @Override
     public void handleMouseDrag(double mouseX, double mouseY) {
         if (dragging) {
             updateValueFromMouse(mouseX);
         }
     }
 
-    public void handleMouseUp() {
+
+    @Override
+    public void handleMouseRelease() {
         dragging = false;
+    }
+
+    @Override
+    public boolean handleKeyPress(int key, int action, int mods) {
+        return false;
+    }
+    @Override
+    public boolean handleCharPress(int codepoint) {
+        return false;
     }
 
     public boolean isDragging() {
@@ -126,6 +125,7 @@ public class Slider {
         if (v > maxValue) return maxValue;
         return v;
     }
+
 }
 
 

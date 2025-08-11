@@ -13,7 +13,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <lwjgl.version>3.3.3</lwjgl.version>
         <joml.version>1.10.5</joml.version>
-        <lwjgl.natives>natives-macos</lwjgl.natives>
+        <lwjgl.natives>natives-windows</lwjgl.natives>
     </properties>
 
     <dependencyManagement>
@@ -134,9 +134,6 @@
         </executions>
                 <configuration>
                     <mainClass>com.grumbo.Main</mainClass>
-                    <options>
-                        <option>-XstartOnFirstThread</option>
-                    </options>
                 </configuration>
             </plugin>
         </plugins>

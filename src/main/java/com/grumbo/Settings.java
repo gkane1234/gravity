@@ -8,11 +8,15 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import org.joml.Vector3f;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.Files;
 
 
 public class Settings {
 
-    private static final String SETTINGS_FILE = "settings.json";
+    private static final String SETTINGS_FILE = getSettingsFile().getAbsolutePath();
     private static Settings instance;
 
     // Property map to store all settings
@@ -306,8 +310,37 @@ public class Settings {
 	// ===== AUTO-GENERATED: Load/Save Methods =====
 	// These methods handle JSON serialization/deserialization
 	// Any changes made here will be overwritten when regenerating
+	private static File getSettingsFile() {
+		try {
+			java.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
+			java.nio.file.Path p = java.nio.file.Paths.get(loc.toURI());
+			java.nio.file.Path moduleRoot;
+			if (java.nio.file.Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
+				moduleRoot = p.getParent().getParent();
+			} else if (java.nio.file.Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
+				moduleRoot = p.getParent().getParent();
+			} else {
+				java.nio.file.Path q = p;
+				java.nio.file.Path found = null;
+				while (q != null) {
+					if (java.nio.file.Files.exists(q.resolve("pom.xml"))) { found = q; break; }
+					q = q.getParent();
+				}
+				moduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
+			}
+			java.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings.json");
+			return settingsPath.toFile();
+		} catch (Exception e) {
+			java.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
+			java.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings.json");
+			if (!java.nio.file.Files.exists(candidate.getParent())) {
+				candidate = userDir.resolve("src/main/resources/settings.json");
+			}
+			return candidate.toFile();
+		}
+	}
 	public void loadSettings() {
-		File file = new File(SETTINGS_FILE);
+		File file = getSettingsFile();
 		if (file.exists()) {
 			try {
 				ObjectMapper mapper = new ObjectMapper();
@@ -361,13 +394,14 @@ public class Settings {
 					}
 				}
 				
-				System.out.println("Settings loaded from " + SETTINGS_FILE);
+				System.out.println("Settings loaded from " + file.getAbsolutePath());
 			} catch (IOException e) {
 				System.err.println("Failed to load settings: " + e.getMessage());
 				System.out.println("Using default settings");
 			}
 		} else {
-			System.out.println("Settings file not found, using default settings");
+			System.out.println("Settings file not found, using default settings and Generating new settings file");
+			saveSettings();
 		}
 	}
 	
@@ -388,8 +422,11 @@ public class Settings {
 				}
 			}
 			
-			mapper.writerWithDefaultPrettyPrinter().writeValue(new File(SETTINGS_FILE), jsonData);
-			System.out.println("Settings saved to " + SETTINGS_FILE);
+			File file = getSettingsFile();
+			File parent = file.getParentFile();
+			if (parent != null) { parent.mkdirs(); }
+			mapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonData);
+			System.out.println("Settings saved to " + file.getAbsolutePath());
 		} catch (IOException e) {
 			System.err.println("Failed to save settings: " + e.getMessage());
 		}

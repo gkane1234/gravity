@@ -3,33 +3,21 @@ package com.grumbo;
 import static org.lwjgl.opengl.GL11.*;
 import org.lwjgl.glfw.GLFW;
 
-public class UITextField {
-    private float x;
-    private float y;
-    private float width;
-    private float height;
+public class UITextField extends UIElement {
+
+    private static final float MIN_TEXT_FIELD_WIDTH = 250.0f;
+    private static final float MIN_TEXT_FIELD_HEIGHT = 16.0f;
+
     private StringBuilder text;
     private boolean focused;
     private Runnable onCommit; // Called when Enter pressed
 
     public UITextField(float x, float y, float width, float height, String initial) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
+        super(x, y, width, height, MIN_TEXT_FIELD_WIDTH, MIN_TEXT_FIELD_HEIGHT);
         this.text = new StringBuilder(initial == null ? "" : initial);
         this.focused = false;
     }
 
-    public void setPosition(float x, float y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    public void setSize(float width, float height) {
-        this.width = width;
-        this.height = height;
-    }
 
     public void setText(String s) { this.text = new StringBuilder(s == null ? "" : s); }
     public void setTextFromValue(Object value) { this.text = new StringBuilder(String.valueOf(value)); }
@@ -37,12 +25,24 @@ public class UITextField {
     public boolean isFocused() { return focused; }
     public void setOnCommit(Runnable onCommit) { this.onCommit = onCommit; }
 
-    public boolean handleMouseDown(double mouseX, double mouseY) {
+    @Override
+    public boolean handleMousePress(double mouseX, double mouseY) {
         focused = hitTest(mouseX, mouseY);
         return focused;
     }
 
-    public boolean handleKey(int key, int action, int mods) {
+    @Override
+    public void handleMouseDrag(double mouseX, double mouseY) {
+        // No dragging for text fields
+    }
+
+    @Override
+    public void handleMouseRelease() {
+        focused = false;
+    }
+
+    @Override
+    public boolean handleKeyPress(int key, int action, int mods) {
         if (!focused) return false;
         if (action != GLFW.GLFW_PRESS && action != GLFW.GLFW_REPEAT) return false;
         if (key == GLFW.GLFW_KEY_ENTER) {
@@ -59,7 +59,8 @@ public class UITextField {
         return false;
     }
 
-    public boolean handleChar(int codepoint) {
+    @Override
+    public boolean handleCharPress(int codepoint) {
         if (!focused) return false;
         // Basic filtering; allow printable ASCII and period/minus
         if (codepoint >= 32 && codepoint <= 126) {
@@ -69,6 +70,7 @@ public class UITextField {
         return false;
     }
 
+    @Override
     public void draw(BitmapFont font) {
         // Background
         glColor3f(0.1f, 0.1f, 0.1f);
@@ -90,7 +92,7 @@ public class UITextField {
 
         // Text
         if (font != null && font.isLoaded()) {
-            float textY = y + (height - font.getCharHeight()) / 2.0f;
+            float textY = y + (height - font.getCharHeight());
             font.drawText(text.toString(), x + 6.0f, textY, 1.0f, font.getFontSize());
         }
     }

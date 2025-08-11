@@ -2,45 +2,52 @@ package com.grumbo;
 
 import static org.lwjgl.opengl.GL11.*;
 
-public class UIButton {
-    private float x;
-    private float y;
-    private float width;
-    private float height;
+public class UIButton extends UIElement {
+
+    private static final float MIN_BUTTON_WIDTH = 28.0f;
+    private static final float MIN_BUTTON_HEIGHT = 16.0f;
+
     private String label;
     private Runnable onClick;
 
     public UIButton(float x, float y, float width, float height, String label, Runnable onClick) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
+        super(x, y, width, height, MIN_BUTTON_WIDTH, MIN_BUTTON_HEIGHT);
         this.label = label;
         this.onClick = onClick;
     }
 
-    public void setPosition(float x, float y) {
-        this.x = x;
-        this.y = y;
-    }
 
-    public void setSize(float width, float height) {
-        this.width = width;
-        this.height = height;
-    }
 
     public void setLabel(String label) {
         this.label = label;
     }
 
-    public boolean handleMouseDown(double mouseX, double mouseY) {
+    @Override
+    public boolean handleMousePress(double mouseX, double mouseY) {
         if (hitTest(mouseX, mouseY)) {
             if (onClick != null) onClick.run();
+            System.out.println("Button clicked: " + label);
             return true;
         }
         return false;
     }
-
+    @Override
+    public void handleMouseRelease() {
+        // No action needed for buttons
+    }
+    @Override
+    public void handleMouseDrag(double mouseX, double mouseY) {
+        // No action needed for buttons
+    }
+    @Override
+    public boolean handleKeyPress(int key, int action, int mods) {
+        return false;
+    }
+    @Override
+    public boolean handleCharPress(int codepoint) {
+        return false;
+    }
+    @Override
     public void draw(BitmapFont font) {
         // Background
         glColor3f(0.2f, 0.2f, 0.2f);

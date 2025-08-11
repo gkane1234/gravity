@@ -74,11 +74,15 @@ public class SettingsGenerator {
             import com.fasterxml.jackson.databind.ObjectMapper;
             import java.util.ArrayList;
             import org.joml.Vector3f;
+            import java.net.URL;
+            import java.nio.file.Path;
+            import java.nio.file.Paths;
+            import java.nio.file.Files;
             
 
             public class Settings {
                 
-                private static final String SETTINGS_FILE = "settings.json";
+                private static final String SETTINGS_FILE = getSettingsFile().getAbsolutePath();
                 private static Settings instance;
                 
                 // Property map to store all settings
@@ -322,8 +326,37 @@ public class SettingsGenerator {
                 \t// ===== AUTO-GENERATED: Load/Save Methods =====
                 \t// These methods handle JSON serialization/deserialization
                 \t// Any changes made here will be overwritten when regenerating
+                \tprivate static File getSettingsFile() {
+                \t\ttry {
+                \t\t\tjava.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
+                \t\t\tjava.nio.file.Path p = java.nio.file.Paths.get(loc.toURI());
+                \t\t\tjava.nio.file.Path moduleRoot;
+                \t\t\tif (java.nio.file.Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
+                \t\t\t\tmoduleRoot = p.getParent().getParent();
+                \t\t\t} else if (java.nio.file.Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
+                \t\t\t\tmoduleRoot = p.getParent().getParent();
+                \t\t\t} else {
+                \t\t\t\tjava.nio.file.Path q = p;
+                \t\t\t\tjava.nio.file.Path found = null;
+                \t\t\t\twhile (q != null) {
+                \t\t\t\t\tif (java.nio.file.Files.exists(q.resolve("pom.xml"))) { found = q; break; }
+                \t\t\t\t\tq = q.getParent();
+                \t\t\t\t}
+                \t\t\t\tmoduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
+                \t\t\t}
+                \t\t\tjava.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings.json");
+                \t\t\treturn settingsPath.toFile();
+                \t\t} catch (Exception e) {
+                \t\t\tjava.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
+                \t\t\tjava.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings.json");
+                \t\t\tif (!java.nio.file.Files.exists(candidate.getParent())) {
+                \t\t\t\tcandidate = userDir.resolve("src/main/resources/settings.json");
+                \t\t\t}
+                \t\t\treturn candidate.toFile();
+                \t\t}
+                \t}
                 \tpublic void loadSettings() {
-                \t\tFile file = new File(SETTINGS_FILE);
+                \t\tFile file = getSettingsFile();
                 \t\tif (file.exists()) {
                 \t\t\ttry {
                 \t\t\t\tObjectMapper mapper = new ObjectMapper();
@@ -377,13 +410,14 @@ public class SettingsGenerator {
                 \t\t\t\t\t}
                 \t\t\t\t}
                 \t\t\t\t
-                \t\t\t\tSystem.out.println("Settings loaded from " + SETTINGS_FILE);
+                \t\t\t\tSystem.out.println("Settings loaded from " + file.getAbsolutePath());
                 \t\t\t} catch (IOException e) {
                 \t\t\t\tSystem.err.println("Failed to load settings: " + e.getMessage());
                 \t\t\t\tSystem.out.println("Using default settings");
                 \t\t\t}
                 \t\t} else {
-                \t\t\tSystem.out.println("Settings file not found, using default settings");
+                \t\t\tSystem.out.println("Settings file not found, using default settings and Generating new settings file");
+                \t\t\tsaveSettings();
                 \t\t}
                 \t}
                 \t
@@ -404,8 +438,11 @@ public class SettingsGenerator {
                 \t\t\t\t}
                 \t\t\t}
                 \t\t\t
-                \t\t\tmapper.writerWithDefaultPrettyPrinter().writeValue(new File(SETTINGS_FILE), jsonData);
-                \t\t\tSystem.out.println("Settings saved to " + SETTINGS_FILE);
+                \t\t\tFile file = getSettingsFile();
+                \t\t\tFile parent = file.getParentFile();
+                \t\t\tif (parent != null) { parent.mkdirs(); }
+                \t\t\tmapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonData);
+                \t\t\tSystem.out.println("Settings saved to " + file.getAbsolutePath());
                 \t\t} catch (IOException e) {
                 \t\t\tSystem.err.println("Failed to save settings: " + e.getMessage());
                 \t\t}

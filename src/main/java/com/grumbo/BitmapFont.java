@@ -7,7 +7,12 @@ import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Bitmap font renderer that loads characters from a PNG texture atlas.
@@ -18,7 +23,7 @@ import java.nio.ByteBuffer;
  * - Standard layout: !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
  */
 public class BitmapFont {
-    private static final String DEFAULT_FONT_PATH = "/Users/gabrielkane/Documents/stuff/gravitychunk/gravity/src/main/resources/font.png";
+    private static final String DEFAULT_FONT_RESOURCE = "/font.png";
     private static final float FONT_HEIGHT_RATIO = 2f;
     private static final float DEFAULT_FONT_SIZE = 16.0f;
     private static final int CHARS_PER_ROW = 16;
@@ -37,14 +42,13 @@ public class BitmapFont {
      * @param fontPath Path to the PNG font file
      */
     public BitmapFont(String fontPath) {
-        this.fontPath = fontPath;
+        this.fontPath = fontPath; // Optional explicit override; if null we try classpath/resource resolution
         this.fontSize = DEFAULT_FONT_SIZE;
-        this.fontPath = DEFAULT_FONT_PATH;
         loadFont();
     }
 
     public BitmapFont() {
-        this(DEFAULT_FONT_PATH);
+        this(null);
     }
     
     /**
@@ -52,7 +56,36 @@ public class BitmapFont {
      */
     private void loadFont() {
         try {
-            BufferedImage image = ImageIO.read(new File(fontPath));
+            BufferedImage image = null;
+
+            if (fontPath != null) {
+                File file = new File(fontPath);
+                if (file.exists()) {
+                    image = ImageIO.read(file);
+                    this.fontPath = file.getAbsolutePath();
+                }
+            }
+
+            if (image == null) {
+                try (InputStream in = BitmapFont.class.getResourceAsStream(DEFAULT_FONT_RESOURCE)) {
+                    if (in != null) {
+                        image = ImageIO.read(in);
+                        this.fontPath = "classpath:" + DEFAULT_FONT_RESOURCE;
+                    }
+                }
+            }
+
+            if (image == null) {
+                File fallback = resolveFontFileFallback();
+                if (fallback != null && fallback.exists()) {
+                    image = ImageIO.read(fallback);
+                    this.fontPath = fallback.getAbsolutePath();
+                }
+            }
+
+            if (image == null) {
+                throw new IOException("font.png not found via constructor path, classpath, or fallback resolution");
+            }
             
             int width = image.getWidth();
             int height = image.getHeight();
@@ -85,6 +118,39 @@ public class BitmapFont {
             e.printStackTrace();
             loaded = false;
         }
+    }
+
+    private static File resolveFontFileFallback() {
+        try {
+            URL loc = BitmapFont.class.getProtectionDomain().getCodeSource().getLocation();
+            Path p = Paths.get(loc.toURI());
+            Path moduleRoot;
+            if (Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
+                moduleRoot = p.getParent().getParent();
+            } else if (Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
+                moduleRoot = p.getParent().getParent();
+            } else {
+                Path q = p;
+                Path found = null;
+                while (q != null) {
+                    if (Files.exists(q.resolve("pom.xml"))) { found = q; break; }
+                    q = q.getParent();
+                }
+                moduleRoot = found != null ? found : Paths.get(System.getProperty("user.dir"));
+            }
+            // Try the standard Maven resource location first
+            Path candidate = moduleRoot.resolve("src/main/resources/font.png");
+            if (Files.exists(candidate)) {
+                return candidate.toFile();
+            }
+            // Fallback: handle historical path if present (based on prior absolute path)
+            Path legacy = moduleRoot.resolveSibling("gravity").resolve("src/main/resources/font.png");
+            if (Files.exists(legacy)) {
+                return legacy.toFile();
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
     
     /**
