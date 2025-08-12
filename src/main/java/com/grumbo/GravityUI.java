@@ -39,7 +39,6 @@ public class GravityUI {
     }
 
 
-    private static final double ZSTEP = 100;
 
     public ArrayList<KeyEvent> keyEvents = new ArrayList<>();
     public GravityUI() {
@@ -86,30 +85,5 @@ public class GravityUI {
         }
     }
     
-
-    
-
-    /**
-     * Adjusts simulation speed (tick delay)
-     */
-    private long incrementWait(long currentSpeed, boolean inc) {
-        double log = Math.log10(currentSpeed);
-        
-        if (inc) {
-            int digits = (int)(Math.floor(log));
-            currentSpeed += Math.pow(10, digits);
-            if (currentSpeed == 0) currentSpeed += 1;
-        }
-        else {
-            if (currentSpeed == 0) return currentSpeed;
-            
-            int digits = (int)(Math.floor(log) + (log > Math.floor(log) ? 0 : -1));
-            currentSpeed -= Math.pow(10, digits);
-        }
-        
-        return currentSpeed;
-    }
-
-
     
 }

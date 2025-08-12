@@ -460,13 +460,11 @@ public class SettingsGenerator {
         StringBuilder preserved = new StringBuilder();
         String[] lines = existingContent.split("\n");
         boolean inPreservedSection = false;
-        boolean foundPreservedStart = false;
         
         for (String line : lines) {
             // Look for the start of preserved section - be more specific
             if (line.contains("// ===== PRESERVED: Custom Convenience Methods =====")) {
                 inPreservedSection = true;
-                foundPreservedStart = true;
                 continue; // Skip the header line itself
             }
             

@@ -7,7 +7,6 @@ import org.joml.*;
 
 import java.nio.*;
 import java.util.ArrayList;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -26,8 +25,6 @@ public class OpenGLWindow {
     private boolean firstMouse = true;
     private boolean mouseCaptured = true;
     
-    // Mouse wheel for Z movement
-    private float scrollOffset = 0.0f;
     
     // Reference to gravity simulator
     private GravityUI ui;
@@ -195,7 +192,6 @@ public class OpenGLWindow {
         
         // Mouse wheel callback for Z movement
         glfwSetScrollCallback(window, (window, xoffset, yoffset) -> {
-            scrollOffset += yoffset * 0.1f;
             // Move in the direction the camera is facing
             Vector3f moveDirection = new Vector3f(Settings.getInstance().getCameraFront()).mul((float)(yoffset * Settings.getInstance().getMouseWheelSensitivity()));
             Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
@@ -435,32 +431,6 @@ public class OpenGLWindow {
     }
     
     
-    private void drawSphere(float x, float y, float z, float radius, int segments) {
-        glTranslatef(x, y, z);
-        
-        // Simple sphere using quad strips
-        for (int i = 0; i < segments; i++) {
-            float lat0 = (float) (java.lang.Math.PI * (-0.5 + (double) i / segments));
-            float lat1 = (float) (java.lang.Math.PI * (-0.5 + (double) (i + 1) / segments));
-            
-            glBegin(GL_QUAD_STRIP);
-            for (int j = 0; j <= segments; j++) {
-                float lng = (float) (2 * java.lang.Math.PI * j / segments);
-                
-                float x0 = (float) (java.lang.Math.cos(lat0) * java.lang.Math.cos(lng));
-                float y0 = (float) (java.lang.Math.sin(lat0));
-                float z0 = (float) (java.lang.Math.cos(lat0) * java.lang.Math.sin(lng));
-                
-                float x1 = (float) (java.lang.Math.cos(lat1) * java.lang.Math.cos(lng));
-                float y1 = (float) (java.lang.Math.sin(lat1));
-                float z1 = (float) (java.lang.Math.cos(lat1) * java.lang.Math.sin(lng));
-                
-                glVertex3f(x0 * radius, y0 * radius, z0 * radius);
-                glVertex3f(x1 * radius, y1 * radius, z1 * radius);
-            }
-            glEnd();
-        }
-    }
     
     private void drawCrosshair() {
         // Save current matrices

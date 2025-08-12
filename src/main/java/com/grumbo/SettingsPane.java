@@ -101,7 +101,6 @@ public class SettingsPane {
         float yPos = 30.0f;
         float xOffset = 20.0f;
         float bottomSpace = 80.0f;
-        float topSpace = 30.0f;
 
 
         float charH = (font != null ? font.getCharHeight() : 16.0f);
@@ -272,7 +271,6 @@ public class SettingsPane {
         UITextField tf = (UITextField) propertyNameToElements.get(textFieldName);
         if (tf == null) {
             tf = new UITextField(0f, 0f, 250.0f, Math.max(16.0f, font != null ? font.getCharHeight() : 16.0f), String.valueOf(prop.getValue()));
-            Property<?> finalProp = prop;
             UITextField finalTf = tf;
             tf.setOnCommit(() -> {
                 String txt = finalTf.getText();
