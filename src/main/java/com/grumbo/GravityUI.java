@@ -5,7 +5,6 @@ import java.util.ArrayList;
 
 public class GravityUI {
 
-    private GravitySimulator simulator;
 
     public class KeyEvent {
         public int key;
@@ -43,8 +42,7 @@ public class GravityUI {
     private static final double ZSTEP = 100;
 
     public ArrayList<KeyEvent> keyEvents = new ArrayList<>();
-    public GravityUI(GravitySimulator simulator) {
-        this.simulator = simulator;
+    public GravityUI() {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() * 1.1)));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() / 1.1)));
         // WASD movement is now handled directly in OpenGLWindow for relative camera movement
@@ -54,19 +52,19 @@ public class GravityUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_D, () -> {})); // Right - handled in OpenGLWindow
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_Q, () -> {})); // Up - handled in OpenGLWindow
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_E, () -> {})); // Down - handled in OpenGLWindow
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_P, () -> simulator.showPerformanceStats = !simulator.showPerformanceStats));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_I, () -> System.out.println("\n" + simulator.getDisplayPerformanceStats() + "\n")));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_P, () -> {}));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_I, () -> {}));
        // keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> Settings.getInstance().setTickSize(incrementWait(Settings.getInstance().getTickSize(), false))));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F, () -> Settings.getInstance().toggleFollow()));
        // keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> Settings.getInstance().setTickSize(incrementWait(Settings.getInstance().getTickSize(), true))));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_R, () -> simulator.resetPerformanceCounters()));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_UP, () -> {Settings.getInstance().setChunkSize(Settings.getInstance().getChunkSize() * 1.1); simulator.updateChunkSize(Settings.getInstance().getChunkSize());}));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_DOWN, () -> {Settings.getInstance().setChunkSize(Settings.getInstance().getChunkSize() / 1.1); simulator.updateChunkSize(Settings.getInstance().getChunkSize());}));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_B, () -> simulator.drawChunkBorders = !simulator.drawChunkBorders));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_R, () -> {}));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_UP, () -> {Settings.getInstance().setDt((float)(Settings.getInstance().getDt() * 1.1));}));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_DOWN, () -> {Settings.getInstance().setDt((float)(Settings.getInstance().getDt() / 1.1));}));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_B, () -> {}));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_T, () -> Settings.getInstance().setDrawTail(!Settings.getInstance().isDrawTail())));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_SPACE, () -> Settings.getInstance().toggleFollow()));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_BRACKET, () -> Settings.getInstance().setTickSize(Settings.getInstance().getTickSize() * 0.9)));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_BRACKET, () -> Settings.getInstance().setTickSize(Settings.getInstance().getTickSize() * 1.1)));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 0.9))));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 1.1))));
     }
 
     public void updateKeys(int key, int action) {

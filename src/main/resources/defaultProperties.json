@@ -30,12 +30,16 @@
       "description": "Camera shift position",
       "editable": true
     },
-    "chunkSize": {
-      "type": "double",
-      "default": 100,
-      "min": 1,
-
-      "description": "Size of physics chunks",
+    "dt": {
+      "type": "float",
+      "default": 0.001,
+      "description": "Time step",
+      "editable": true
+    },
+    "softening": {
+      "type": "float",
+      "default": 1e-3,
+      "description": "Softening parameter",
       "editable": true
     },
     "tailLength": {
@@ -53,15 +57,9 @@
       "editable": true
     },
     "density": {
-      "type": "double",
+      "type": "float",
       "default": 1,
       "description": "Planet density",
-      "editable": true
-    },
-    "expo": {
-      "type": "double",
-      "default": -2.0,
-      "description": "Force exponent",
       "editable": true
     },
     "elasticity": {
@@ -88,24 +86,6 @@
       "type": "color",
       "default": "0xffffff",
       "description": "Default text color",
-      "editable": true
-    },
-    "minMassForAttractByCenterOfMass": {
-      "type": "double",
-      "default": 100,
-      "description": "Minimum mass for attract by center of mass",
-      "editable": true
-    },
-    "maxDistanceForFullInteraction": {
-      "type": "int",
-      "default": 1,
-      "description": "Maximum distance for full interaction",
-      "editable": true
-    },
-    "tickSize": {
-      "type": "double",
-      "default": 0.1,
-      "description": "Tick size",
       "editable": true
     },
     "sphereSegments": {
@@ -140,7 +120,7 @@
     },
     "WASDSensitivity": { 
       "type": "float",
-      "default": 0.1,
+      "default": 10,
       "description": "WASD movement sensitivity",
       "editable": true
     },

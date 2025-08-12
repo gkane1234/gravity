@@ -5,16 +5,14 @@
   "nearPlane" : 0.1,
   "fov" : 45.0,
   "defaultBackgroundColor" : -16777216,
-  "tickSize" : 0.1,
+  "dt" : 0.001,
   "farPlane" : 1000000.0,
   "mouseWheelSensitivity" : 20.0,
-  "maxDistanceForFullInteraction" : 1,
   "sphereSegments" : 12,
   "pitch" : 0.0,
-  "expo" : -2.0,
   "mouseRotationSensitivity" : 0.2,
   "defaultPlanetColor" : -9585169,
-  "WASDSensitivity" : 0.1,
+  "WASDSensitivity" : 10.0,
   "height" : 1000,
   "cameraFront" : {
     "x" : 0.0,
@@ -22,12 +20,10 @@
     "z" : -1.0,
     "finite" : true
   },
-  "chunkSize" : 100.0,
   "density" : 1.0,
   "zoom" : 0.01,
   "follow" : false,
   "yaw" : -90.0,
-  "minMassForAttractByCenterOfMass" : 100.0,
   "tailLength" : 10,
   "cameraPos" : {
     "x" : 0.0,
@@ -43,5 +39,6 @@
     "finite" : true
   },
   "width" : 1000,
-  "defaultTextColor" : -1
+  "defaultTextColor" : -1,
+  "softening" : 0.001
 }

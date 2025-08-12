@@ -56,8 +56,11 @@ public class Settings {
 		// Camera shift position
 		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("doubleArray"); p.setEditable(true); properties.put("shift", p); }
 
-		// Size of physics chunks
-		{ Property<Double> p = Property.createDoubleProperty("chunkSize", 100, 100); p.setEditable(true); properties.put("chunkSize", p); }
+		// Time step
+		{ Property<Float> p = Property.createFloatProperty("dt", 0.001f, 0.001f); p.setEditable(true); properties.put("dt", p); }
+
+		// Softening parameter
+		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
 
 		// Length of planet trails
 		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000, true));
@@ -66,10 +69,7 @@ public class Settings {
 		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false, true));
 
 		// Planet density
-		{ Property<Double> p = Property.createDoubleProperty("density", 1, 1); p.setEditable(true); properties.put("density", p); }
-
-		// Force exponent
-		{ Property<Double> p = Property.createDoubleProperty("expo", -2.0, -2.0); p.setEditable(true); properties.put("expo", p); }
+		{ Property<Float> p = Property.createFloatProperty("density", 1f, 1f); p.setEditable(true); properties.put("density", p); }
 
 		// Collision elasticity
 		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));
@@ -82,15 +82,6 @@ public class Settings {
 
 		// Default text color
 		properties.put("defaultTextColor", Property.createColorPropertyFromRGB("defaultTextColor", 0xffffff, 0xffffff, true));
-
-		// Minimum mass for attract by center of mass
-		{ Property<Double> p = Property.createDoubleProperty("minMassForAttractByCenterOfMass", 100, 100); p.setEditable(true); properties.put("minMassForAttractByCenterOfMass", p); }
-
-		// Maximum distance for full interaction
-		{ Property<Integer> p = Property.createIntProperty("maxDistanceForFullInteraction", 1, 1); p.setEditable(true); properties.put("maxDistanceForFullInteraction", p); }
-
-		// Tick size
-		{ Property<Double> p = Property.createDoubleProperty("tickSize", 0.1, 0.1); p.setEditable(true); properties.put("tickSize", p); }
 
 		// Number of segments for sphere rendering
 		{ Property<Integer> p = Property.createIntProperty("sphereSegments", 12, 12); p.setEditable(true); properties.put("sphereSegments", p); }
@@ -108,7 +99,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
 
 		// WASD movement sensitivity
-		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 0.1f, 0.1f); p.setEditable(true); properties.put("WASDSensitivity", p); }
+		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 10f, 10f); p.setEditable(true); properties.put("WASDSensitivity", p); }
 
 		// Mouse wheel sensitivity
 		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 20.0f, 20.0f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }
@@ -174,8 +165,11 @@ public class Settings {
 	public double[] getShift() { return getValue("shift"); }
 	public void setShift(double[] value) { setValue("shift", value); }
 
-	public double getChunkSize() { return getValue("chunkSize"); }
-	public void setChunkSize(double value) { setValue("chunkSize", value); }
+	public float getDt() { return getValue("dt"); }
+	public void setDt(float value) { setValue("dt", value); }
+
+	public float getSoftening() { return getValue("softening"); }
+	public void setSoftening(float value) { setValue("softening", value); }
 
 	public int getTailLength() { return getValue("tailLength"); }
 	public void setTailLength(int value) { setValue("tailLength", value); }
@@ -184,11 +178,8 @@ public class Settings {
 	public void setDrawTail(boolean value) { setValue("drawTail", value); }
 
 	public void toggleDrawTail() { setDrawTail(!isDrawTail()); }
-	public double getDensity() { return getValue("density"); }
-	public void setDensity(double value) { setValue("density", value); }
-
-	public double getExpo() { return getValue("expo"); }
-	public void setExpo(double value) { setValue("expo", value); }
+	public float getDensity() { return getValue("density"); }
+	public void setDensity(float value) { setValue("density", value); }
 
 	public double getElasticity() { return getValue("elasticity"); }
 	public void setElasticity(double value) { setValue("elasticity", value); }
@@ -201,15 +192,6 @@ public class Settings {
 
 	public Color getDefaultTextColor() { return getValue("defaultTextColor"); }
 	public void setDefaultTextColor(Color value) { setValue("defaultTextColor", value); }
-
-	public double getMinMassForAttractByCenterOfMass() { return getValue("minMassForAttractByCenterOfMass"); }
-	public void setMinMassForAttractByCenterOfMass(double value) { setValue("minMassForAttractByCenterOfMass", value); }
-
-	public int getMaxDistanceForFullInteraction() { return getValue("maxDistanceForFullInteraction"); }
-	public void setMaxDistanceForFullInteraction(int value) { setValue("maxDistanceForFullInteraction", value); }
-
-	public double getTickSize() { return getValue("tickSize"); }
-	public void setTickSize(double value) { setValue("tickSize", value); }
 
 	public int getSphereSegments() { return getValue("sphereSegments"); }
 	public void setSphereSegments(int value) { setValue("sphereSegments", value); }

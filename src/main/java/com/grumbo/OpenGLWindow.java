@@ -30,7 +30,6 @@ public class OpenGLWindow {
     private float scrollOffset = 0.0f;
     
     // Reference to gravity simulator
-    private GravitySimulator simulator;
     private GravityUI ui;
     private SettingsPane settingsPane;
     
@@ -39,6 +38,9 @@ public class OpenGLWindow {
     
     // Bitmap font for UI text
     private BitmapFont font;
+    // Embedded GPU sim that renders into this window
+    private GPUSimulation gpuPoints;
+    private ArrayList<Planet> planets;
 
     private enum State {
         LOADING,
@@ -49,13 +51,21 @@ public class OpenGLWindow {
 
 
     public OpenGLWindow() {
-        this(null);
-    }
-
-    public OpenGLWindow(GravitySimulator simulator) {
-        this.simulator = simulator;
-        this.ui = new GravityUI(simulator);
+        this.ui = new GravityUI();
         this.settingsPane = new SettingsPane();
+
+        planets = new ArrayList<>();
+        float[] xRange = {-1000, 1000};
+        float[] yRange = {-1000, 1000};
+        float[] zRange = {-1000, 1000};
+        float[] xVRange = {-100, 100};
+        float[] yVRange = {-100, 100};
+        float[] zVRange = {-100, 100};
+        float[] mRange = {100, 1000};
+        planets = Planet.makeNew(100000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets.add(new Planet(0, 0, 0, 0, 0, 0, 1000000));
+
+
     }
 
     public void run() {
@@ -259,8 +269,12 @@ public class OpenGLWindow {
         System.out.println("Initial shift: " + java.util.Arrays.toString(Settings.getInstance().getShift()));
         System.out.println("Camera front: " + Settings.getInstance().getCameraFront().x + ", " + Settings.getInstance().getCameraFront().y + ", " + Settings.getInstance().getCameraFront().z);
 
+        // Initialize embedded GPU points simulation (headless)
+        gpuPoints = new GPUSimulation(planets);
+        gpuPoints.initWithCurrentContext();
+
         // Enable depth testing for 3D
-        glEnable(GL_DEPTH_TEST);
+        //glEnable(GL_DEPTH_TEST);
         
         // Set the clear color to dark gray
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -281,7 +295,28 @@ public class OpenGLWindow {
                 // Set up view matrix (camera)
                 setupCamera();
 
-                drawPlanets();
+                // Draw GPU points
+                // Compute MVP using JOML from current Settings camera state
+                float fov = Settings.getInstance().getFov();
+                float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+                float near = Settings.getInstance().getNearPlane();
+                float far = Settings.getInstance().getFarPlane();
+
+                Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
+                Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
+                Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
+                Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
+                Matrix4f view = new Matrix4f().lookAt(eye, center, up);
+                Matrix4f mvp = new Matrix4f(proj).mul(view);
+                try (MemoryStack stack = stackPush()) {
+                    FloatBuffer mvpBuf = stack.mallocFloat(16);
+                    mvp.get(mvpBuf);
+                    gpuPoints.setMvp(mvpBuf);
+                }
+                // Update camera-dependent uniforms for mesh spheres
+                gpuPoints.setCameraPos(eye.x, eye.y, eye.z);
+                gpuPoints.step();
+                gpuPoints.render();
                 
                 // Draw crosshair last (on top)
                 drawCrosshair();
@@ -301,6 +336,11 @@ public class OpenGLWindow {
         }
         
         System.out.println("Render loop ended");
+
+        // Cleanup embedded sim GL objects
+        if (gpuPoints != null) {
+            gpuPoints.cleanupEmbedded();
+        }
     }
 
     
@@ -376,18 +416,8 @@ public class OpenGLWindow {
         
         // Get camera position from Settings
         Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
-        Vector3f center;
+        Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
         Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
-        
-        // Handle follow mode
-        if (Settings.getInstance().isFollow() && simulator != null) {
-            // Get reference point from simulator
-            int[] reference = simulator.getReference(true);
-            center = new Vector3f(reference[0], reference[1], reference[2]);
-        } else {
-            // Look in the direction the camera is facing
-            center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
-        }
         
         // Manual lookAt implementation
         Vector3f f = new Vector3f(center).sub(eye).normalize();
@@ -404,53 +434,6 @@ public class OpenGLWindow {
         glTranslatef(-eye.x, -eye.y, -eye.z);
     }
     
-    private void drawPlanets() {
-        
-        // Get the render buffer read lock for thread-safe access
-        ReentrantReadWriteLock.ReadLock readLock = simulator.getRenderBufferReadLock();
-        readLock.lock();
-        try {
-            // Get thread-safe snapshot of chunks and planets from render buffer
-            ArrayList<Chunk> chunks = simulator.getRenderBuffer().getChunks(); // Already returns a copy
-            for (Chunk chunk : chunks) {
-                // Create a snapshot of planets to avoid concurrent modification
-                ArrayList<Planet> planets;
-                synchronized (chunk.planets) {
-                    planets = new ArrayList<>(chunk.planets);
-                }
-                
-                for (Planet planet : planets) {
-                    // Read planet properties atomically
-                    float x, y, z, radius;
-                    int red, green, blue;
-                    
-                    synchronized (planet) {
-                        x = (float) planet.x;
-                        y = (float) planet.y;
-                        z = (float) planet.z;
-                        radius = (float) planet.getRadius();
-                        red = planet.getColor().getRed();
-                        green = planet.getColor().getGreen();
-                        blue = planet.getColor().getBlue();
-                    }
-                    
-                    glPushMatrix();
-                    
-                    // Set planet color
-                    glColor3f(red / 255.0f, green / 255.0f, blue / 255.0f);
-                    
-                    
-                    // Draw sphere at planet position
-                    drawSphere(x, y, z, radius, Settings.getInstance().getSphereSegments());
-                    
-                    glPopMatrix();
-                }
-            }
-
-        } finally {
-            readLock.unlock();
-        }
-    }
     
     private void drawSphere(float x, float y, float z, float radius, int segments) {
         glTranslatef(x, y, z);
@@ -524,44 +507,5 @@ public class OpenGLWindow {
         glMatrixMode(GL_MODELVIEW);
     }
 
-    public int[] getScreenLocation(double simX, double simY) {
-		int[] followLocation = simulator.getReference(Settings.getInstance().isFollow());
-		int screenWidth = Settings.getInstance().getWidth();
-		int screenHeight = Settings.getInstance().getHeight();
-		
-		// Convert simulation coordinates to screen coordinates
-		return new int[] {
-			(int)(Settings.getInstance().getZoom() * (simX - followLocation[0]) + (screenWidth/2 + Settings.getInstance().getShift()[0])),
-			(int)(Settings.getInstance().getZoom() * (simY - followLocation[1]) + (screenHeight/2 + Settings.getInstance().getShift()[1]))
-		};
-	}
 
-	public int[] getSimulationLocation(double screenX, double screenY) {
-		int[] followLocation = simulator.getReference(Settings.getInstance().isFollow());
-		int screenWidth = Settings.getInstance().getWidth();
-		int screenHeight = Settings.getInstance().getHeight();
-		
-		// Convert screen coordinates to simulation coordinates
-		return new int[] {
-			(int)((screenX - (screenWidth/2 + Settings.getInstance().getShift()[0])) / Settings.getInstance().getZoom() + followLocation[0]),
-			(int)((screenY - (screenHeight/2 + Settings.getInstance().getShift()[1])) / Settings.getInstance().getZoom() + followLocation[1])
-		};
-	}
-
-    public void drawTail(Planet p) {
-        if (Settings.getInstance().isDrawTail()) {
-            glColor3f(1.0f, 0.0f, 0.0f);
-        long[] tailLast = p.tail[p.tailIndex];
-        for (int i=1;i<Settings.getInstance().getTailLength();i++) {
-            long[] tailNext = p.tail[(p.tailIndex+i)%Settings.getInstance().getTailLength()];
-            int[] screenPosLast = getScreenLocation(tailLast[0], tailLast[1]);
-            int[] screenPosNext = getScreenLocation(tailNext[0], tailNext[1]);
-            glBegin(GL_LINES);
-            glVertex3f(screenPosLast[0], screenPosLast[1], 0.0f);
-            glVertex3f(screenPosNext[0], screenPosNext[1], 0.0f);
-            glEnd();
-            tailLast = tailNext;
-            }
-        }
-    }
 } 

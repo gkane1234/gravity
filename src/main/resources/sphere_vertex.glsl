@@ -1,0 +1,31 @@
+#version 430
+layout (location = 0) in vec3 aPos; // unit sphere position
+
+struct Body {
+  vec4 posMass;
+  vec4 velPad;
+  vec4 color;
+};
+
+layout(std430, binding = 0) readonly buffer SrcBodies {
+  Body bodies[];
+} srcB;
+
+uniform mat4 uMVP;
+uniform float uRadiusScale; // radius = sqrt(mass) * scale
+
+out vec3 vWorldPos;
+out vec4 vColor;
+
+// We use gl_InstanceID to fetch per-planet data
+void main() {
+  vec3 center = srcB.bodies[gl_InstanceID].posMass.xyz;
+  float mass = srcB.bodies[gl_InstanceID].posMass.w;
+  float radius = sqrt(max(mass, 0.0)) * uRadiusScale;
+  vec3 worldPos = center + aPos * radius;
+  vWorldPos = worldPos;
+  vColor = srcB.bodies[gl_InstanceID].color;
+  gl_Position = uMVP * vec4(worldPos, 1.0);
+}
+
+
