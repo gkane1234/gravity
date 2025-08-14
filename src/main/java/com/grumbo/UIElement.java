@@ -53,6 +53,9 @@ public abstract class UIElement {
         return Math.max(font.getCharHeight(), minHeight);
     }
 
+    public void update(Object value) {
+    }
+
     public abstract void calculateSize(BitmapFont font);
 
     public abstract void draw(BitmapFont font);

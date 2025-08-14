@@ -13,6 +13,6 @@ void main() {
   vec3 pos = srcB.bodies[gl_VertexID].posMass.xyz; // world coords
   vec4 color = srcB.bodies[gl_VertexID].color;
   gl_Position = uMVP * vec4(pos, 1.0);
-  gl_PointSize = srcB.bodies[gl_VertexID].posMass.w/1000;
+  gl_PointSize = 1;
   vColor = color;
 }

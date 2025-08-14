@@ -18,8 +18,19 @@ public class GPUSimulation {
 
     // Simulation params
     private static final int WORK_GROUP_SIZE = 128;
+    private static final boolean DEBUG_BARNES_HUT = true; // Set to false to disable debug output
+    private static final int DEBUG_FRAME_INTERVAL = 60; // Show debug every N frames
+    private int frameCounter = 0;
 
     private int computeProgram;
+    private int mortonKernelProgram;
+    private int radixSortHistogramKernelProgram;
+    private int radixSortScanKernelProgram;
+    private int radixSortScatterKernelProgram;
+    private int buildBinaryRadixTreeKernelProgram;
+    private int initLeavesKernelProgram;
+    private int propagateNodesKernelProgram;
+    private int computeForceKernelProgram;
     private int renderProgram; // points program
     private int impostorProgram; // point-sprite impostor spheres
     private int sphereProgram;   // instanced mesh spheres
@@ -28,6 +39,17 @@ public class GPUSimulation {
     private int ssboB;
     private int srcSSBO;
     private int dstSSBO;
+    
+    // Barnes-Hut auxiliary SSBOs
+    private int mortonSSBO;        // binding 2: morton keys
+    private int indexSSBO;         // binding 3: body indices  
+    private int nodesSSBO;         // binding 4: tree nodes
+    private int wgHistSSBO;        // binding 5: workgroup histograms
+    private int wgScannedSSBO;     // binding 6: scanned per-workgroup bases
+    private int globalBaseSSBO;    // binding 7: global bucket bases
+    private int mortonOutSSBO;     // binding 8: morton output
+    private int indexOutSSBO;      // binding 9: index output
+    private int rootNodeSSBO;      // binding 10: root node ID
     private int uMvpLocation;           // for points
     private int uMvpLocationImpostor;   // for impostors
     private int uMvpLocationSphere;     // for mesh spheres
@@ -40,12 +62,15 @@ public class GPUSimulation {
     private ArrayList<Planet> planets;
 
     public enum RenderMode {
+        OFF,
         POINTS,
         IMPOSTOR_SPHERES,
         MESH_SPHERES
     }
+    
 
-    private RenderMode renderMode = RenderMode.MESH_SPHERES;
+
+    private RenderMode renderMode = RenderMode.POINTS;
 
     // Mesh sphere resources
     private int sphereVao = 0;
@@ -92,15 +117,87 @@ public class GPUSimulation {
         vao = glGenVertexArrays();
         glBindVertexArray(vao);
 
-        // Create compute shader
-        computeProgram = glCreateProgram();
-        int computeShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(computeShader, getComputeShaderSource());
-        glCompileShader(computeShader);
-        checkShader(computeShader);
-        glAttachShader(computeProgram, computeShader);
-        glLinkProgram(computeProgram);
-        checkProgram(computeProgram);
+        // Create compute shaders
+
+        //Morton Kernel
+        mortonKernelProgram = glCreateProgram();
+        int mortonKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(mortonKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_MORTON"));
+        glCompileShader(mortonKernelShader);
+        checkShader(mortonKernelShader);
+        glAttachShader(mortonKernelProgram, mortonKernelShader);
+        glLinkProgram(mortonKernelProgram);
+        checkProgram(mortonKernelProgram);
+
+        //Radix Sort Histogram Kernel
+        radixSortHistogramKernelProgram = glCreateProgram();
+        int radixSortHistogramKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(radixSortHistogramKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_RADIX_HIST"));
+        glCompileShader(radixSortHistogramKernelShader);
+        checkShader(radixSortHistogramKernelShader);
+        glAttachShader(radixSortHistogramKernelProgram, radixSortHistogramKernelShader);
+        glLinkProgram(radixSortHistogramKernelProgram);
+        checkProgram(radixSortHistogramKernelProgram);
+
+        //Radix Sort Scan Kernel
+        radixSortScanKernelProgram = glCreateProgram();
+        int radixSortScanKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(radixSortScanKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_RADIX_SCAN"));
+        glCompileShader(radixSortScanKernelShader);
+        checkShader(radixSortScanKernelShader);
+        glAttachShader(radixSortScanKernelProgram, radixSortScanKernelShader);
+        glLinkProgram(radixSortScanKernelProgram);
+        checkProgram(radixSortScanKernelProgram);
+
+        //Radix Sort Scatter Kernel
+        radixSortScatterKernelProgram = glCreateProgram();
+        int radixSortScatterKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(radixSortScatterKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_RADIX_SCATTER"));
+        glCompileShader(radixSortScatterKernelShader);
+        checkShader(radixSortScatterKernelShader);
+        glAttachShader(radixSortScatterKernelProgram, radixSortScatterKernelShader);
+        glLinkProgram(radixSortScatterKernelProgram);
+        checkProgram(radixSortScatterKernelProgram);
+
+        //Build Binary Radix Tree Kernel
+        buildBinaryRadixTreeKernelProgram = glCreateProgram();
+        int buildBinaryRadixTreeKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(buildBinaryRadixTreeKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_BUILD_BINARY_RADIX_TREE"));
+        glCompileShader(buildBinaryRadixTreeKernelShader);
+        checkShader(buildBinaryRadixTreeKernelShader);
+        glAttachShader(buildBinaryRadixTreeKernelProgram, buildBinaryRadixTreeKernelShader);
+        glLinkProgram(buildBinaryRadixTreeKernelProgram);
+        checkProgram(buildBinaryRadixTreeKernelProgram);
+
+        //Init Leaves Kernel
+        initLeavesKernelProgram = glCreateProgram();
+        int initLeavesKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(initLeavesKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_INIT_LEAVES"));
+        glCompileShader(initLeavesKernelShader);
+        checkShader(initLeavesKernelShader);
+        glAttachShader(initLeavesKernelProgram, initLeavesKernelShader);
+        glLinkProgram(initLeavesKernelProgram);
+        checkProgram(initLeavesKernelProgram);
+
+        //Propagate Nodes Kernel
+        propagateNodesKernelProgram = glCreateProgram();
+        int propagateNodesKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(propagateNodesKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_PROPAGATE_NODES"));
+        glCompileShader(propagateNodesKernelShader);
+        checkShader(propagateNodesKernelShader);
+        glAttachShader(propagateNodesKernelProgram, propagateNodesKernelShader);
+        glLinkProgram(propagateNodesKernelProgram);
+        checkProgram(propagateNodesKernelProgram);
+
+        //Compute Force Kernel
+        computeForceKernelProgram = glCreateProgram();
+        int computeForceKernelShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(computeForceKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_COMPUTE_FORCE"));
+        glCompileShader(computeForceKernelShader);
+        checkShader(computeForceKernelShader);
+        glAttachShader(computeForceKernelProgram, computeForceKernelShader);
+        glLinkProgram(computeForceKernelProgram);
+        checkProgram(computeForceKernelProgram);
 
         // Create render shader (points)
         renderProgram = glCreateProgram();
@@ -166,6 +263,47 @@ public class GPUSimulation {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssboB);
         glBufferData(GL_SHADER_STORAGE_BUFFER, planets.size() * 12 * Float.BYTES, GL_DYNAMIC_COPY);
 
+        // Create Barnes-Hut auxiliary SSBOs
+        int numBodies = planets.size();
+        int numWorkGroups = (numBodies + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+        int NUM_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
+        
+        mortonSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mortonSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        indexSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        nodesSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, nodesSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * 8 * Integer.BYTES, GL_DYNAMIC_COPY); // 8 uints per node
+        
+        wgHistSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, wgHistSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        wgScannedSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, wgScannedSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        globalBaseSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, globalBaseSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        mortonOutSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mortonOutSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        indexOutSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexOutSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        
+        rootNodeSSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, rootNodeSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, Integer.BYTES, GL_DYNAMIC_COPY); // Single uint
+
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
         srcSSBO = ssboA;
@@ -179,7 +317,7 @@ public class GPUSimulation {
 
     public void step() {
         processCommands();
-        stepSimulation();
+        stepBarnesHut();
     }
 
     public void renderPoints() {
@@ -218,6 +356,7 @@ public class GPUSimulation {
     }
 
     public void render() {
+        if (renderMode == RenderMode.OFF) return;
         switch (renderMode) {
             case POINTS: renderPoints(); break;
             case IMPOSTOR_SPHERES: renderImpostorSpheres(); break;
@@ -254,11 +393,28 @@ public class GPUSimulation {
     public void cleanupEmbedded() {
         // Minimal cleanup of GL objects created in embedded mode
         if (computeProgram != 0) glDeleteProgram(computeProgram);
+        if (mortonKernelProgram != 0) glDeleteProgram(mortonKernelProgram);
+        if (radixSortHistogramKernelProgram != 0) glDeleteProgram(radixSortHistogramKernelProgram);
+        if (radixSortScanKernelProgram != 0) glDeleteProgram(radixSortScanKernelProgram);
+        if (radixSortScatterKernelProgram != 0) glDeleteProgram(radixSortScatterKernelProgram);
+        if (buildBinaryRadixTreeKernelProgram != 0) glDeleteProgram(buildBinaryRadixTreeKernelProgram);
+        if (initLeavesKernelProgram != 0) glDeleteProgram(initLeavesKernelProgram);
+        if (propagateNodesKernelProgram != 0) glDeleteProgram(propagateNodesKernelProgram);
+        if (computeForceKernelProgram != 0) glDeleteProgram(computeForceKernelProgram);
         if (renderProgram != 0) glDeleteProgram(renderProgram);
         if (impostorProgram != 0) glDeleteProgram(impostorProgram);
         if (sphereProgram != 0) glDeleteProgram(sphereProgram);
         if (ssboA != 0) glDeleteBuffers(ssboA);
         if (ssboB != 0) glDeleteBuffers(ssboB);
+        if (mortonSSBO != 0) glDeleteBuffers(mortonSSBO);
+        if (indexSSBO != 0) glDeleteBuffers(indexSSBO);
+        if (nodesSSBO != 0) glDeleteBuffers(nodesSSBO);
+        if (wgHistSSBO != 0) glDeleteBuffers(wgHistSSBO);
+        if (wgScannedSSBO != 0) glDeleteBuffers(wgScannedSSBO);
+        if (globalBaseSSBO != 0) glDeleteBuffers(globalBaseSSBO);
+        if (mortonOutSSBO != 0) glDeleteBuffers(mortonOutSSBO);
+        if (indexOutSSBO != 0) glDeleteBuffers(indexOutSSBO);
+        if (rootNodeSSBO != 0) glDeleteBuffers(rootNodeSSBO);
         if (vao != 0) glDeleteVertexArrays(vao);
         if (sphereVao != 0) glDeleteVertexArrays(sphereVao);
         if (sphereVbo != 0) glDeleteBuffers(sphereVbo);
@@ -296,11 +452,36 @@ public class GPUSimulation {
     public void resizeBuffersAndUpload(List<Planet> newPlanets) {
         this.planets = new ArrayList<>(newPlanets);
         int bytes = this.planets.size() * 12 * Float.BYTES;
+        int numBodies = this.planets.size();
+        int numWorkGroups = (numBodies + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+        int NUM_BUCKETS = 16;
 
+        // Resize body buffers
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssboA);
         glBufferData(GL_SHADER_STORAGE_BUFFER, bytes, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssboB);
         glBufferData(GL_SHADER_STORAGE_BUFFER, bytes, GL_DYNAMIC_COPY);
+        
+        // Resize Barnes-Hut auxiliary buffers
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mortonSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, nodesSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * 8 * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, wgHistSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, wgScannedSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, globalBaseSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mortonOutSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexOutSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, rootNodeSSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, Integer.BYTES, GL_DYNAMIC_COPY);
+
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
         FloatBuffer data = packPlanets(this.planets);
@@ -312,25 +493,229 @@ public class GPUSimulation {
         dstSSBO = ssboB;
     }
 
-    private void stepSimulation() {
-        glUseProgram(computeProgram);
-
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, srcSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, dstSSBO);
-
-        glUniform1f(glGetUniformLocation(computeProgram, "dt"), (float)Settings.getInstance().getDt());
-        glUniform1ui(glGetUniformLocation(computeProgram, "numBodies"), planets.size());
-        glUniform1f(glGetUniformLocation(computeProgram, "softening"), (float)Settings.getInstance().getSoftening());
-
+    private void stepBarnesHut() {
+        frameCounter++;
+        boolean debugThisFrame = DEBUG_BARNES_HUT && (frameCounter % DEBUG_FRAME_INTERVAL == 0);
+        
         int numGroups = (planets.size() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
-        glDispatchCompute(numGroups, 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debugThisFrame) {
+            System.out.println("=== Barnes-Hut Step (Frame " + frameCounter + ") ===");
+            System.out.println("Bodies: " + planets.size() + ", WorkGroups: " + numGroups);
+        }
+        
+        //Generate Morton Codes
+        if (debugThisFrame) System.out.println("1. Generating Morton codes...");
+        generateMortonCodes(numGroups, debugThisFrame);
 
-        // swap SSBOs
+        //Radix Sort
+        if (debugThisFrame) System.out.println("2. Radix sorting...");
+        radixSort(numGroups);
+        
+        //Generate Binary Radix Tree
+        if (debugThisFrame) System.out.println("3. Building binary radix tree...");
+        buildBinaryRadixTree(numGroups, debugThisFrame);
+
+        //Compute COM and Location
+        if (debugThisFrame) System.out.println("4. Computing center-of-mass...");
+        computeCOMAndLocation(numGroups);
+
+        //Compute Force
+        if (debugThisFrame) System.out.println("5. Computing forces...");
+        computeForce(numGroups, debugThisFrame);
+        
+        if (debugThisFrame) System.out.println("=== Barnes-Hut Complete ===\n");
+    }
+
+    private void generateMortonCodes(int numGroups, boolean debug) {
+        glUseProgram(mortonKernelProgram);
+        
+        // Bind bodies (input) and morton/index (output)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, srcSSBO);      // bodies input
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, dstSSBO);      // bodies output (unused)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mortonSSBO);   // morton keys output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, indexSSBO);    // indices output
+        
+        // Compute AABB from planet positions
+        float[] aabbMin = computeAABB()[0];
+        float[] aabbMax = computeAABB()[1];
+        
+        // Set uniforms
+        glUniform1ui(glGetUniformLocation(mortonKernelProgram, "numBodies"), planets.size());
+        glUniform3fv(glGetUniformLocation(mortonKernelProgram, "aabbMin"), aabbMin);
+        glUniform3fv(glGetUniformLocation(mortonKernelProgram, "aabbMax"), aabbMax);
+        
+        glDispatchCompute(numGroups, 1, 1);
+        if (debug) checkGLError("Morton codes dispatch");
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) checkGLError("Morton codes barrier");
+    }
+    
+    private float[][] computeAABB() {
+        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+        
+        for (Planet p : planets) {
+            minX = Math.min(minX, (float)p.x);
+            minY = Math.min(minY, (float)p.y);
+            minZ = Math.min(minZ, (float)p.z);
+            maxX = Math.max(maxX, (float)p.x);
+            maxY = Math.max(maxY, (float)p.y);
+            maxZ = Math.max(maxZ, (float)p.z);
+        }
+        
+        return new float[][] {
+            {minX, minY, minZ},
+            {maxX, maxY, maxZ}
+        };
+    }
+
+    private void radixSort(int numGroups) {
+        int numPasses = (int)Math.ceil(30.0 / 4.0); // 8 passes for 30-bit Morton codes
+        
+        // Current input/output morton and index buffers
+        int currentMortonIn = mortonSSBO;
+        int currentIndexIn = indexSSBO;
+        int currentMortonOut = mortonOutSSBO;
+        int currentIndexOut = indexOutSSBO;
+
+        for (int pass = 0; pass < numPasses; pass++) {
+            int passShift = pass * 4; // 4 bits per pass
+            
+            // Phase 1: Histogram
+            glUseProgram(radixSortHistogramKernelProgram);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, currentMortonIn);    // morton input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, currentIndexIn);     // index input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, wgHistSSBO);         // workgroup histograms
+            
+            glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "numBodies"), planets.size());
+            glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "passShift"), passShift);
+            glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "numWorkGroups"), numGroups);
+            
+            glDispatchCompute(numGroups, 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            
+            // Phase 2: Scan
+            glUseProgram(radixSortScanKernelProgram);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, wgHistSSBO);         // workgroup histograms input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, wgScannedSSBO);      // scanned per-wg bases output
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, globalBaseSSBO);     // global bucket bases output
+            
+            glUniform1ui(glGetUniformLocation(radixSortScanKernelProgram, "numBodies"), planets.size());
+            glUniform1ui(glGetUniformLocation(radixSortScanKernelProgram, "numWorkGroups"), numGroups);
+            
+            glDispatchCompute(1, 1, 1); // Single invocation
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            
+            // Phase 3: Scatter
+            glUseProgram(radixSortScatterKernelProgram);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, currentMortonIn);    // morton input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, currentIndexIn);     // index input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, wgScannedSSBO);      // scanned bases
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, globalBaseSSBO);     // global bases
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, currentMortonOut);   // morton output
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, currentIndexOut);    // index output
+            
+            glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "numBodies"), planets.size());
+            glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "passShift"), passShift);
+            glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "numWorkGroups"), numGroups);
+            
+            glDispatchCompute(numGroups, 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            
+            // Swap input/output buffers for next pass
+            int tempMorton = currentMortonIn;
+            int tempIndex = currentIndexIn;
+            currentMortonIn = currentMortonOut;
+            currentIndexIn = currentIndexOut;
+            currentMortonOut = tempMorton;
+            currentIndexOut = tempIndex;
+        }
+        
+        // After final pass, sorted data is in currentMortonIn/currentIndexIn
+        // Update our "current" buffers to point to the final sorted data
+        mortonSSBO = currentMortonIn;
+        indexSSBO = currentIndexIn;
+    }
+
+    private void buildBinaryRadixTree(int numGroups, boolean debug) {
+        glUseProgram(buildBinaryRadixTreeKernelProgram);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mortonSSBO);   // morton keys (sorted)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, indexSSBO);    // body indices (sorted)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, nodesSSBO);    // tree nodes output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, rootNodeSSBO); // root node ID output
+        
+        glUniform1ui(glGetUniformLocation(buildBinaryRadixTreeKernelProgram, "numBodies"), planets.size());
+        
+        // Dispatch numBodies-1 threads (one per internal node)
+        int numInternalNodes = planets.size() - 1;
+        int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+        
+        if (debug) {
+            System.out.println("   Tree construction - internal nodes: " + numInternalNodes + ", groups: " + internalNodeGroups);
+        }
+        
+        glDispatchCompute(internalNodeGroups, 1, 1);
+        if (debug) checkGLError("Tree construction dispatch");
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) checkGLError("Tree construction barrier");
+    }
+
+    private void computeCOMAndLocation(int numGroups) {
+        // Phase 1: Initialize leaf nodes with body data
+        glUseProgram(initLeavesKernelProgram);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, srcSSBO);      // bodies input  
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mortonSSBO);   // morton keys (for reference)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, indexSSBO);    // sorted body indices
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, nodesSSBO);    // nodes to initialize
+        
+        glUniform1ui(glGetUniformLocation(initLeavesKernelProgram, "numBodies"), planets.size());
+        glDispatchCompute(numGroups, 1, 1); // One thread per body (leaf node)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        
+        // Phase 2: Bottom-up propagation of internal nodes (multiple passes)
+        int numInternalNodes = planets.size() - 1;
+        int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+        
+        for (int pass = 0; pass < 10; pass++) { // Max 10 passes for convergence
+            glUseProgram(propagateNodesKernelProgram);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, nodesSSBO);    // nodes array
+            
+            glUniform1ui(glGetUniformLocation(propagateNodesKernelProgram, "numBodies"), planets.size());
+            glDispatchCompute(internalNodeGroups, 1, 1); // One thread per internal node
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+    }
+
+    private void computeForce(int numGroups, boolean debug) {
+        glUseProgram(computeForceKernelProgram);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, srcSSBO);      // bodies input
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, dstSSBO);      // bodies output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, nodesSSBO);    // tree nodes
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, rootNodeSSBO); // root node ID input
+        
+        // Set uniforms
+        float theta = (float)Settings.getInstance().getTheta();
+        float dt = (float)Settings.getInstance().getDt();
+        glUniform1ui(glGetUniformLocation(computeForceKernelProgram, "numBodies"), planets.size());
+        glUniform1f(glGetUniformLocation(computeForceKernelProgram, "theta"), theta);
+        glUniform1f(glGetUniformLocation(computeForceKernelProgram, "dt"), dt);
+        
+        if (debug) {
+            System.out.println("   Force computation - theta: " + theta + ", dt: " + dt + ", bodies: " + planets.size());
+        }
+        
+        glDispatchCompute(numGroups, 1, 1); // One thread per body
+        if (debug) checkGLError("Force computation dispatch");
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) checkGLError("Force computation barrier");
+        
+        // Swap source and destination buffers for next iteration
         int tmp = srcSSBO;
         srcSSBO = dstSSBO;
         dstSSBO = tmp;
     }
+    
+
 
 
     private void checkShader(int shader) {
@@ -344,20 +729,41 @@ public class GPUSimulation {
             throw new RuntimeException("Program link error: " + glGetProgramInfoLog(program));
         }
     }
+    
+    private void checkGLError(String operation) {
+        int error = glGetError();
+        if (error != GL_NO_ERROR) {
+            System.err.println("OpenGL Error after " + operation + ": " + error);
+        }
+    }
 
     // ----------------- SHADERS -----------------
 
     private String getComputeShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/computeshader.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/compute/barneshut.glsl"));
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read compute shader: " + e.getMessage());
+            throw new RuntimeException("Failed to read Barnes-Hut compute shader: " + e.getMessage());
         }
+    }
+
+    private String insertDefineAfterVersion(String shaderSource, String defineValue) {
+        // Find the first newline after #version
+        int versionEnd = shaderSource.indexOf('\n');
+        if (versionEnd == -1) {
+            // No newline found, just append
+            return shaderSource + "\n#define " + defineValue + "\n";
+        }
+        
+        // Insert the define after the version line
+        return shaderSource.substring(0, versionEnd + 1) + 
+               "#define " + defineValue + "\n" + 
+               shaderSource.substring(versionEnd + 1);
     }
 
     private String getVertexShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/vertexshader.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/points/vertexshader.glsl"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read vertex shader: " + e.getMessage());
         }
@@ -365,7 +771,7 @@ public class GPUSimulation {
 
     private String getFragmentShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/fragmentshader.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/points/fragmentshader.glsl"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read fragment shader: " + e.getMessage());
         }
@@ -373,7 +779,7 @@ public class GPUSimulation {
 
     private String getImpostorVertexShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/impostor_vertex.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/imposter/impostor_vertex.glsl"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read impostor vertex shader: " + e.getMessage());
         }
@@ -381,7 +787,7 @@ public class GPUSimulation {
 
     private String getImpostorFragmentShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/impostor_fragment.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/imposter/impostor_fragment.glsl"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read impostor fragment shader: " + e.getMessage());
         }
@@ -389,7 +795,7 @@ public class GPUSimulation {
 
     private String getSphereVertexShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/sphere_vertex.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/spheres/sphere_vertex.glsl"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read sphere vertex shader: " + e.getMessage());
         }
@@ -397,7 +803,7 @@ public class GPUSimulation {
 
     private String getSphereFragmentShaderSource() {
         try {
-            return Files.readString(Paths.get("src/main/resources/sphere_fragment.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/spheres/sphere_fragment.glsl"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read sphere fragment shader: " + e.getMessage());
         }

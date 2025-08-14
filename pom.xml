@@ -126,7 +126,7 @@
             <configuration>
               <mainClass>com.grumbo.SettingsGenerator</mainClass>
               <arguments>
-                <argument>${project.basedir}/src/main/resources/defaultProperties.json</argument>
+                <argument>${project.basedir}/src/main/resources/settings/defaultProperties.json</argument>
                 <argument>${project.basedir}/src/main/java/com/grumbo/Settings.java</argument>
               </arguments>
             </configuration>

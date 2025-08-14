@@ -318,26 +318,23 @@ public class Property<T> {
     private void syncEditorRowFromValue() {
         if (editorRow == null) return;
         for (UIElement element : editorRow.getElements()) {
-            if (element instanceof UITextField) {
-                ((UITextField) element).setTextFromValue(value);
-            } else if (element instanceof UISlider) {
-                if (value instanceof Number) {
-                    ((UISlider) element).setValue(((Number) value).doubleValue());
-                }
-            }
+            element.update(value);
+
         }
     }
 
     private ArrayList<UIElement> createIntEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
+        UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setOnCommit(() -> {
             try {
                 int parsed = Integer.parseInt(tf.getText().trim());
                 Settings.getInstance().setValue(name, parsed);
                 Settings.getInstance().saveSettings();
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+                revert(tf);
+            }
         });
         elements.add(tf);
         if (hasRange()) {
@@ -369,13 +366,15 @@ public class Property<T> {
     private ArrayList<UIElement> createDoubleEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
+        UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setOnCommit(() -> {
             try {
                 double parsed = Double.parseDouble(tf.getText().trim());
                 Settings.getInstance().setValue(name, parsed);
                 Settings.getInstance().saveSettings();
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+                revert(tf);
+            }
         });
         elements.add(tf);
         if (hasRange()) {
@@ -407,13 +406,15 @@ public class Property<T> {
     private ArrayList<UIElement> createFloatEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
+        UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setOnCommit(() -> {
             try {
                 float parsed = Float.parseFloat(tf.getText().trim());
                 Settings.getInstance().setValue(name, parsed);
                 Settings.getInstance().saveSettings();
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+                revert(tf);
+            }
         });
         elements.add(tf);
         if (hasRange()) {
@@ -450,7 +451,8 @@ public class Property<T> {
                 boolean current = (Boolean) Settings.getInstance().getValue(name);
                 Settings.getInstance().setValue(name, !current);
                 Settings.getInstance().saveSettings();
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+            }
         });
         elements.add(toggle);
         return elements;
@@ -459,7 +461,7 @@ public class Property<T> {
     private ArrayList<UIElement> createStringEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
+        UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setOnCommit(() -> {
             Settings.getInstance().setValue(name, tf.getText());
             Settings.getInstance().saveSettings();
@@ -471,32 +473,64 @@ public class Property<T> {
     private ArrayList<UIElement> createColorEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
-        tf.setOnCommit(() -> {
+        UITextField tfRed = new UITextField(String.valueOf(((Color) Settings.getInstance().getValue(name)).getRed()));
+        tfRed.setOnCommit(() -> {
             try {
-                String txt = tf.getText().trim();
-                int rgb;
-                if (txt.startsWith("#")) {
-                    rgb = (int) Long.parseLong(txt.substring(1), 16);
-                } else if (txt.startsWith("0x") || txt.startsWith("0X")) {
-                    rgb = (int) Long.parseLong(txt.substring(2), 16);
-                } else {
-                    rgb = Integer.parseInt(txt);
-                }
-                // If missing alpha, assume opaque
-                Color c = new Color(rgb, (txt.length() > 7));
-                Settings.getInstance().setValue(name, c);
+                int red = Integer.parseInt(tfRed.getText().trim());
+                int green = ((Color) Settings.getInstance().getValue(name)).getGreen();
+                int blue = ((Color) Settings.getInstance().getValue(name)).getBlue();
+                Settings.getInstance().setValue(name, new Color(red, green, blue));
                 Settings.getInstance().saveSettings();
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+                tfRed.setText(String.valueOf(((Color) Settings.getInstance().getValue(name)).getRed()));
+            }
         });
-        elements.add(tf);
+        tfRed.setUpdateFunction(() -> {
+            tfRed.setText(String.valueOf(((Color) Settings.getInstance().getValue(name)).getRed()));
+        });
+
+        UITextField tfGreen = new UITextField(String.valueOf(((Color) Settings.getInstance().getValue(name)).getGreen()));
+        tfGreen.setOnCommit(() -> {
+            try {
+                int green = Integer.parseInt(tfGreen.getText().trim());
+                int red = ((Color) Settings.getInstance().getValue(name)).getRed();
+                int blue = ((Color) Settings.getInstance().getValue(name)).getBlue();
+                Settings.getInstance().setValue(name, new Color(red, green, blue));
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {
+                tfGreen.setText(String.valueOf(((Color) Settings.getInstance().getValue(name)).getGreen()));
+            }
+        });
+        tfGreen.setUpdateFunction(() -> {
+            tfGreen.setText(String.valueOf(((Color) Settings.getInstance().getValue(name)).getGreen()));
+        });
+
+        UITextField tfBlue = new UITextField(String.valueOf(((Color) Settings.getInstance().getValue(name)).getBlue()));
+        tfBlue.setOnCommit(() -> {
+            try {
+                int blue = Integer.parseInt(tfBlue.getText().trim());
+                int red = ((Color) Settings.getInstance().getValue(name)).getRed();
+                int green = ((Color) Settings.getInstance().getValue(name)).getGreen();
+                Settings.getInstance().setValue(name, new Color(red, green, blue));
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {
+                tfBlue.setText(String.valueOf(((Color) Settings.getInstance().getValue(name)).getBlue()));
+            }
+        });
+        tfBlue.setUpdateFunction(() -> {
+            tfBlue.setText(String.valueOf(((Color) Settings.getInstance().getValue(name)).getBlue()));
+        });
+        elements.add(tfRed);
+        elements.add(tfGreen);
+        elements.add(tfBlue);
+        System.out.println("Red: " + tfRed.getText() + " Green: " + tfGreen.getText() + " Blue: " + tfBlue.getText());
         return elements;
     }
 
     private ArrayList<UIElement> createVector3fEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
+        UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setOnCommit(() -> {
             try {
                 String[] parts = tf.getText().trim().split("[,\n\t\r ]+");
@@ -507,7 +541,9 @@ public class Property<T> {
                     Settings.getInstance().setValue(name, new Vector3f(x, y, z));
                     Settings.getInstance().saveSettings();
                 }
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+                revert(tf);
+            }
         });
         elements.add(tf);
         return elements;
@@ -516,7 +552,7 @@ public class Property<T> {
     private ArrayList<UIElement> createDoubleArrayEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UITextField tf = new UITextField(String.valueOf(value));
+        UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setOnCommit(() -> {
             try {
                 String[] parts = tf.getText().trim().split(",");
@@ -526,9 +562,15 @@ public class Property<T> {
                 }
                 Settings.getInstance().setValue(name, arr);
                 Settings.getInstance().saveSettings();
-            } catch (Exception ignore) {}
+            } catch (Exception ignore) {
+                revert(tf);
+            }
         });
         elements.add(tf);
         return elements;
+    }
+
+    private void revert(UITextField tf) {
+        tf.setText(String.valueOf((Object) Settings.getInstance().getValue(name)));
     }
 }

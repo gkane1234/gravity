@@ -23,7 +23,7 @@ import java.nio.file.Paths;
  * - Standard layout: !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
  */
 public class BitmapFont {
-    private static final String DEFAULT_FONT_RESOURCE = "/font.png";
+    private static final String DEFAULT_FONT_RESOURCE = "/font/font.png";
     private static final float FONT_HEIGHT_RATIO = 2f;
     private static final float DEFAULT_FONT_SIZE = 16.0f;
     private static final int CHARS_PER_ROW = 16;

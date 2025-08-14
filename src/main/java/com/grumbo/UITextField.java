@@ -12,15 +12,19 @@ public class UITextField extends UIElement {
     private StringBuilder text;
     private boolean focused;
     private Runnable onCommit; // Called when Enter pressed
-
-    public UITextField(float x, float y, float width, float height, String initial) {
+    private Runnable updateFunction;
+    public UITextField(float x, float y, float width, float height, String initial, Runnable updateFunction) {
         super(x, y, width, height, MIN_TEXT_FIELD_WIDTH, MIN_TEXT_FIELD_HEIGHT, 0.0f, 0.0f);
         this.text = new StringBuilder(initial == null ? "" : initial);
         this.focused = false;
     }
 
     public UITextField(String initial) {
-        this(0, 0, 0, 0, initial);
+        this(0, 0, 0, 0, initial, null);
+    }
+
+    public void setUpdateFunction(Runnable updateFunction) {
+        this.updateFunction = updateFunction;
     }
 
 
@@ -126,6 +130,12 @@ public class UITextField extends UIElement {
             float textY = y + (height - font.getCharHeight());
             font.drawText(text.toString(), x + PADDING, textY, 1.0f, font.getFontSize());
         }
+    }
+
+    @Override
+    public void update(Object value) {
+        if (updateFunction != null) updateFunction.run();
+        else setTextFromValue(value);
     }
 
     protected boolean hitTest(double mx, double my) {

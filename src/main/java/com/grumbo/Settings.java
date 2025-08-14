@@ -8,10 +8,15 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import org.joml.Vector3f;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.Files;
 
 
 public class Settings {
 
+    private static final String SETTINGS_FILE = getSettingsFile().getAbsolutePath();
     private static Settings instance;
 
     // Property map to store all settings
@@ -116,6 +121,9 @@ public class Settings {
 
 		// Camera pitch
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
+
+		// Barnes-Hut acceptance criterion
+		{ Property<Float> p = Property.createFloatProperty("theta", 1f, 1f); p.setEditable(true); properties.put("theta", p); }
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
@@ -227,6 +235,9 @@ public class Settings {
 	public float getPitch() { return getValue("pitch"); }
 	public void setPitch(float value) { setValue("pitch", value); }
 
+	public float getTheta() { return getValue("theta"); }
+	public void setTheta(float value) { setValue("theta", value); }
+
 	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
 
 	// ===== FIXED: Non-Configurable Values =====
@@ -317,13 +328,12 @@ public class Settings {
 		}
 	}
 	public void loadSettings() {
-		File file = getSettingsFile(); 
+		File file = getSettingsFile();
 		if (file.exists()) {
 			try {
-
 				ObjectMapper mapper = new ObjectMapper();
 				Map<String, Object> jsonData = mapper.readValue(file, Map.class);
-
+				
 				for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
 					String key = entry.getKey();
 					Object value = entry.getValue();
@@ -385,7 +395,6 @@ public class Settings {
 	
 	public void saveSettings() {
 		try {
-			
 			ObjectMapper mapper = new ObjectMapper();
 			Map<String, Object> jsonData = new HashMap<>();
 			

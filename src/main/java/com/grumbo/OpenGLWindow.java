@@ -33,6 +33,12 @@ public class OpenGLWindow {
     // Settings panel state
     private boolean debug = false;
     
+    // FPS monitoring
+    private boolean showFPS = true;
+    private double lastTime = 0.0;
+    private int frameCount = 0;
+    private double fps = 0.0;
+    
     // Bitmap font for UI text
     private BitmapFont font;
     // Embedded GPU sim that renders into this window
@@ -59,7 +65,7 @@ public class OpenGLWindow {
         float[] yVRange = {-100, 100};
         float[] zVRange = {-100, 100};
         float[] mRange = {100, 1000};
-        planets = Planet.makeNew(100000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNew(1000000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(new Planet(0, 0, 0, 0, 0, 0, 1000000));
 
 
@@ -112,8 +118,8 @@ public class OpenGLWindow {
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
-        // Enable v-sync
-        glfwSwapInterval(1);
+        // Disable v-sync for unlimited FPS
+        glfwSwapInterval(0);
 
         // Set cursor to disabled (hidden and locked to window)
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -134,6 +140,9 @@ public class OpenGLWindow {
                 if (mouseCaptured) {
                     firstMouse = true;
                 }
+            }
+            if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
+                showFPS = !showFPS;
             }
             // Route keys to focused textfields when not captured
             if (!mouseCaptured && debug) {
@@ -250,6 +259,7 @@ public class OpenGLWindow {
         System.out.println("QE: Move up/down");
         System.out.println("Mouse wheel: Zoom in/out");
         System.out.println("ESC: Toggle mouse cursor (press to release/capture mouse)");
+        System.out.println("F1: Toggle FPS display");
         System.out.println("P: Toggle performance stats");
         System.out.println("I: Print detailed performance info");
         System.out.println("B: Toggle chunk borders");
@@ -277,7 +287,13 @@ public class OpenGLWindow {
 
         System.out.println("Starting render loop...");
         
+        // Initialize FPS timing
+        lastTime = glfwGetTime();
+        
         while (!glfwWindowShouldClose(window)) {
+            
+            // Update FPS calculation
+            updateFPS();
 
             if (state == State.RUNNING) {
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -318,6 +334,11 @@ public class OpenGLWindow {
                 
                 // Draw crosshair last (on top)
                 drawCrosshair();
+                
+                // Draw FPS display (on top)
+                if (showFPS) {
+                    drawFPS();
+                }
                 
                 // Draw settings panel if visible (on top of everything)
 
@@ -468,6 +489,72 @@ public class OpenGLWindow {
         glVertex2f(centerX, centerY - crosshairSize);
         glVertex2f(centerX, centerY + crosshairSize);
         glEnd();
+        
+        // Re-enable depth testing
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+    
+    private void updateFPS() {
+        double currentTime = glfwGetTime();
+        frameCount++;
+        
+        // Update FPS every second
+        if (currentTime - lastTime >= 1.0) {
+            fps = frameCount / (currentTime - lastTime);
+            frameCount = 0;
+            lastTime = currentTime;
+        }
+    }
+    
+    private void drawFPS() {
+        if (font == null || !font.isLoaded()) {
+            return; // Skip if font is not available
+        }
+        
+        // Save current OpenGL state
+        glPushMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Set up 2D orthographic projection
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        
+        // Disable depth testing for UI elements
+        glDisable(GL_DEPTH_TEST);
+        
+        // Format FPS string
+        String fpsText = String.format("FPS: %.1f", fps);
+        
+        // Draw FPS in top-left corner with a black background for better readability
+        int x = 10;
+        int y = 20;
+        int padding = 4;
+        
+        // Get text dimensions
+        float textWidth = font.getTextWidth(fpsText);
+        float textHeight = font.getCharHeight();
+        
+        // Draw background rectangle
+        glColor4f(0.0f, 0.0f, 0.0f, 0.7f); // Semi-transparent black
+        glBegin(GL_QUADS);
+        glVertex2f(x - padding, y - padding);
+        glVertex2f(x + textWidth + padding, y - padding);
+        glVertex2f(x + textWidth + padding, y + textHeight + padding);
+        glVertex2f(x - padding, y + textHeight + padding);
+        glEnd();
+        
+        // Draw text in white
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
+        font.drawText(fpsText, x, y);
         
         // Re-enable depth testing
         glEnable(GL_DEPTH_TEST);
