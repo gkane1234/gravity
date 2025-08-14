@@ -283,7 +283,9 @@ public class OpenGLWindow {
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                 // Process WASD movement
-                processMovement();
+                if (!settingsPane.textFieldFocused) {
+                    processMovement();
+                }
 
                 // Set up 3D projection matrix
                 setupProjection();

@@ -17,11 +17,15 @@ public class UISlider extends UIElement {
 
 
     public UISlider(float x, float y, float width, float height, double minValue, double maxValue, double initialValue, Consumer<Double> onChange) {
-        super(x, y, width, height, MIN_SLIDER_WIDTH, MIN_SLIDER_HEIGHT);
+        super(x, y, width, height, MIN_SLIDER_WIDTH, MIN_SLIDER_HEIGHT, 0.0f, 0.0f);
         this.minValue = minValue;
         this.maxValue = maxValue <= minValue ? minValue + 1.0 : maxValue;
         this.value = clamp(initialValue);
         this.onChange = onChange;
+    }
+
+    public UISlider(double minValue, double maxValue, double initialValue, Consumer<Double> onChange) {
+        this(0, 0, 0, 0, minValue, maxValue, initialValue, onChange);
     }
 
 
@@ -37,6 +41,11 @@ public class UISlider extends UIElement {
 
     public void setValue(double newValue) {
         this.value = clamp(newValue);
+    }
+    @Override 
+    public void calculateSize(BitmapFont font) {
+        this.width = MIN_SLIDER_WIDTH;
+        this.height = MIN_SLIDER_HEIGHT;
     }
     @Override
     public void draw(BitmapFont font) {

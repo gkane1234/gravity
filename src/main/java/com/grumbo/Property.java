@@ -1,6 +1,7 @@
 package com.grumbo;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.function.Predicate;
 import org.joml.Vector3f;
 
@@ -14,6 +15,10 @@ public class Property<T> {
     private boolean isNumeric;
     private boolean editable = true;
     private String typeName; // e.g., "int", "double", "float", "boolean", "color", "doubleArray", "vector3f", "string"
+    
+    // Cached UI row
+    private UIRow editorRow;
+    private T cachedValue;
     
     // Constructors
     public Property(String name, T value, T defaultValue) {
@@ -68,6 +73,21 @@ public class Property<T> {
     public Double getMaxAsDouble() {
         if (!isNumeric || maxValue == null) return null;
         return ((Number) maxValue).doubleValue();
+    }
+
+    public void update() {
+        // Lazily create the editor row once
+        if (editorRow == null) {
+            editorRow = getEditorRow();
+            cachedValue = value;
+            return;
+        }
+
+        // When the underlying value changes, sync existing controls instead of recreating them
+        if (cachedValue == null || !cachedValue.equals(value)) {
+            syncEditorRowFromValue();
+            cachedValue = value;
+        }
     }
     
     // Validation methods
@@ -273,5 +293,242 @@ public class Property<T> {
     public String toString() {
         return String.format("Property{name='%s', value=%s, defaultValue=%s, min=%s, max=%s}", 
             name, value, defaultValue, minValue, maxValue);
+    }
+
+    public UIRow getEditorRow() {
+        if (editorRow != null) {
+            return editorRow;
+        }
+        ArrayList<UIElement> elements;
+        switch (typeName) {
+            case "int": elements = createIntEditorElements(); break;
+            case "double": elements = createDoubleEditorElements(); break;
+            case "float": elements = createFloatEditorElements(); break;
+            case "boolean": elements = createBooleanEditorElements(); break;
+            case "string": elements = createStringEditorElements(); break;
+            case "color": elements = createColorEditorElements(); break;
+            case "vector3f": elements = createVector3fEditorElements(); break;
+            case "doubleArray": elements = createDoubleArrayEditorElements(); break;
+            default: elements = createStringEditorElements(); break;
+        }
+        editorRow = new UIRow(elements);
+        return editorRow;
+    }
+
+    private void syncEditorRowFromValue() {
+        if (editorRow == null) return;
+        for (UIElement element : editorRow.getElements()) {
+            if (element instanceof UITextField) {
+                ((UITextField) element).setTextFromValue(value);
+            } else if (element instanceof UISlider) {
+                if (value instanceof Number) {
+                    ((UISlider) element).setValue(((Number) value).doubleValue());
+                }
+            }
+        }
+    }
+
+    private ArrayList<UIElement> createIntEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            try {
+                int parsed = Integer.parseInt(tf.getText().trim());
+                Settings.getInstance().setValue(name, parsed);
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {}
+        });
+        elements.add(tf);
+        if (hasRange()) {
+            double min = getMinAsDouble();
+            double max = getMaxAsDouble();
+            double current = ((Number) value).doubleValue();
+            UISlider slider = new UISlider(min, max, current, (val) -> {
+                Settings.getInstance().setValue(name, (int) Math.round(val));
+                Settings.getInstance().saveSettings();
+            });
+            elements.add(slider);
+        } else {
+            UIButton plus = new UIButton("+", () -> {
+                int v = ((Number) value).intValue();
+                Settings.getInstance().setValue(name, v + 1);
+                Settings.getInstance().saveSettings();
+            });
+            UIButton minus = new UIButton("-", () -> {
+                int v = ((Number) value).intValue();
+                Settings.getInstance().setValue(name, v - 1);
+                Settings.getInstance().saveSettings();
+            });
+            elements.add(plus);
+            elements.add(minus);
+        }
+        return elements;
+    }
+
+    private ArrayList<UIElement> createDoubleEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            try {
+                double parsed = Double.parseDouble(tf.getText().trim());
+                Settings.getInstance().setValue(name, parsed);
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {}
+        });
+        elements.add(tf);
+        if (hasRange()) {
+            double min = getMinAsDouble();
+            double max = getMaxAsDouble();
+            double current = ((Number) value).doubleValue();
+            UISlider slider = new UISlider(min, max, current, (val) -> {
+                Settings.getInstance().setValue(name, val);
+                Settings.getInstance().saveSettings();
+            });
+            elements.add(slider);
+        } else {
+            UIButton plus = new UIButton("+", () -> {
+                double v = ((Number) value).doubleValue();
+                Settings.getInstance().setValue(name, v * 1.1);
+                Settings.getInstance().saveSettings();
+            });
+            UIButton minus = new UIButton("-", () -> {
+                double v = ((Number) value).doubleValue();
+                Settings.getInstance().setValue(name, v / 1.1);
+                Settings.getInstance().saveSettings();
+            });
+            elements.add(plus);
+            elements.add(minus);
+        }
+        return elements;
+    }
+
+    private ArrayList<UIElement> createFloatEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            try {
+                float parsed = Float.parseFloat(tf.getText().trim());
+                Settings.getInstance().setValue(name, parsed);
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {}
+        });
+        elements.add(tf);
+        if (hasRange()) {
+            double min = getMinAsDouble();
+            double max = getMaxAsDouble();
+            double current = ((Number) value).doubleValue();
+            UISlider slider = new UISlider(min, max, current, (val) -> {
+                Settings.getInstance().setValue(name, (float) val.doubleValue());
+                Settings.getInstance().saveSettings();
+            });
+            elements.add(slider);
+        } else {
+            UIButton plus = new UIButton("+", () -> {
+                float v = ((Number) value).floatValue();
+                Settings.getInstance().setValue(name, (float) (v * 1.1));
+                Settings.getInstance().saveSettings();
+            });
+            UIButton minus = new UIButton("-", () -> {
+                float v = ((Number) value).floatValue();
+                Settings.getInstance().setValue(name, (float) (v / 1.1));
+                Settings.getInstance().saveSettings();
+            });
+            elements.add(plus);
+            elements.add(minus);
+        }
+        return elements;
+    }
+
+    private ArrayList<UIElement> createBooleanEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UIButton toggle = new UIButton("", () -> {
+            try {
+                boolean current = (Boolean) Settings.getInstance().getValue(name);
+                Settings.getInstance().setValue(name, !current);
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {}
+        });
+        elements.add(toggle);
+        return elements;
+    }
+
+    private ArrayList<UIElement> createStringEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            Settings.getInstance().setValue(name, tf.getText());
+            Settings.getInstance().saveSettings();
+        });
+        elements.add(tf);
+        return elements;
+    }
+
+    private ArrayList<UIElement> createColorEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            try {
+                String txt = tf.getText().trim();
+                int rgb;
+                if (txt.startsWith("#")) {
+                    rgb = (int) Long.parseLong(txt.substring(1), 16);
+                } else if (txt.startsWith("0x") || txt.startsWith("0X")) {
+                    rgb = (int) Long.parseLong(txt.substring(2), 16);
+                } else {
+                    rgb = Integer.parseInt(txt);
+                }
+                // If missing alpha, assume opaque
+                Color c = new Color(rgb, (txt.length() > 7));
+                Settings.getInstance().setValue(name, c);
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {}
+        });
+        elements.add(tf);
+        return elements;
+    }
+
+    private ArrayList<UIElement> createVector3fEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            try {
+                String[] parts = tf.getText().trim().split("[,\n\t\r ]+");
+                if (parts.length >= 3) {
+                    float x = Float.parseFloat(parts[0]);
+                    float y = Float.parseFloat(parts[1]);
+                    float z = Float.parseFloat(parts[2]);
+                    Settings.getInstance().setValue(name, new Vector3f(x, y, z));
+                    Settings.getInstance().saveSettings();
+                }
+            } catch (Exception ignore) {}
+        });
+        elements.add(tf);
+        return elements;
+    }
+
+    private ArrayList<UIElement> createDoubleArrayEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UITextField tf = new UITextField(String.valueOf(value));
+        tf.setOnCommit(() -> {
+            try {
+                String[] parts = tf.getText().trim().split(",");
+                double[] arr = new double[parts.length];
+                for (int i = 0; i < parts.length; i++) {
+                    arr[i] = Double.parseDouble(parts[i].trim());
+                }
+                Settings.getInstance().setValue(name, arr);
+                Settings.getInstance().saveSettings();
+            } catch (Exception ignore) {}
+        });
+        elements.add(tf);
+        return elements;
     }
 }
