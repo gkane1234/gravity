@@ -1,4 +1,5 @@
 #version 430
+#extension GL_NV_gpu_shader5 : enable
 
 // =============================================================
 // Barnes–Hut N-body compute shader (outline only)
@@ -43,7 +44,7 @@ struct Node {
 // 3) Buffers
 layout(std430, binding = 0) readonly buffer BodiesIn  { Body bodies[]; } srcB;
 layout(std430, binding = 1) writeonly buffer BodiesOut { Body bodies[]; } dstB;
-layout(std430, binding = 2) buffer MortonKeys { uint morton[]; };
+layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
 // - Optional: scratch buffers for radix sort / tree build
@@ -51,9 +52,10 @@ layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
 layout(std430, binding = 5) buffer WGHist      { uint wgHist[];      }; // [numWorkGroups * NUM_BUCKETS]
 layout(std430, binding = 6) buffer WGScanned   { uint wgScanned[];   }; // scanned per-workgroup bucket bases
 layout(std430, binding = 7) buffer GlobalBase  { uint globalBase[];  }; // [NUM_BUCKETS] exclusive bases
-layout(std430, binding = 8) buffer MortonOut   { uint mortonOut[];   };
+layout(std430, binding = 8) buffer MortonOut   { uint64_t mortonOut[];   };
 layout(std430, binding = 9) buffer IndicesOut  { uint indexOut[];    };
 layout(std430, binding = 10) buffer RootNodeBuffer { uint rootNodeId; };
+layout(std430, binding = 11) buffer DebugBuffer { uint debugStatus[]; }; // Debug: track node states
 // Current pass shift (bit offset)
 uniform uint passShift;
 // -------------------------------------------------------------
@@ -66,31 +68,32 @@ shared uint digits[WG_SIZE];
 // -------------------------------------------------------------
 // 4) Helper functions
 // Spread the lower 10 bits of v so there are 2 zero bits between each original bit
-uint expandBits(uint v)
+uint64_t expandBits21(uint v)
 {
-    v &= 0x000003FFu;                 // keep 10 bits
-    v = (v | (v << 16)) & 0x030000FFu;
-    v = (v | (v << 8))  & 0x0300F00Fu;
-    v = (v | (v << 4))  & 0x030C30C3u;
-    v = (v | (v << 2))  & 0x09249249u;
-    return v;
+    uint64_t x = uint64_t(v) & 0x1FFFFFul;
+    x = (x | (x << 32)) & 0x1F00000000FFFFul;
+    x = (x | (x << 16)) & 0x1F0000FF0000FFul;
+    x = (x | (x << 8))  & 0x100F00F00F00F00Ful;
+    x = (x | (x << 4))  & 0x10C30C30C30C30C3ul;
+    x = (x | (x << 2))  & 0x1249249249249249ul;
+    return x;
 }
 
-uint morton3D(uint x, uint y, uint z)
+uint64_t morton3D64(uint x, uint y, uint z)
 {
-    return (expandBits(x) << 2) | (expandBits(y) << 1) | expandBits(z);
+    return (expandBits21(x) << 2) | (expandBits21(y) << 1) | expandBits21(z);
 }
 
-uint mortonEncode3D(vec3 pNorm)
+uint64_t mortonEncode3D(vec3 pNorm)
 {
-    // Quantize to 10 bits per axis in [0, 1023]
-    float fx = clamp(pNorm.x, 0.0, 0.999999) * 1024.0;
-    float fy = clamp(pNorm.y, 0.0, 0.999999) * 1024.0;
-    float fz = clamp(pNorm.z, 0.0, 0.999999) * 1024.0;
+    // Quantize to 21 bits per axis in [0, 2097151]
+    float fx = clamp(pNorm.x, 0.0, 1.0) * 2097152.0;
+    float fy = clamp(pNorm.y, 0.0, 1.0) * 2097152.0;
+    float fz = clamp(pNorm.z, 0.0, 1.0) * 2097152.0;
     uint xi = uint(floor(fx));
     uint yi = uint(floor(fy));
     uint zi = uint(floor(fz));
-    return morton3D(xi, yi, zi);
+    return morton3D64(xi, yi, zi);
 }
 
 bool acceptanceCriterion(float s, float d, float theta)
@@ -141,8 +144,8 @@ void radixHistogramKernel()
     barrier();
 
     if (gid < numBodies) {
-        uint key = morton[gid];
-        uint digit = (key >> passShift) & (NUM_BUCKETS - 1u);
+        uint64_t key = morton[gid];
+        uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
         atomicAdd(hist[digit], 1u);
     }
     barrier();
@@ -190,8 +193,8 @@ void radixScatterKernel()
 
     // digits is now global
 
-    uint key = isActive ? morton[gid] : 0u;
-    uint dig = (key >> passShift) & (NUM_BUCKETS - 1u);
+    uint64_t key = isActive ? morton[gid] : 0ul;
+    uint dig = uint((key >> passShift) & (NUM_BUCKETS - 1u));
     digits[lid] = isActive ? dig : 0xFFFFFFFFu; // sentinel so inactive lanes don't match
     barrier();
 
@@ -217,84 +220,28 @@ void radixScatterKernel()
 // -------------------------------------------------------------
 
 // Helper: count leading common bits between two Morton codes
-uint longestCommonPrefix(uint a, uint b)
+uint longestCommonPrefix(uint64_t a, uint64_t b)
 {
-    if (a == b) return 32u;
-    return 31u - findMSB(a ^ b);
+    if (a == b) return 64u;
+    uint64_t x = a ^ b;
+    uint highBits = uint(x >> 32);
+    uint lowBits = uint(x);
+    if (highBits != 0u) {
+        return 31u - uint(findMSB(highBits));
+    } else {
+        return 63u - uint(findMSB(lowBits));
+    }
 }
 
 // Safe LCP that handles array bounds
 int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(numBodies) || j >= int(numBodies)) return -1;
-    if (i == j) return 32;
-    return int(longestCommonPrefix(morton[i], morton[j]));
+    uint64_t mortonI = morton[i];
+    uint64_t mortonJ = morton[j];
+    return int(longestCommonPrefix(mortonI, mortonJ));
 }
 
-// Determine range for internal node using binary search
-uvec2 determineRange(int nodeId)
-{
-    int i = nodeId; // internal node index corresponds to split between i and i+1
-    
-    // Direction: compare LCP(i,i+1) with neighbors
-    int lcpSelf = safeLCP(i, i + 1);
-    int lcpLeft = safeLCP(i, i - 1);
-    int lcpRight = safeLCP(i + 1, i + 2);
-    
-    int direction = (lcpLeft > lcpRight) ? -1 : 1;
-    
-    // Binary search to find range bounds
-    int lmin = safeLCP(i, i + direction);
-    int lmax = 2;
-    
-    // Expand until we find a bound
-    while (lmax < int(numBodies) && safeLCP(i, i + direction * lmax) > lmin) {
-        lmax *= 2;
-    }
-    
-    // Binary search within [0, lmax)
-    int l = 0;
-    int t = lmax / 2;
-    while (t > 0) {
-        if (safeLCP(i, i + direction * (l + t)) > lmin) {
-            l = l + t;
-        }
-        t /= 2;
-    }
-    
-    int left, right;
-    if (direction > 0) {
-        left = i;
-        right = i + l;
-    } else {
-        left = i - l;
-        right = i;
-    }
-    
-    return uvec2(left, right);
-}
-
-// Find split point within a range
-int findSplit(int left, int right)
-{
-    if (left == right) return left;
-    
-    int lcpNode = safeLCP(left, right);
-    
-    // Binary search for split
-    int split = left;
-    int step = right - left;
-    
-    do {
-        step = (step + 1) / 2;
-        int newSplit = split + step;
-        if (newSplit < right && safeLCP(left, newSplit) > lcpNode) {
-            split = newSplit;
-        }
-    } while (step > 1);
-    
-    return split;
-}
 
 // Build binary radix tree kernel: one thread per internal node
 void buildBinaryRadixTreeKernel()
@@ -302,59 +249,111 @@ void buildBinaryRadixTreeKernel()
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= numBodies - 1u) return; // N-1 internal nodes
     
-    int nodeId = int(gid);
+    const int i = int(gid); // this corresponds to the body at the sorted index
+    
+    // Direction: compare LCP(i,i+1) with neighbors
+    int lcpRight = safeLCP(i, i + 1);
+    int lcpLeft = safeLCP(i, i - 1);
+    //int lcpRight = safeLCP(i + 1, i + 2);
+    //d ← sign(δ(i, i + 1) − δ(i, i − 1))
+    int direction = (lcpLeft > lcpRight) ? -1 : 1;
     
     // Determine range for this internal node
-    uvec2 range = determineRange(nodeId);
-    int left = int(range.x);
-    int right = int(range.y);
+
+    // Binary search to find range bounds
+    //δmin ← δ(i, i − d)
+    int deltaMin = safeLCP(i, i - direction);
+    //lmax ← 2
+    int lmax = 2;
+    
+    // Expand until we find a bound
+    //while δ(i, i + lmax · d) > δmin do
+    while (safeLCP(i, i + direction * lmax) > deltaMin) {
+        //lmax ← lmax · 2
+        lmax *= 2;
+    }
+    
+    // Binary search within [0, lmax)
+
+    //l ← 0
+    int l = 0;
+    int t = lmax / 2;
+    //for t ← {lmax/2, lmax/4, . . . , 1} do
+    while (t > 0) {
+        //if δ(i, i + (l + t) · d) > δmin then
+        if (safeLCP(i, i + direction * (l + t)) > deltaMin) {
+            //l ← l + t
+            l = l + t;
+        }
+        t /= 2;
+    }
+    //j ← i + l · d
+
+    int j = i + l * direction;
+
 
     // Detect root node: the one covering the full range [0, numBodies-1]
-    if (left == 0 && right == int(numBodies - 1)) {
+    if (min(i, j) == 0 && max(i, j) == int(numBodies - 1)) {
         // This internal node covers the full range - it's the root
-        rootNodeId = uint(nodeId);
+        rootNodeId = uint(i) + numBodies;
+        nodes[rootNodeId].parentId = 0xFFFFFFFFu;
     }
     
     // Find split point
-    int split = findSplit(left, right);
-    
-    // Determine child indices
+    //δnode ← δ(i, j)
+    int deltaNode = safeLCP(i, j);
+    //s ← 0
+    int s = 0;
+    //for t ← {⌈l/2⌉, ⌈l/4⌉, . . . , 1} do
+    t = l;
+    while (t>1) {
+        t = (t + 1) / 2; // Start with ceiling of l/2
+        if (safeLCP(i, i + (s + t) * direction) > deltaNode) {
+            //s ← s + t
+            s += t;
+        }
+    } 
+    //γ ← i + s · d + min(d, 0)
+
+    int gamma = i + s*direction + min(direction,0);
+    // Output child pointers
+    //if min(i, j) = γ then left ← Lγ else left ← Iγ
     uint leftChild, rightChild;
-    
-    if (split == left) {
-        // Left child is a leaf
-        leftChild = uint(left);
+
+    if (min(i,j)==gamma) {
+        leftChild = uint(gamma);
     } else {
-        // Left child is internal node
-        leftChild = uint(split) + numBodies;
+        leftChild = uint(gamma) + numBodies;
     }
-    
-    if (split + 1 == right) {
-        // Right child is a leaf  
-        rightChild = uint(right);
+    //if max(i, j) = γ + 1 then right ← Lγ+1 else right ← Iγ+1
+    if (max(i,j)==gamma+1) {
+        rightChild = uint(gamma+1);
     } else {
-        // Right child is internal node
-        rightChild = uint(split) + numBodies;
+        rightChild = uint(gamma+1) + numBodies;
     }
+    //Ii ← (left, right)
+    //return split;
+    //int split = findSplit(left, right, direction);
+    
+
     
     // Store in node structure (internal nodes start at index numBodies)
-    uint internalIdx = uint(nodeId) + numBodies;
-    
-    // Clear all children first
-    nodes[internalIdx].childA = 0xFFFFFFFFu;
-    nodes[internalIdx].childB = 0xFFFFFFFFu;
+    uint internalIdx = uint(i) + numBodies;
     
     // Set left and right children (children[0] and children[1])
     nodes[internalIdx].childA = leftChild;
     nodes[internalIdx].childB = rightChild;
+
+    // Set Other fields
+    nodes[internalIdx].readyChildren = 0u;
 
     // Set parent id
     nodes[leftChild].parentId = internalIdx;
     nodes[rightChild].parentId = internalIdx;
     
     // Store range info
-    nodes[internalIdx].firstBody = uint(left);
-    nodes[internalIdx].bodyCount = uint(right - left + 1);
+    nodes[internalIdx].firstBody = uint(min(i, j));
+    nodes[internalIdx].bodyCount = uint(max(i, j) - min(i, j) + 1);
 }
 
 // -------------------------------------------------------------
@@ -377,7 +376,6 @@ void initLeafNodesKernel()
     // Set leaf mass and center-of-mass
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
     nodes[gid].centerSize = vec4(body.posMass.xyz, 0.0); // tight bounds
-    
     // Atomically notify parent that this child is ready
     uint parentIdx = nodes[gid].parentId;
     if (parentIdx != 0xFFFFFFFFu) {
@@ -392,9 +390,23 @@ void propagateNodesKernel()
     if (gid >= numBodies - 1u) return; // Only internal nodes
 
     uint nodeIdx = gid + numBodies; // Internal nodes start at numBodies
+
+    if (nodes[nodeIdx].readyChildren == 3u) return;
+    
+    // Debug: Mark this node as waiting if not ready
+    if (nodes[nodeIdx].readyChildren < 2u) {
+        debugStatus[nodeIdx] = 999u; // Mark as "waiting"
+    }
     
     // Wait until both children are ready
-    if (nodes[nodeIdx].readyChildren < 2u) return;
+    if (nodes[nodeIdx].readyChildren < 2u) {
+        return; // Exit early if not ready (no freeze)
+    }
+
+    nodes[nodeIdx].readyChildren = 3u; // mark as processed
+    
+    // Debug: Mark this node as processing
+    debugStatus[nodeIdx] = 1u;
     
     // Get children
     uint leftChild = nodes[nodeIdx].childA;
@@ -489,6 +501,7 @@ void computeForce()
 
     dstB.bodies[gid].velPad.xyz = newVel;
     dstB.bodies[gid].posMass.xyz = newPos;
+    dstB.bodies[gid].posMass.w = body.posMass.w;
     dstB.bodies[gid].color = body.color;
 }
 

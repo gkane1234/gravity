@@ -123,7 +123,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
 
 		// Barnes-Hut acceptance criterion
-		{ Property<Float> p = Property.createFloatProperty("theta", 1f, 1f); p.setEditable(true); properties.put("theta", p); }
+		{ Property<Float> p = Property.createFloatProperty("theta", 0.1f, 0.1f); p.setEditable(true); properties.put("theta", p); }
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
