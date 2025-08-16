@@ -65,7 +65,7 @@ public class OpenGLWindow {
         float[] yVRange = {-100, 100};
         float[] zVRange = {-100, 100};
         float[] mRange = {100, 1000};
-        planets = Planet.makeNew(100, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNew(1_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(new Planet(0, 0, 0, 0, 0, 0, 1000000));
 
 

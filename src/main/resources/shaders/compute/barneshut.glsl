@@ -1,5 +1,4 @@
 #version 430
-#extension GL_NV_gpu_shader5 : enable
 
 // =============================================================
 // Barnes–Hut N-body compute shader (outline only)
@@ -11,13 +10,11 @@
 // 1) Constants and configuration
 // - Define workgroup size, softening, Barnes–Hut theta, etc.
 layout(local_size_x = 128) in;
-const float SOFTENING = 0.01;
+const float SOFTENING = 0.0001;
 uniform float theta;
 uniform float dt;
 uniform uint numBodies;
 // Scene AABB used to normalize positions into [0,1]^3
-uniform vec3 aabbMin;
-uniform vec3 aabbMax;
 uniform uint numWorkGroups; // number of workgroups dispatched for histogram/scatter
 // Radix parameters
 const uint RADIX_BITS = 4u;                 // 4 bits per pass
@@ -44,18 +41,20 @@ struct Node {
 // 3) Buffers
 layout(std430, binding = 0) readonly buffer BodiesIn  { Body bodies[]; } srcB;
 layout(std430, binding = 1) writeonly buffer BodiesOut { Body bodies[]; } dstB;
-layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
+layout(std430, binding = 2) buffer MortonKeys { uint morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
-// - Optional: scratch buffers for radix sort / tree build
+layout(std430, binding = 5) buffer AABBBufferIn { vec3 aabbIn[]; };
+layout(std430, binding = 6) buffer AABBBufferOut { vec3 aabbOut[]; };
 // Radix sort auxiliary buffers
-layout(std430, binding = 5) buffer WGHist      { uint wgHist[];      }; // [numWorkGroups * NUM_BUCKETS]
-layout(std430, binding = 6) buffer WGScanned   { uint wgScanned[];   }; // scanned per-workgroup bucket bases
-layout(std430, binding = 7) buffer GlobalBase  { uint globalBase[];  }; // [NUM_BUCKETS] exclusive bases
-layout(std430, binding = 8) buffer MortonOut   { uint64_t mortonOut[];   };
-layout(std430, binding = 9) buffer IndicesOut  { uint indexOut[];    };
-layout(std430, binding = 10) buffer RootNodeBuffer { uint rootNodeId; };
-layout(std430, binding = 11) buffer DebugBuffer { uint debugStatus[]; }; // Debug: track node states
+layout(std430, binding = 7) buffer WGHist      { uint wgHist[];      }; // [numWorkGroups * NUM_BUCKETS]
+layout(std430, binding = 8) buffer WGScanned   { uint wgScanned[];   }; // scanned per-workgroup bucket bases
+layout(std430, binding = 9) buffer GlobalBase  { uint globalBase[];  }; // [NUM_BUCKETS] exclusive bases
+layout(std430, binding = 10) buffer MortonOut   { uint mortonOut[];   };
+layout(std430, binding = 11) buffer IndicesOut  { uint indexOut[];    };
+layout(std430, binding = 12) buffer RootNodeBuffer { uint rootNodeId; };
+// Work queue: first two uints are head and tail, followed by items
+layout(std430, binding = 13) buffer WorkQueue { uint head; uint tail; uint items[]; };
 // Current pass shift (bit offset)
 uniform uint passShift;
 // -------------------------------------------------------------
@@ -68,32 +67,31 @@ shared uint digits[WG_SIZE];
 // -------------------------------------------------------------
 // 4) Helper functions
 // Spread the lower 10 bits of v so there are 2 zero bits between each original bit
-uint64_t expandBits21(uint v)
+uint expandBits(uint v)
 {
-    uint64_t x = uint64_t(v) & 0x1FFFFFul;
-    x = (x | (x << 32)) & 0x1F00000000FFFFul;
-    x = (x | (x << 16)) & 0x1F0000FF0000FFul;
-    x = (x | (x << 8))  & 0x100F00F00F00F00Ful;
-    x = (x | (x << 4))  & 0x10C30C30C30C30C3ul;
-    x = (x | (x << 2))  & 0x1249249249249249ul;
-    return x;
+    v &= 0x000003FFu;                 // keep 10 bits
+    v = (v | (v << 16)) & 0x030000FFu;
+    v = (v | (v << 8))  & 0x0300F00Fu;
+    v = (v | (v << 4))  & 0x030C30C3u;
+    v = (v | (v << 2))  & 0x09249249u;
+    return v;
 }
 
-uint64_t morton3D64(uint x, uint y, uint z)
+uint morton3D(uint x, uint y, uint z)
 {
-    return (expandBits21(x) << 2) | (expandBits21(y) << 1) | expandBits21(z);
+    return (expandBits(x) << 2) | (expandBits(y) << 1) | expandBits(z);
 }
 
-uint64_t mortonEncode3D(vec3 pNorm)
+uint mortonEncode3D(vec3 pNorm)
 {
-    // Quantize to 21 bits per axis in [0, 2097151]
-    float fx = clamp(pNorm.x, 0.0, 1.0) * 2097152.0;
-    float fy = clamp(pNorm.y, 0.0, 1.0) * 2097152.0;
-    float fz = clamp(pNorm.z, 0.0, 1.0) * 2097152.0;
+    // Quantize to 10 bits per axis in [0, 1023]
+    float fx = clamp(pNorm.x, 0.0, 0.999999) * 1024.0;
+    float fy = clamp(pNorm.y, 0.0, 0.999999) * 1024.0;
+    float fz = clamp(pNorm.z, 0.0, 0.999999) * 1024.0;
     uint xi = uint(floor(fx));
     uint yi = uint(floor(fy));
     uint zi = uint(floor(fz));
-    return morton3D64(xi, yi, zi);
+    return morton3D(xi, yi, zi);
 }
 
 bool acceptanceCriterion(float s, float d, float theta)
@@ -107,6 +105,119 @@ float invDist3(vec3 r, float softening)
     return inv * inv * inv;
 }
 // -------------------------------------------------------------
+// Compute new AABB
+//Needs 
+
+
+shared vec3 sharedAABB[WG_SIZE * 2]; 
+
+vec3[2] updateAABB(vec3 aMin, vec3 aMax, vec3 bMin, vec3 bMax) {
+    float minX = min(aMin.x, bMin.x);
+    float maxX = max(aMax.x, bMax.x);
+    float minY = min(aMin.y, bMin.y);
+    float maxY = max(aMax.y, bMax.y);
+    float minZ = min(aMin.z, bMin.z);
+    float maxZ = max(aMax.z, bMax.z);
+    return vec3[](vec3(minX, minY, minZ), vec3(maxX, maxY, maxZ));
+}
+void computeNewAABBKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+
+    if (2*gid>=numBodies) {
+        sharedAABB[lid*2] = vec3(1e9);
+        sharedAABB[lid*2+1] = vec3(-1e9);
+    }
+    else if (2*gid+1>=numBodies) {
+        sharedAABB[lid*2] = srcB.bodies[2*gid].posMass.xyz;
+        sharedAABB[lid*2+1] = srcB.bodies[2*gid].posMass.xyz;
+    }
+    else {
+        vec3 pos = srcB.bodies[2*gid].posMass.xyz;
+        vec3 pos2 = srcB.bodies[2*gid+1].posMass.xyz;
+
+        float minX = min(pos.x, pos2.x);
+        float maxX = max(pos.x, pos2.x);
+        float minY = min(pos.y, pos2.y);
+        float maxY = max(pos.y, pos2.y);
+        float minZ = min(pos.z, pos2.z);
+        float maxZ = max(pos.z, pos2.z);
+
+        sharedAABB[lid*2] = vec3(minX, minY, minZ);
+        sharedAABB[lid*2+1] = vec3(maxX, maxY, maxZ);
+    }
+    barrier();
+
+    uint activePairs = WG_SIZE;
+    while (activePairs > 1u) {
+        if (lid < activePairs/2u) {
+            uint other = (lid + activePairs/2u) * 2u;
+            vec3[2] aabb = updateAABB(sharedAABB[lid*2u], sharedAABB[lid*2u+1u], sharedAABB[other], sharedAABB[other+1u]);
+            sharedAABB[lid*2u] = aabb[0];
+            sharedAABB[lid*2u+1u] = aabb[1];
+        }
+        barrier();
+        activePairs /= 2u;
+    }
+    if (lid == 0) {
+        uint wgId = gl_WorkGroupID.x;
+        if (wgId >= numWorkGroups) return;
+        aabbOut[wgId * 2 + 0] = sharedAABB[0];
+        aabbOut[wgId * 2 + 1] = sharedAABB[1];
+    }
+    
+    // Create an array with 2**floor(log_2(n)) elements, each element is 6 floats
+    // initialize 
+    // each thread compares two bodies, and puts largest x, smallest x, largest y, smallest y, largest z, smallest z
+    // into the array
+    // then it waits for all threads to complete
+    // second half of the threads are killed
+    // it continues with the remaining threads, reducing the size by half again etc
+}
+void collapseAABBKernel() 
+{
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+
+    if (gid*2 >= numBodies)  {
+        sharedAABB[lid*2] = vec3(1e9);
+        sharedAABB[lid*2+1] = vec3(-1e9);
+    }
+    else if (gid*2+1 >= numBodies) {
+        sharedAABB[lid*2] = vec3(aabbIn[gid*2]);
+        sharedAABB[lid*2+1] = vec3(aabbIn[gid*2+1]);
+    }
+    else {
+        vec3 aMin = vec3(aabbIn[gid*2]);
+        vec3 aMax = vec3(aabbIn[gid*2+1]);
+        vec3 bMin = vec3(aabbIn[gid*2+2]);
+        vec3 bMax = vec3(aabbIn[gid*2+3]);
+        sharedAABB[lid*2] = updateAABB(aMin, aMax, bMin, bMax)[0];
+        sharedAABB[lid*2+1] = updateAABB(aMin, aMax, bMin, bMax)[1];
+    }
+    barrier();
+
+    uint activePairs2 = WG_SIZE;
+    while (activePairs2 > 1u) {
+        if (lid < activePairs2/2u) {
+            uint other2 = (lid + activePairs2/2u) * 2u;
+            vec3[2] aabb2 = updateAABB(sharedAABB[lid*2u], sharedAABB[lid*2u+1u], sharedAABB[other2], sharedAABB[other2+1u]);
+            sharedAABB[lid*2u] = aabb2[0];
+            sharedAABB[lid*2u+1u] = aabb2[1];
+        }
+        barrier();
+        activePairs2 /= 2u;
+    }
+    if (lid == 0) {
+        uint wgId = gl_WorkGroupID.x;
+        if (wgId >= numWorkGroups) return;
+        aabbOut[wgId * 2 + 0] = sharedAABB[0];
+        aabbOut[wgId * 2 + 1] = sharedAABB[1];
+    }
+}
+
 
 // -------------------------------------------------------------
 // 5) Kernel A: Compute Morton codes (one thread per body)
@@ -118,9 +229,12 @@ void encodeMortonKernel()
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= numBodies) return;
 
+    vec3 sceneMin = aabbIn[0];
+    vec3 sceneMax = aabbIn[1];
+
     vec3 pos = srcB.bodies[gid].posMass.xyz;
-    vec3 extent = max(aabbMax - aabbMin, vec3(1e-9));
-    vec3 pNorm = (pos - aabbMin) / extent; // map to [0,1]
+    vec3 extent = max(sceneMax - sceneMin, vec3(1e-9));
+    vec3 pNorm = (pos - sceneMin) / extent; // map to [0,1]
 
     morton[gid] = mortonEncode3D(pNorm);
     index[gid]  = gid;
@@ -144,8 +258,8 @@ void radixHistogramKernel()
     barrier();
 
     if (gid < numBodies) {
-        uint64_t key = morton[gid];
-        uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
+        uint key = morton[gid];
+        uint digit = (key >> passShift) & (NUM_BUCKETS - 1u);
         atomicAdd(hist[digit], 1u);
     }
     barrier();
@@ -193,8 +307,8 @@ void radixScatterKernel()
 
     // digits is now global
 
-    uint64_t key = isActive ? morton[gid] : 0ul;
-    uint dig = uint((key >> passShift) & (NUM_BUCKETS - 1u));
+    uint key = isActive ? morton[gid] : 0u;
+    uint dig = (key >> passShift) & (NUM_BUCKETS - 1u);
     digits[lid] = isActive ? dig : 0xFFFFFFFFu; // sentinel so inactive lanes don't match
     barrier();
 
@@ -220,26 +334,18 @@ void radixScatterKernel()
 // -------------------------------------------------------------
 
 // Helper: count leading common bits between two Morton codes
-uint longestCommonPrefix(uint64_t a, uint64_t b)
+uint longestCommonPrefix(uint a, uint b)
 {
-    if (a == b) return 64u;
-    uint64_t x = a ^ b;
-    uint highBits = uint(x >> 32);
-    uint lowBits = uint(x);
-    if (highBits != 0u) {
-        return 31u - uint(findMSB(highBits));
-    } else {
-        return 63u - uint(findMSB(lowBits));
-    }
+    if (a == b) return 32u;
+    return 31u - findMSB(a ^ b);
 }
 
 // Safe LCP that handles array bounds
 int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(numBodies) || j >= int(numBodies)) return -1;
-    uint64_t mortonI = morton[i];
-    uint64_t mortonJ = morton[j];
-    return int(longestCommonPrefix(mortonI, mortonJ));
+
+    return int(longestCommonPrefix(morton[i], morton[j]));
 }
 
 
@@ -376,75 +482,89 @@ void initLeafNodesKernel()
     // Set leaf mass and center-of-mass
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
     nodes[gid].centerSize = vec4(body.posMass.xyz, 0.0); // tight bounds
-    // Atomically notify parent that this child is ready
+    nodes[gid].childA = 0xFFFFFFFFu;
+    nodes[gid].childB = 0xFFFFFFFFu;
+    
+    // Atomically notify parent that this child is ready; if both ready, enqueue parent
     uint parentIdx = nodes[gid].parentId;
     if (parentIdx != 0xFFFFFFFFu) {
-        atomicAdd(nodes[parentIdx].readyChildren, 1u);
+        uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+        if (prev + 1u == 2u) {
+            uint idx = atomicAdd(tail, 1u);
+            items[idx] = parentIdx;
+        }
     }
 }
 
 // Propagate mass/COM up the tree when children are ready
 void propagateNodesKernel()
 {
-    uint gid = gl_GlobalInvocationID.x;
-    if (gid >= numBodies - 1u) return; // Only internal nodes
-
-    uint nodeIdx = gid + numBodies; // Internal nodes start at numBodies
-
-    if (nodes[nodeIdx].readyChildren == 3u) return;
+    // Persistent kernel: each thread processes multiple work items until queue is empty
+    uint threadId = gl_GlobalInvocationID.x;
+    uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
     
-    // Debug: Mark this node as waiting if not ready
-    if (nodes[nodeIdx].readyChildren < 2u) {
-        debugStatus[nodeIdx] = 999u; // Mark as "waiting"
-    }
-    
-    // Wait until both children are ready
-    if (nodes[nodeIdx].readyChildren < 2u) {
-        return; // Exit early if not ready (no freeze)
-    }
-
-    nodes[nodeIdx].readyChildren = 3u; // mark as processed
-    
-    // Debug: Mark this node as processing
-    debugStatus[nodeIdx] = 1u;
-    
-    // Get children
-    uint leftChild = nodes[nodeIdx].childA;
-    uint rightChild = nodes[nodeIdx].childB;
-    
-    // Read child mass/COM data
-    vec4 leftCOM = nodes[leftChild].comMass;
-    vec4 rightCOM = nodes[rightChild].comMass;
-    
-    // Compute combined mass and center-of-mass
-    float totalMass = leftCOM.w + rightCOM.w;
-    vec3 centerOfMass;
-    if (totalMass > 0.0) {
-        centerOfMass = (leftCOM.w * leftCOM.xyz + rightCOM.w * rightCOM.xyz) / totalMass;
-    } else {
-        centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5; // fallback
-    }
-    
-    // Compute bounding box (union of children + margin)
-    vec3 leftCenter = nodes[leftChild].centerSize.xyz;
-    float leftSize = nodes[leftChild].centerSize.w;
-    vec3 rightCenter = nodes[rightChild].centerSize.xyz;
-    float rightSize = nodes[rightChild].centerSize.w;
-    
-    // Simple bounding box union
-    vec3 minCorner = min(leftCenter - leftSize, rightCenter - rightSize);
-    vec3 maxCorner = max(leftCenter + leftSize, rightCenter + rightSize);
-    vec3 center = (minCorner + maxCorner) * 0.5;
-    float halfSize = length(maxCorner - center);
-    
-    // Store results
-    nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
-    nodes[nodeIdx].centerSize = vec4(center, halfSize);
-    
-    // Atomically notify parent that this node is ready
-    uint parentIdx = nodes[nodeIdx].parentId;
-    if (parentIdx != 0xFFFFFFFFu) {
-        atomicAdd(nodes[parentIdx].readyChildren, 1u);
+    // Process work items in round-robin fashion across all threads
+    uint workIdx = threadId;
+    while (workIdx < tail) {
+        uint nodeIdx = items[workIdx];
+        
+        // Skip if already processed or not ready
+        if (nodes[nodeIdx].readyChildren >= 3u) {
+            workIdx += totalThreads;
+            continue;
+        }
+        
+        // Check if both children are ready
+        uint leftChild = nodes[nodeIdx].childA;
+        uint rightChild = nodes[nodeIdx].childB;
+        if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
+            workIdx += totalThreads;
+            continue;
+        }
+        
+        // Mark as processing to avoid race conditions
+        if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+            workIdx += totalThreads;
+            continue;
+        }
+        
+        // Process this node
+        vec4 leftCOM = nodes[leftChild].comMass;
+        vec4 rightCOM = nodes[rightChild].comMass;
+        
+        float totalMass = leftCOM.w + rightCOM.w;
+        vec3 centerOfMass;
+        if (totalMass > 0.0) {
+            centerOfMass = (leftCOM.w * leftCOM.xyz + rightCOM.w * rightCOM.xyz) / totalMass;
+        } else {
+            centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
+        }
+        
+        vec3 leftCenter = nodes[leftChild].centerSize.xyz;
+        float leftSize = nodes[leftChild].centerSize.w;
+        vec3 rightCenter = nodes[rightChild].centerSize.xyz;
+        float rightSize = nodes[rightChild].centerSize.w;
+        
+        vec3 minCorner = min(leftCenter - leftSize, rightCenter - rightSize);
+        vec3 maxCorner = max(leftCenter + leftSize, rightCenter + rightSize);
+        vec3 center = (minCorner + maxCorner) * 0.5;
+        float halfSize = length(maxCorner - center);
+        
+        nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
+        nodes[nodeIdx].centerSize = vec4(center, halfSize);
+        nodes[nodeIdx].readyChildren = 3u; // mark processed
+        
+        // Notify parent and enqueue if ready
+        uint parentIdx = nodes[nodeIdx].parentId;
+        if (parentIdx != 0xFFFFFFFFu) {
+            uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+            if (prev + 1u == 2u) {
+                uint outIdx = atomicAdd(tail, 1u);
+                items[outIdx] = parentIdx;
+            }
+        }
+        
+        workIdx += totalThreads;
     }
 }
 // -------------------------------------------------------------
@@ -499,6 +619,8 @@ void computeForce()
     vec3 newVel = body.velPad.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
 
+    barrier();
+
     dstB.bodies[gid].velPad.xyz = newVel;
     dstB.bodies[gid].posMass.xyz = newPos;
     dstB.bodies[gid].posMass.w = body.posMass.w;
@@ -522,7 +644,11 @@ void computeForce()
 // -------------------------------------------------------------
 void main()
 {
-#ifdef KERNEL_MORTON
+#ifdef KERNEL_COMPUTE_AABB
+    computeNewAABBKernel();
+#elif defined(KERNEL_COLLAPSE_AABB)
+    collapseAABBKernel();
+#elif defined(KERNEL_MORTON)
     encodeMortonKernel();
 #elif defined(KERNEL_RADIX_HIST)
     radixHistogramKernel();
