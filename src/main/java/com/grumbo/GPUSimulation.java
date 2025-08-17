@@ -9,18 +9,22 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.lwjgl.opengl.GL43C.*;
 
 
+
+
 public class GPUSimulation {
-    private static final int NODE_STRUCT_SIZE=16;  // GPU adds 2 padding uints for alignment   
     private int vao; // points VAO
 
     private long lastFrameFence = 0L;
 
     // Simulation params
     private static final int WORK_GROUP_SIZE = 128;
+    private static final int NUM_RADIX_BUCKETS = 16;
     private static final boolean DEBUG_BARNES_HUT = true; // Set to false to disable debug output
     private static final int DEBUG_FRAME_INTERVAL = 6000; // Show debug every N frames
     private int frameCounter = 0;
@@ -29,12 +33,14 @@ public class GPUSimulation {
     private int collapseAABBKernelProgram;
     private int mortonKernelProgram;
     private int radixSortHistogramKernelProgram;
-    private int radixSortScanKernelProgram;
+    private int radixSortParallelScanKernelProgram;
+    private int radixSortExclusiveScanKernelProgram;
     private int radixSortScatterKernelProgram;
     private int buildBinaryRadixTreeKernelProgram;
     private int initLeavesKernelProgram;
     private int propagateNodesKernelProgram;
     private int computeForceKernelProgram;
+    private int debugKernelProgram;
     private int renderProgram; // points program
     private int impostorProgram; // point-sprite impostor spheres
     private int sphereProgram;   // instanced mesh spheres
@@ -52,16 +58,16 @@ public class GPUSimulation {
     private final int INDICES_SSBO_BINDING = 3;
     private int NODES_SSBO;
     private final int NODES_SSBO_BINDING = 4;
-    private int AABB_IN_SSBO;
-    private final int AABB_IN_SSBO_BINDING = 5;
-    private int AABB_OUT_SSBO;
-    private final int AABB_OUT_SSBO_BINDING = 6;
+    private int AABB_SSBO;
+    private final int AABB_SSBO_BINDING = 5;
     private int WG_HIST_SSBO;
-    private final int WG_HIST_SSBO_BINDING = 7;
+    private final int WG_HIST_SSBO_BINDING = 6;
     private int WG_SCANNED_SSBO;
-    private final int WG_SCANNED_SSBO_BINDING = 8;
+    private final int WG_SCANNED_SSBO_BINDING = 7;
     private int GLOBAL_BASE_SSBO;
-    private final int GLOBAL_BASE_SSBO_BINDING = 9;
+    private final int GLOBAL_BASE_SSBO_BINDING = 8;
+    private int BUCKET_TOTALS_SSBO;
+    private final int BUCKET_TOTALS_SSBO_BINDING = 9;
     private int MORTON_OUT_SSBO;
     private final int MORTON_OUT_SSBO_BINDING = 10;
     private int INDEX_OUT_SSBO;
@@ -93,10 +99,6 @@ public class GPUSimulation {
         MESH_SPHERES
     }
 
-    private float[][] aabb;
-    // GPU timer queries (non-blocking)
-    private int aabbFirstPassQuery = 0;
-    private int aabbCollapseQuery = 0;
 
 
 
@@ -142,6 +144,16 @@ public class GPUSimulation {
         }
     }
 
+    public void createAndAttachComputeShader(int program, String kernelName) {
+        int computeShader = glCreateShader(GL_COMPUTE_SHADER);
+        glShaderSource(computeShader, insertDefineAfterVersion(getComputeShaderSource(), kernelName));
+        glCompileShader(computeShader);
+        checkShader(computeShader);
+        glAttachShader(program, computeShader);
+        glLinkProgram(program);
+        checkProgram(program);
+    }
+
     public void initWithCurrentContext() {
         // Create and bind a dummy VAO (required for core profile draws)
         vao = glGenVertexArrays();
@@ -150,105 +162,52 @@ public class GPUSimulation {
         // Create compute shaders
 
         //Compute AABB Kernel
-
         computeAABBKernelProgram = glCreateProgram();
-        int computeAABBKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(computeAABBKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_COMPUTE_AABB"));
-        glCompileShader(computeAABBKernelShader);
-        checkShader(computeAABBKernelShader);
-        glAttachShader(computeAABBKernelProgram, computeAABBKernelShader);
-        glLinkProgram(computeAABBKernelProgram);
-        checkProgram(computeAABBKernelProgram);
+        createAndAttachComputeShader(computeAABBKernelProgram, "KERNEL_COMPUTE_AABB");
 
         //Morton Kernel
         mortonKernelProgram = glCreateProgram();
-        int mortonKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(mortonKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_MORTON"));
-        glCompileShader(mortonKernelShader);
-        checkShader(mortonKernelShader);
-        glAttachShader(mortonKernelProgram, mortonKernelShader);
-        glLinkProgram(mortonKernelProgram);
-        checkProgram(mortonKernelProgram);
+        createAndAttachComputeShader(mortonKernelProgram, "KERNEL_MORTON");
 
         //Radix Sort Histogram Kernel
         radixSortHistogramKernelProgram = glCreateProgram();
-        int radixSortHistogramKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(radixSortHistogramKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_RADIX_HIST"));
-        glCompileShader(radixSortHistogramKernelShader);
-        checkShader(radixSortHistogramKernelShader);
-        glAttachShader(radixSortHistogramKernelProgram, radixSortHistogramKernelShader);
-        glLinkProgram(radixSortHistogramKernelProgram);
-        checkProgram(radixSortHistogramKernelProgram);
+        createAndAttachComputeShader(radixSortHistogramKernelProgram, "KERNEL_RADIX_HIST");
 
-        //Radix Sort Scan Kernel
-        radixSortScanKernelProgram = glCreateProgram();
-        int radixSortScanKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(radixSortScanKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_RADIX_SCAN"));
-        glCompileShader(radixSortScanKernelShader);
-        checkShader(radixSortScanKernelShader);
-        glAttachShader(radixSortScanKernelProgram, radixSortScanKernelShader);
-        glLinkProgram(radixSortScanKernelProgram);
-        checkProgram(radixSortScanKernelProgram);
+        //Radix Sort Parallel Scan Kernel
+        radixSortParallelScanKernelProgram = glCreateProgram();
+        createAndAttachComputeShader(radixSortParallelScanKernelProgram, "KERNEL_RADIX_PARALLEL_SCAN");
+
+        //Radix Sort Exclusive Scan Kernel
+        radixSortExclusiveScanKernelProgram = glCreateProgram();
+        createAndAttachComputeShader(radixSortExclusiveScanKernelProgram, "KERNEL_RADIX_EXCLUSIVE_SCAN");
 
         //Radix Sort Scatter Kernel
         radixSortScatterKernelProgram = glCreateProgram();
-        int radixSortScatterKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(radixSortScatterKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_RADIX_SCATTER"));
-        glCompileShader(radixSortScatterKernelShader);
-        checkShader(radixSortScatterKernelShader);
-        glAttachShader(radixSortScatterKernelProgram, radixSortScatterKernelShader);
-        glLinkProgram(radixSortScatterKernelProgram);
-        checkProgram(radixSortScatterKernelProgram);
+        createAndAttachComputeShader(radixSortScatterKernelProgram, "KERNEL_RADIX_SCATTER");
 
         //Build Binary Radix Tree Kernel
         buildBinaryRadixTreeKernelProgram = glCreateProgram();
-        int buildBinaryRadixTreeKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(buildBinaryRadixTreeKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_BUILD_BINARY_RADIX_TREE"));
-        glCompileShader(buildBinaryRadixTreeKernelShader);
-        checkShader(buildBinaryRadixTreeKernelShader);
-        glAttachShader(buildBinaryRadixTreeKernelProgram, buildBinaryRadixTreeKernelShader);
-        glLinkProgram(buildBinaryRadixTreeKernelProgram);
-        checkProgram(buildBinaryRadixTreeKernelProgram);
+        createAndAttachComputeShader(buildBinaryRadixTreeKernelProgram, "KERNEL_BUILD_BINARY_RADIX_TREE");
 
         //Init Leaves Kernel
         initLeavesKernelProgram = glCreateProgram();
-        int initLeavesKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(initLeavesKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_INIT_LEAVES"));
-        glCompileShader(initLeavesKernelShader);
-        checkShader(initLeavesKernelShader);
-        glAttachShader(initLeavesKernelProgram, initLeavesKernelShader);
-        glLinkProgram(initLeavesKernelProgram);
-        checkProgram(initLeavesKernelProgram);
+        createAndAttachComputeShader(initLeavesKernelProgram, "KERNEL_INIT_LEAVES");
 
         //Propagate Nodes Kernel
         propagateNodesKernelProgram = glCreateProgram();
-        int propagateNodesKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(propagateNodesKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_PROPAGATE_NODES"));
-        glCompileShader(propagateNodesKernelShader);
-        checkShader(propagateNodesKernelShader);
-        glAttachShader(propagateNodesKernelProgram, propagateNodesKernelShader);
-        glLinkProgram(propagateNodesKernelProgram);
-        checkProgram(propagateNodesKernelProgram);
+        createAndAttachComputeShader(propagateNodesKernelProgram, "KERNEL_PROPAGATE_NODES");
 
         //Collapse AABB Kernel
         collapseAABBKernelProgram = glCreateProgram();
-        int collapseAABBKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(collapseAABBKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_COLLAPSE_AABB"));
-        glCompileShader(collapseAABBKernelShader);
-        checkShader(collapseAABBKernelShader);
-        glAttachShader(collapseAABBKernelProgram, collapseAABBKernelShader);
-        glLinkProgram(collapseAABBKernelProgram);
-        checkProgram(collapseAABBKernelProgram);
+        createAndAttachComputeShader(collapseAABBKernelProgram, "KERNEL_COLLAPSE_AABB");
 
         //Compute Force Kernel
         computeForceKernelProgram = glCreateProgram();
-        int computeForceKernelShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(computeForceKernelShader, insertDefineAfterVersion(getComputeShaderSource(), "KERNEL_COMPUTE_FORCE"));
-        glCompileShader(computeForceKernelShader);
-        checkShader(computeForceKernelShader);
-        glAttachShader(computeForceKernelProgram, computeForceKernelShader);
-        glLinkProgram(computeForceKernelProgram);
-        checkProgram(computeForceKernelProgram);
+        createAndAttachComputeShader(computeForceKernelProgram, "KERNEL_COMPUTE_FORCE");
+
+        //Debug Kernel
+        debugKernelProgram = glCreateProgram();
+        createAndAttachComputeShader(debugKernelProgram, "KERNEL_DEBUG");
 
         // Create render shader (points)
         renderProgram = glCreateProgram();
@@ -317,7 +276,6 @@ public class GPUSimulation {
         // Create Barnes-Hut auxiliary SSBOs
         int numBodies = planets.size();
         int numWorkGroups = numGroups();
-        int aabbGroups = (numBodies + (2 * WORK_GROUP_SIZE) - 1) / (2 * WORK_GROUP_SIZE);
         int NUM_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
         
         MORTON_KEYS_SSBO = glGenBuffers();
@@ -330,15 +288,12 @@ public class GPUSimulation {
         
         NODES_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * NODE_STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY); // 16 uints per node (2 vec4s + 6 uints + 2 padding)
+        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY); // 16 uints per node (2 vec4s + 6 uints + 2 padding)
 
         // AABB ping-pong buffers (vec3 pairs per workgroup)
-        AABB_IN_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_IN_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, aabbGroups * 2 * 3 * Float.BYTES, GL_DYNAMIC_COPY);
-        AABB_OUT_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, aabbGroups * 2 * 3 * Float.BYTES, GL_DYNAMIC_COPY);
+        AABB_SSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 4 * Float.BYTES, GL_DYNAMIC_COPY);
         
         WG_HIST_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO);
@@ -350,6 +305,10 @@ public class GPUSimulation {
         
         GLOBAL_BASE_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+
+        BUCKET_TOTALS_SSBO = glGenBuffers();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
         
         MORTON_OUT_SSBO = glGenBuffers();
@@ -380,8 +339,45 @@ public class GPUSimulation {
         rebuildSphereMesh();
     }
 
+    private void debug() {
+                // 1) Print IDs so we can be sure
+        System.out.println("AABB_OUT_SSBO id = " + AABB_SSBO + " bindingIndex = " + AABB_SSBO_BINDING);
+
+        // 2) Bind program & buffers exactly like the shader expects
+        glUseProgram(debugKernelProgram);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
+        glUniform1ui(glGetUniformLocation(debugKernelProgram, "numWorkGroups"), numGroups());
+
+        // 3) Set uniforms
+        int loc = glGetUniformLocation(debugKernelProgram, "debugCount");
+        glUniform1ui(loc, (int)numGroups()); // or the number you want to test
+
+        // 4) Dispatch
+        glDispatchCompute(numGroups(), 1, 1);
+
+        // 5) Ensure writes finished
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        glFinish(); // ok for debug
+
+        // 6) Readback the buffer contents
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        ByteBuffer bb = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        FloatBuffer fb = bb.asFloatBuffer();
+
+        // 7) Print the first few AABBs
+        for (int i = 0; i < 8; ++i) {
+            float minx = fb.get(); float miny = fb.get(); float minz = fb.get(); float pad0 = fb.get();
+            float maxx = fb.get(); float maxy = fb.get(); float maxz = fb.get(); float pad1 = fb.get();
+            System.out.printf("DEBUG AABB %d: min=(%f,%f,%f) max=(%f,%f,%f) pad0=%f pad1=%f%n",
+                            i, minx, miny, minz, maxx, maxy, maxz, pad0, pad1);
+        }
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
     public void step() {
         processCommands();
+        //debug();
         stepBarnesHut();
     }
 
@@ -460,7 +456,8 @@ public class GPUSimulation {
         if (computeAABBKernelProgram != 0) glDeleteProgram(computeAABBKernelProgram);
         if (mortonKernelProgram != 0) glDeleteProgram(mortonKernelProgram);
         if (radixSortHistogramKernelProgram != 0) glDeleteProgram(radixSortHistogramKernelProgram);
-        if (radixSortScanKernelProgram != 0) glDeleteProgram(radixSortScanKernelProgram);
+        if (radixSortParallelScanKernelProgram != 0) glDeleteProgram(radixSortParallelScanKernelProgram);
+        if (radixSortExclusiveScanKernelProgram != 0) glDeleteProgram(radixSortExclusiveScanKernelProgram);
         if (radixSortScatterKernelProgram != 0) glDeleteProgram(radixSortScatterKernelProgram);
         if (buildBinaryRadixTreeKernelProgram != 0) glDeleteProgram(buildBinaryRadixTreeKernelProgram);
         if (initLeavesKernelProgram != 0) glDeleteProgram(initLeavesKernelProgram);
@@ -469,13 +466,13 @@ public class GPUSimulation {
         if (renderProgram != 0) glDeleteProgram(renderProgram);
         if (impostorProgram != 0) glDeleteProgram(impostorProgram);
         if (sphereProgram != 0) glDeleteProgram(sphereProgram);
+        if (debugKernelProgram != 0) glDeleteProgram(debugKernelProgram);
         if (FIXED_BODIES_IN_SSBO != 0) glDeleteBuffers(FIXED_BODIES_IN_SSBO);
         if (FIXED_BODIES_OUT_SSBO != 0) glDeleteBuffers(FIXED_BODIES_OUT_SSBO);
         if (MORTON_KEYS_SSBO != 0) glDeleteBuffers(MORTON_KEYS_SSBO);
         if (INDICES_SSBO != 0) glDeleteBuffers(INDICES_SSBO);
         if (NODES_SSBO != 0) glDeleteBuffers(NODES_SSBO);
-        if (AABB_IN_SSBO != 0) glDeleteBuffers(AABB_IN_SSBO);
-        if (AABB_OUT_SSBO != 0) glDeleteBuffers(AABB_OUT_SSBO);
+        if (AABB_SSBO != 0) glDeleteBuffers(AABB_SSBO);
         if (WG_HIST_SSBO != 0) glDeleteBuffers(WG_HIST_SSBO);
         if (WG_SCANNED_SSBO != 0) glDeleteBuffers(WG_SCANNED_SSBO);
         if (MORTON_OUT_SSBO != 0) glDeleteBuffers(MORTON_OUT_SSBO);
@@ -536,11 +533,9 @@ public class GPUSimulation {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * NODE_STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_IN_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 3 * Float.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 3 * Float.BYTES, GL_DYNAMIC_COPY);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 4 * Float.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO);
@@ -583,15 +578,22 @@ public class GPUSimulation {
         if (DEBUG_BARNES_HUT) System.out.println("0. Computing AABB...");
         long aabbStartTime = System.nanoTime();
 
+        //debug();
+
         computeAABB(numGroups, DEBUG_BARNES_HUT);
         glFinish();
         long aabbEndTime = System.nanoTime();
         long aabbDuration = (aabbEndTime - aabbStartTime);
         if (DEBUG_BARNES_HUT) System.out.println("AABB took " + aabbDuration + " nanoseconds");
+
+        //Debug Kernel
+        //debug();
         
         //Generate Morton Codes
         if (DEBUG_BARNES_HUT) System.out.println("1. Generating Morton codes...");
         long mortonStartTime = System.nanoTime();
+
+
 
         generateMortonCodes(numGroups, DEBUG_BARNES_HUT);
         glFinish();
@@ -652,6 +654,7 @@ public class GPUSimulation {
         System.out.println("Barnes-Hut took " + duration + " nanoseconds");
 
         lastFrameFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        
 
     }
 
@@ -687,51 +690,50 @@ public class GPUSimulation {
         return raabb;
     }
 
-
-    
     private void computeAABB(int numGroupsBodies, boolean debug) {
 
-
+        //debugAABB();
+        //System.out.println("Before computeAABB");
 
         // Pass 1: bodies -> aabbOut (one AABB per workgroup)
         glUseProgram(computeAABBKernelProgram);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_OUT_SSBO_BINDING, AABB_OUT_SSBO);
-        int groups = (planets.size() + (2 * WORK_GROUP_SIZE) - 1) / (2 * WORK_GROUP_SIZE);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
         glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numBodies"), planets.size());
-        glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numWorkGroups"), groups);
-        if (aabbFirstPassQuery == 0) aabbFirstPassQuery = glGenQueries();
-        glBeginQuery(GL_TIME_ELAPSED, aabbFirstPassQuery);
-        glDispatchCompute(groups, 1, 1);
-        glEndQuery(GL_TIME_ELAPSED);
+        glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numWorkGroups"), numGroups());
+        glDispatchCompute(numGroups(), 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        // Iterative collapse: ping-pong aabbIn/aabbOut until 1 AABB remains
-        boolean ping = false; // false: in=OUT, out=IN; true: in=IN, out=OUT
-        int currentCount = groups; // number of AABBs (pairs of vec3)
-        int lastOutBuf = AABB_OUT_SSBO; // first pass wrote to OUT
 
+        //debugAABB();
+        //System.out.println("After computeAABB");
+ 
+        glUseProgram(collapseAABBKernelProgram);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
+        glUniform1ui(glGetUniformLocation(collapseAABBKernelProgram, "numWorkGroups"), numGroups());
+        glDispatchCompute(1, 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        while (currentCount > 1) {
-            glUseProgram(collapseAABBKernelProgram);
-            // Bind input/output according to ping
-            int inBuf = ping ? AABB_IN_SSBO : AABB_OUT_SSBO;  // toggle input between IN/OUT
-            int outBuf = ping ? AABB_OUT_SSBO : AABB_IN_SSBO; // toggle output between OUT/IN
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_IN_SSBO_BINDING, inBuf);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_OUT_SSBO_BINDING, outBuf);
+        //debugAABB();
+    }
 
-            int nextGroups = (currentCount + (2 * WORK_GROUP_SIZE) - 1) / (2 * WORK_GROUP_SIZE);
-            glUniform1ui(glGetUniformLocation(collapseAABBKernelProgram, "numBodies"), currentCount);
-            glUniform1ui(glGetUniformLocation(collapseAABBKernelProgram, "numWorkGroups"), nextGroups);
-            glDispatchCompute(nextGroups, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    private void debugAABB() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        ByteBuffer bb = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        FloatBuffer fb = bb.asFloatBuffer();
 
-            currentCount = nextGroups;
-            lastOutBuf = outBuf;
-            ping = !ping;
+        // 7) Print the first few AABBs
+        for (int i = 0; i < Math.min(8, planets.size()); ++i) {
+            float minx = fb.get(); float miny = fb.get(); float minz = fb.get(); float pad0 = fb.get();
+            float maxx = fb.get(); float maxy = fb.get(); float maxz = fb.get(); float pad1 = fb.get();
+            System.out.printf("DEBUG AABB %d: min=(%f,%f,%f) max=(%f,%f,%f) pad0=%f pad1=%f%n",
+                            i, minx, miny, minz, maxx, maxy, maxz, pad0, pad1);
         }
-        AABB_OUT_SSBO = lastOutBuf == AABB_OUT_SSBO ? AABB_IN_SSBO : AABB_OUT_SSBO;
-        AABB_IN_SSBO = lastOutBuf;
+
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        
+        
     }
 
     private void generateMortonCodes(int numGroups, boolean debug) {
@@ -739,18 +741,82 @@ public class GPUSimulation {
         
         // Bind bodies (input) and morton/index (output)
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);      // bodies input
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_OUT_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO);      // bodies output (unused)
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, MORTON_KEYS_SSBO);   // morton keys output
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, INDICES_SSBO);    // indices output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);   // AABB input (from computeAABB)
         
         // Set uniforms
         glUniform1ui(glGetUniformLocation(mortonKernelProgram, "numBodies"), planets.size());
         
         glDispatchCompute(numGroups, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        //debugMortonCodes();
+
     }
 
-  
+    private void debugMortonCodes() {
+        
+            // Read morton codes from GPU buffer
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+            ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer mortonData = mortonBuffer.asIntBuffer();
+            
+            for (int i = 0; i < Math.max(10, planets.size()); i++) {
+                int morton = mortonData.get(i);   
+                System.out.printf("  [%d]: %d\n", i, morton);
+            }
+            
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+    private void debugRadixSort() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+        ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer mortonData = mortonBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
+        ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer indexData = indexBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO);
+        ByteBuffer wgHistBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer wgHistData = wgHistBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO);
+        ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO);
+        ByteBuffer globalBaseBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer globalBaseData = globalBaseBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO);
+        ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO);
+        ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
+        ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        for (int i = 0; i < Math.min(10, planets.size()); i++) {
+            int morton = mortonData.capacity() > i ? mortonData.get(i) : -1;   
+            int index = indexData.capacity() > i ? indexData.get(i) : -1;
+            int wgHist = wgHistData.capacity() > i ? wgHistData.get(i) : -1;
+            int wgScanned = wgScannedData.capacity() > i ? wgScannedData.get(i) : -1;
+            int globalBase = globalBaseData.capacity() > i ? globalBaseData.get(i) : -1;
+            int bucketTotals = bucketTotalsData.capacity() > i ? bucketTotalsData.get(i) : -1;
+            int mortonOut = mortonOutData.capacity() > i ? mortonOutData.get(i) : -1;
+            int indexOut = indexOutData.capacity() > i ? indexOutData.get(i) : -1;
+            System.out.printf("  [%d]: morton=%d index=%d wgHist=%d wgScanned=%d globalBase=%d bucketTotals=%d mortonOut=%d indexOut=%d\n", i, morton, index, wgHist, wgScanned, globalBase, bucketTotals, mortonOut, indexOut);
+        }
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    }
 
     private void radixSort(int numGroups, boolean debug) {
         int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
@@ -760,10 +826,15 @@ public class GPUSimulation {
         int currentIndexIn = INDICES_SSBO;
         int currentMortonOut = MORTON_OUT_SSBO;
         int currentIndexOut = INDEX_OUT_SSBO;
-
+        
         for (int pass = 0; pass < numPasses; pass++) {
-            int passShift = pass * 4; // 4 bits per pass
+            //System.out.println("Radix sort pass " + pass);
+            //debugRadixSort();
             
+            int passShift = pass * 4; // 4 bits per pass
+            if (DEBUG_BARNES_HUT) System.out.println("Radix sort pass " + pass + " with shift " + passShift);
+            long radixSortHistogramStartTime = System.nanoTime();
+
             // Phase 1: Histogram
             glUseProgram(radixSortHistogramKernelProgram);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, currentMortonIn);    // morton input
@@ -776,19 +847,49 @@ public class GPUSimulation {
             
             glDispatchCompute(numGroups, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-            
+
+            glFinish();
+            if (DEBUG_BARNES_HUT) System.out.println("Radix sort histogram took " + (System.nanoTime() - radixSortHistogramStartTime) + " nanoseconds");
+            long radixSortScanStartTime = System.nanoTime();
+
+            //System.out.println("Radix sort histogram");
+            //debugRadixSort();
+
+
             // Phase 2: Scan
-            glUseProgram(radixSortScanKernelProgram);
+            glUseProgram(radixSortParallelScanKernelProgram);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO);         // workgroup histograms input
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO);      // scanned per-wg bases output
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO);     // global bucket bases output
             
-            glUniform1ui(glGetUniformLocation(radixSortScanKernelProgram, "numBodies"), planets.size());
-            glUniform1ui(glGetUniformLocation(radixSortScanKernelProgram, "numWorkGroups"), numGroups);
+            glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numBodies"), planets.size());
+            glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numWorkGroups"), numGroups);
             
-            glDispatchCompute(1, 1, 1); // Single invocation
+            glDispatchCompute(NUM_RADIX_BUCKETS, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-            
+
+            //System.out.println("Radix sort parallel scan");
+           // debugRadixSort();
+
+            glUseProgram(radixSortExclusiveScanKernelProgram);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO_BINDING, BUCKET_TOTALS_SSBO);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO);
+
+            glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numBodies"), planets.size());
+            glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numWorkGroups"), numGroups);
+
+            glDispatchCompute(1, 1, 1);
+
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            glFinish();
+            if (DEBUG_BARNES_HUT) System.out.println("Radix sort scan took " + (System.nanoTime() - radixSortScanStartTime) + " nanoseconds");
+            long radixSortScatterStartTime = System.nanoTime();
+
+            //System.out.println("Radix sort exclusive scan");
+            //debugRadixSort();
+
+
             // Phase 3: Scatter
             glUseProgram(radixSortScatterKernelProgram);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, currentMortonIn);    // morton input
@@ -804,7 +905,13 @@ public class GPUSimulation {
             
             glDispatchCompute(numGroups, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            glFinish();
             
+            //System.out.println("Radix sort scatter");
+            //debugRadixSort();
+            if (DEBUG_BARNES_HUT) System.out.println("Radix sort scatter took " + (System.nanoTime() - radixSortScatterStartTime) + " nanoseconds");
+
             // Swap input/output buffers for next pass
             int tempMorton = currentMortonIn;
             int tempIndex = currentIndexIn;
@@ -813,6 +920,9 @@ public class GPUSimulation {
             currentMortonOut = tempMorton;
             currentIndexOut = tempIndex;
         }
+
+        // Debug: Output buffer data
+          //  debugSorting();
         
         // After final pass, sorted data is in currentMortonIn/currentIndexIn
         // Update our "current" buffers to point to the final sorted data
@@ -839,9 +949,12 @@ public class GPUSimulation {
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-        
-        
+
+        if (debug) {
+            debugTree();
+        }
     }
+    
     private void computeCOMAndLocation(int numGroups, boolean debug) {
         glUseProgram(initLeavesKernelProgram);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);      // bodies input  
@@ -1094,6 +1207,298 @@ public class GPUSimulation {
         return idx;
     }
 
+    private void debugSorting() {
+        System.out.println("=== RADIX SORT RESULTS ===");
+            // Read sorted Morton codes
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+            ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer mortonData = mortonBuffer.asIntBuffer();
+            System.out.println("Sorted Morton codes:");
+            for (int i = 0; i < Math.min(100, planets.size()); i++) {
+                int morton = mortonData.get(i);
+                System.out.printf("  [%d]: %d\n", i, morton);
+            }
+            Set<Integer> s = new HashSet<Integer>();
+            for (int i = 0; i < mortonData.capacity(); i++) {
+                s.add(mortonData.get(i));
+            }
+            System.out.println(mortonData.capacity() + " " + s.size());
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            
+            // Read sorted body indices
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
+            ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer indexData = indexBuffer.asIntBuffer();
+            System.out.println("Sorted body indices:");
+            for (int i = 0; i < Math.min(100, planets.size()); i++) {
+                int bodyIndex = indexData.get(i);
+                System.out.printf("  [%d]: %d\n", i, bodyIndex);
+            }
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    }
+
+    private void debugTree() {
+        
+        // Debug: Output buffer data
+            System.out.println("=== FINAL TREE WITH COM DATA ===");
+            
+            // First check for stuck nodes with readyChildren < 2
+            System.out.println("=== STUCK NODE ANALYSIS ===");
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+            ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer nodeData = nodeBuffer.asIntBuffer();
+            
+            int numLeaves = planets.size();
+            int totalNodes = 2 * planets.size() - 1;
+            boolean foundStuckNodes = false;
+            
+            for (int i = numLeaves; i < totalNodes; i++) { // Check internal nodes only
+                int offset = i * Node.STRUCT_SIZE;
+                if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int readyChildren = nodeData.get(offset + 12);
+                    if (readyChildren < 2) {
+                        foundStuckNodes = true;
+                        int childA = nodeData.get(offset + 8);
+                        int childB = nodeData.get(offset + 9);
+                        int parentId = nodeData.get(offset + 13);
+                        float mass = Float.intBitsToFloat(nodeData.get(offset + 3));
+                        
+                        System.out.printf("STUCK Node[%d]: ready=%d childA=%d childB=%d parent=%d mass=%.3f\n", 
+                            i, readyChildren, 
+                            childA == 0xFFFFFFFF ? -1 : childA,
+                            childB == 0xFFFFFFFF ? -1 : childB,
+                            parentId == 0xFFFFFFFF ? -1 : parentId,
+                            mass);
+                            
+                        // Check children status
+                        if (childA != 0xFFFFFFFF && childA < totalNodes) {
+                            int childAOffset = childA * Node.STRUCT_SIZE;
+                            if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                                int childAReady = childA < numLeaves ? 1 : nodeData.get(childAOffset + 12); // Leaves are always ready
+                                float childAMass = Float.intBitsToFloat(nodeData.get(childAOffset + 3));
+                                System.out.printf("  Child A[%d]: ready=%d mass=%.3f%s\n", 
+                                    childA, childAReady, childAMass, childA < numLeaves ? " (leaf)" : "");
+                            }
+                        }
+                        if (childB != 0xFFFFFFFF && childB < totalNodes) {
+                            int childBOffset = childB * Node.STRUCT_SIZE;
+                            if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                                int childBReady = childB < numLeaves ? 1 : nodeData.get(childBOffset + 12); // Leaves are always ready
+                                float childBMass = Float.intBitsToFloat(nodeData.get(childBOffset + 3));
+                                System.out.printf("  Child B[%d]: ready=%d mass=%.3f%s\n", 
+                                    childB, childBReady, childBMass, childB < numLeaves ? " (leaf)" : "");
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (!foundStuckNodes) {
+                System.out.println("No stuck nodes found - all internal nodes have readyChildren >= 2");
+            }
+            
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            
+            System.out.println("Tree nodes:");
+            // Read tree nodes
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+        
+            // Read tree nodes
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+            //ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            //IntBuffer nodeData = nodeBuffer.asIntBuffer();
+            System.out.println("Tree nodes:");
+            
+            //int numLeaves = planets.size();
+            //int numInternalNodes = planets.size() - 1;
+            //int totalNodes = 2 * planets.size() - 1;
+            
+            // Show first few leaf nodes (indices 0 to numBodies-1)
+
+            System.out.println(Node.getNodes(nodeData, 0, Math.min(100, numLeaves)));
+            
+            // Show internal nodes from halfway point (indices numBodies to 2*numBodies-2)
+            System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 100, totalNodes)));
+
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            verifyTreeStructure(nodeData, numLeaves, totalNodes);
+    }
+
+    
+    /**
+     * Verifies the integrity of the Barnes-Hut tree structure
+     * Checks parent-child relationships, detects cycles, orphans, and structural issues
+     */
+    private void verifyTreeStructure(IntBuffer nodeData, int numLeaves, int totalNodes) {
+        System.out.println("\n=== TREE STRUCTURE VERIFICATION ===");
+        
+        boolean hasErrors = false;
+        int rootCount = 0;
+        int[] childCount = new int[totalNodes]; // How many children each node claims to have
+        boolean[] hasParent = new boolean[totalNodes]; // Which nodes have a parent pointing to them
+        
+        // Pass 1: Collect all parent-child relationships
+        for (int i = 0; i < totalNodes; i++) {
+            int offset = i * Node.STRUCT_SIZE;
+            if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
+            
+            int parentId = nodeData.get(offset + 13);
+            
+            // Check for root nodes
+            if (parentId == 0xFFFFFFFF) {
+                rootCount++;
+                if (i < numLeaves) {
+                    System.out.printf("ERROR: Leaf[%d] claims to be root!\n", i);
+                    hasErrors = true;
+                }
+            } else {
+                if (parentId >= totalNodes || parentId < 0) {
+                    System.out.printf("ERROR: Node[%d] has invalid parent %d (should be 0-%d)\n", 
+                        i, parentId, totalNodes-1);
+                    hasErrors = true;
+                } else {
+                    hasParent[i] = true;
+                }
+            }
+            
+            // For internal nodes, check children
+            if (i >= numLeaves) {
+                int childA = nodeData.get(offset + 8);
+                int childB = nodeData.get(offset + 9);
+                
+                if (childA != 0xFFFFFFFF) {
+                    if (childA >= totalNodes || childA < 0) {
+                        System.out.printf("ERROR: Internal[%d] has invalid childA %d\n", i, childA);
+                        hasErrors = true;
+                    } else {
+                        childCount[i]++;
+                    }
+                }
+                
+                if (childB != 0xFFFFFFFF) {
+                    if (childB >= totalNodes || childB < 0) {
+                        System.out.printf("ERROR: Internal[%d] has invalid childB %d\n", i, childB);
+                        hasErrors = true;
+                    } else {
+                        childCount[i]++;
+                    }
+                }
+            }
+        }
+        
+        // Check root count
+        if (rootCount == 0) {
+            System.out.println("ERROR: No root node found!");
+            hasErrors = true;
+        } else if (rootCount > 1) {
+            System.out.printf("ERROR: Multiple root nodes found (%d)!\n", rootCount);
+            hasErrors = true;
+        }
+        
+        // Pass 2: Verify bidirectional parent-child relationships
+        for (int i = numLeaves; i < totalNodes; i++) {
+            int offset = i * Node.STRUCT_SIZE;
+            if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
+            
+            int childA = nodeData.get(offset + 8);
+            int childB = nodeData.get(offset + 9);
+            
+            // Check childA relationship
+            if (childA != 0xFFFFFFFF && childA < totalNodes) {
+                int childAOffset = childA * Node.STRUCT_SIZE;
+                if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int childAParent = nodeData.get(childAOffset + 13);
+                    if (childAParent != i) {
+                        System.out.printf("ERROR: Internal[%d] claims childA=%d, but Node[%d] has parent=%d\n", 
+                            i, childA, childA, childAParent == 0xFFFFFFFF ? -1 : childAParent);
+                        hasErrors = true;
+                    }
+                }
+            }
+            
+            // Check childB relationship
+            if (childB != 0xFFFFFFFF && childB < totalNodes) {
+                int childBOffset = childB * Node.STRUCT_SIZE;
+                if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int childBParent = nodeData.get(childBOffset + 13);
+                    if (childBParent != i) {
+                        System.out.printf("ERROR: Internal[%d] claims childB=%d, but Node[%d] has parent=%d\n", 
+                            i, childB, childB, childBParent == 0xFFFFFFFF ? -1 : childBParent);
+                        hasErrors = true;
+                    }
+                }
+            }
+            
+            // Check that internal nodes have exactly 2 children
+            if (childCount[i] != 2) {
+                System.out.printf("ERROR: Internal[%d] has %d children (should be 2)\n", i, childCount[i]);
+                hasErrors = true;
+            }
+        }
+        
+        // Check for orphaned nodes (except root)
+        for (int i = 0; i < totalNodes; i++) {
+            if (!hasParent[i]) {
+                int offset = i * Node.STRUCT_SIZE;
+                if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int parentId = nodeData.get(offset + 13);
+                    if (parentId != 0xFFFFFFFF) {
+                        System.out.printf("ERROR: Node[%d] claims parent=%d but no node claims it as child\n", 
+                            i, parentId);
+                        hasErrors = true;
+                    }
+                }
+            }
+        }
+        
+        // Check for duplicate children
+        boolean[] usedAsChild = new boolean[totalNodes];
+        for (int i = numLeaves; i < totalNodes; i++) {
+            int offset = i * Node.STRUCT_SIZE;
+            if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
+            
+            int childA = nodeData.get(offset + 12);
+            int childB = nodeData.get(offset + 13);
+            
+            if (childA != 0xFFFFFFFF && childA < totalNodes) {
+                if (usedAsChild[childA]) {
+                    System.out.printf("ERROR: Node[%d] is claimed as child by multiple parents!\n", childA);
+                    hasErrors = true;
+                } else {
+                    usedAsChild[childA] = true;
+                }
+            }
+            
+            if (childB != 0xFFFFFFFF && childB < totalNodes) {
+                if (usedAsChild[childB]) {
+                    System.out.printf("ERROR: Node[%d] is claimed as child by multiple parents!\n", childB);
+                    hasErrors = true;
+                } else {
+                    usedAsChild[childB] = true;
+                }
+            }
+            
+            // Check for self-reference
+            if (childA == i || childB == i) {
+                System.out.printf("ERROR: Internal[%d] has itself as a child!\n", i);
+                hasErrors = true;
+            }
+        }
+        
+        // Summary
+        if (hasErrors) {
+            System.out.println("❌ TREE STRUCTURE VERIFICATION FAILED - Errors found above");
+        } else {
+            System.out.println("✅ TREE STRUCTURE VERIFICATION PASSED - No structural errors found");
+        }
+        
+        System.out.printf("Root nodes: %d, Total nodes: %d (Leaves: %d, Internal: %d)\n", 
+            rootCount, totalNodes, numLeaves, totalNodes - numLeaves);
+        System.out.println("=== END VERIFICATION ===\n");
+    }
 
     
 }

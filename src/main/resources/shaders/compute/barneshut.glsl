@@ -14,6 +14,7 @@ const float SOFTENING = 0.0001;
 uniform float theta;
 uniform float dt;
 uniform uint numBodies;
+
 // Scene AABB used to normalize positions into [0,1]^3
 uniform uint numWorkGroups; // number of workgroups dispatched for histogram/scatter
 // Radix parameters
@@ -25,9 +26,16 @@ const uint WG_SIZE = 128u;                  // must match layout(local_size_x)
 // -------------------------------------------------------------
 // 2) Data structures (mirror your Java SSBO layouts)
 struct Body { vec4 posMass; vec4 velPad; vec4 color; };
+
+struct AABB {
+    vec3 min;
+
+    vec3 max;
+
+};
 struct Node {
     vec4 comMass;      // xyz = center of mass, w = total mass
-    vec4 centerSize;   // xyz = node center, w = halfSize (s)
+    AABB aabb;
     uint childA;       // left child index
     uint childB;       // right child index
     uint firstBody;    // optional: leaf body index or start
@@ -44,12 +52,12 @@ layout(std430, binding = 1) writeonly buffer BodiesOut { Body bodies[]; } dstB;
 layout(std430, binding = 2) buffer MortonKeys { uint morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
-layout(std430, binding = 5) buffer AABBBufferIn { vec3 aabbIn[]; };
-layout(std430, binding = 6) buffer AABBBufferOut { vec3 aabbOut[]; };
+layout(std430, binding = 5) buffer AABBBuffer { AABB aabb[]; };
 // Radix sort auxiliary buffers
-layout(std430, binding = 7) buffer WGHist      { uint wgHist[];      }; // [numWorkGroups * NUM_BUCKETS]
-layout(std430, binding = 8) buffer WGScanned   { uint wgScanned[];   }; // scanned per-workgroup bucket bases
-layout(std430, binding = 9) buffer GlobalBase  { uint globalBase[];  }; // [NUM_BUCKETS] exclusive bases
+layout(std430, binding = 6) buffer WGHist      { uint wgHist[];      }; // [numWorkGroups * NUM_BUCKETS]
+layout(std430, binding = 7) buffer WGScanned   { uint wgScanned[];   }; // scanned per-workgroup bucket bases
+layout(std430, binding = 8) buffer GlobalBase  { uint globalBase[];  }; // [NUM_BUCKETS] exclusive bases
+layout(std430, binding = 9) buffer BucketTotals { uint bucketTotals[]; }; // size NUM_BUCKETS
 layout(std430, binding = 10) buffer MortonOut   { uint mortonOut[];   };
 layout(std430, binding = 11) buffer IndicesOut  { uint indexOut[];    };
 layout(std430, binding = 12) buffer RootNodeBuffer { uint rootNodeId; };
@@ -60,9 +68,11 @@ uniform uint passShift;
 // -------------------------------------------------------------
 
 // -------------------------------------------------------------
-// Shared memory declarations (global scope)
-shared uint hist[NUM_BUCKETS];
-shared uint digits[WG_SIZE];
+// Shared memory declarations (global scope) - FIXED: Proper sizing for workgroup
+shared uint hist[WG_SIZE];           // Increased from NUM_BUCKETS to WG_SIZE for proper workgroup coverage
+shared uint digits[WG_SIZE];         // Already correct
+shared AABB sharedAABB[WG_SIZE]; // Already correct
+shared uint temp[WG_SIZE];           // Already correct
 
 // -------------------------------------------------------------
 // 4) Helper functions
@@ -94,131 +104,92 @@ uint mortonEncode3D(vec3 pNorm)
     return morton3D(xi, yi, zi);
 }
 
-bool acceptanceCriterion(float s, float d, float theta)
-{
-    return s / d < theta;
-}
-float invDist3(vec3 r, float softening)
-{
-    float dist2 = dot(r, r) + softening;
-    float inv = inversesqrt(dist2);
-    return inv * inv * inv;
-}
+
 // -------------------------------------------------------------
 // Compute new AABB
 //Needs 
 
 
-shared vec3 sharedAABB[WG_SIZE * 2]; 
-
-vec3[2] updateAABB(vec3 aMin, vec3 aMax, vec3 bMin, vec3 bMax) {
-    float minX = min(aMin.x, bMin.x);
-    float maxX = max(aMax.x, bMax.x);
-    float minY = min(aMin.y, bMin.y);
-    float maxY = max(aMax.y, bMax.y);
-    float minZ = min(aMin.z, bMin.z);
-    float maxZ = max(aMax.z, bMax.z);
-    return vec3[](vec3(minX, minY, minZ), vec3(maxX, maxY, maxZ));
+AABB updateAABB(AABB a, AABB b) {
+    AABB result;
+    result.min = min(a.min, b.min);
+    result.max = max(a.max, b.max);
+    return result;
 }
-void computeNewAABBKernel()
-{
+void computeNewAABBKernel() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
 
-    if (2*gid>=numBodies) {
-        sharedAABB[lid*2] = vec3(1e9);
-        sharedAABB[lid*2+1] = vec3(-1e9);
-    }
-    else if (2*gid+1>=numBodies) {
-        sharedAABB[lid*2] = srcB.bodies[2*gid].posMass.xyz;
-        sharedAABB[lid*2+1] = srcB.bodies[2*gid].posMass.xyz;
-    }
-    else {
+    // Initialize shared memory
+    if (2*gid >= numBodies) {
+        sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+    } else if (2*gid+1 >= numBodies) {
         vec3 pos = srcB.bodies[2*gid].posMass.xyz;
-        vec3 pos2 = srcB.bodies[2*gid+1].posMass.xyz;
-
-        float minX = min(pos.x, pos2.x);
-        float maxX = max(pos.x, pos2.x);
-        float minY = min(pos.y, pos2.y);
-        float maxY = max(pos.y, pos2.y);
-        float minZ = min(pos.z, pos2.z);
-        float maxZ = max(pos.z, pos2.z);
-
-        sharedAABB[lid*2] = vec3(minX, minY, minZ);
-        sharedAABB[lid*2+1] = vec3(maxX, maxY, maxZ);
+        sharedAABB[lid] = AABB(pos, pos);
+    } else {
+        vec3 pos0 = srcB.bodies[2*gid].posMass.xyz;
+        vec3 pos1 = srcB.bodies[2*gid+1].posMass.xyz;
+        sharedAABB[lid] = AABB(min(pos0, pos1), max(pos0, pos1));
     }
     barrier();
 
+    // Parallel reduction within workgroup
     uint activePairs = WG_SIZE;
     while (activePairs > 1u) {
-        if (lid < activePairs/2u) {
-            uint other = (lid + activePairs/2u) * 2u;
-            vec3[2] aabb = updateAABB(sharedAABB[lid*2u], sharedAABB[lid*2u+1u], sharedAABB[other], sharedAABB[other+1u]);
-            sharedAABB[lid*2u] = aabb[0];
-            sharedAABB[lid*2u+1u] = aabb[1];
+        uint stride = activePairs / 2u;
+        if (lid < stride) {
+            uint other = lid + stride;
+            sharedAABB[lid] = updateAABB(sharedAABB[lid], sharedAABB[other]);
         }
         barrier();
-        activePairs /= 2u;
+        activePairs = stride;
     }
-    if (lid == 0) {
+
+    // Write result to global buffer
+    if (lid == 0u) {
         uint wgId = gl_WorkGroupID.x;
-        if (wgId >= numWorkGroups) return;
-        aabbOut[wgId * 2 + 0] = sharedAABB[0];
-        aabbOut[wgId * 2 + 1] = sharedAABB[1];
+        if (wgId < numWorkGroups)
+            aabb[wgId] = sharedAABB[0];
     }
-    
-    // Create an array with 2**floor(log_2(n)) elements, each element is 6 floats
-    // initialize 
-    // each thread compares two bodies, and puts largest x, smallest x, largest y, smallest y, largest z, smallest z
-    // into the array
-    // then it waits for all threads to complete
-    // second half of the threads are killed
-    // it continues with the remaining threads, reducing the size by half again etc
 }
-void collapseAABBKernel() 
-{
+void collapseAABBKernel() {
     uint gid = gl_GlobalInvocationID.x;
-    uint lid = gl_LocalInvocationID.x;
-    uint wgId = gl_WorkGroupID.x;
+    if (gid > 0) return;
+    AABB newAABB = aabb[0];
+    for (uint i = 1; i < numWorkGroups; ++i) {
+        newAABB = updateAABB(newAABB, aabb[i]);
+    }
+    aabb[0] = newAABB;
 
-    if (gid*2 >= numBodies)  {
-        sharedAABB[lid*2] = vec3(1e9);
-        sharedAABB[lid*2+1] = vec3(-1e9);
-    }
-    else if (gid*2+1 >= numBodies) {
-        sharedAABB[lid*2] = vec3(aabbIn[gid*2]);
-        sharedAABB[lid*2+1] = vec3(aabbIn[gid*2+1]);
-    }
-    else {
-        vec3 aMin = vec3(aabbIn[gid*2]);
-        vec3 aMax = vec3(aabbIn[gid*2+1]);
-        vec3 bMin = vec3(aabbIn[gid*2+2]);
-        vec3 bMax = vec3(aabbIn[gid*2+3]);
-        sharedAABB[lid*2] = updateAABB(aMin, aMax, bMin, bMax)[0];
-        sharedAABB[lid*2+1] = updateAABB(aMin, aMax, bMin, bMax)[1];
-    }
-    barrier();
 
-    uint activePairs2 = WG_SIZE;
-    while (activePairs2 > 1u) {
-        if (lid < activePairs2/2u) {
-            uint other2 = (lid + activePairs2/2u) * 2u;
-            vec3[2] aabb2 = updateAABB(sharedAABB[lid*2u], sharedAABB[lid*2u+1u], sharedAABB[other2], sharedAABB[other2+1u]);
-            sharedAABB[lid*2u] = aabb2[0];
-            sharedAABB[lid*2u+1u] = aabb2[1];
-        }
-        barrier();
-        activePairs2 /= 2u;
-    }
-    if (lid == 0) {
-        uint wgId = gl_WorkGroupID.x;
-        if (wgId >= numWorkGroups) return;
-        aabbOut[wgId * 2 + 0] = sharedAABB[0];
-        aabbOut[wgId * 2 + 1] = sharedAABB[1];
-    }
+    // // Load input AABBs safely
+    // if (gid*2 >= numBodies) {
+    //     sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+    // } else if (gid*2+1 >= numBodies) {
+    //     sharedAABB[lid] = aabbIn[gid*2];
+    // } else {
+    //     AABB a = aabbIn[gid*2];
+    //     AABB b = aabbIn[gid*2+1];
+    //     sharedAABB[lid] = updateAABB(a, b);
+    // }
+    // barrier();
+
+    // // Parallel reduction
+    // uint activePairs = WG_SIZE;
+    // while (activePairs > 1u) {
+    //     uint stride = activePairs / 2u;
+    //     if (lid < stride) {
+    //         uint other = lid + stride;
+    //         sharedAABB[lid] = updateAABB(sharedAABB[lid], sharedAABB[other]);
+    //     }
+    //     barrier();
+    //     activePairs = stride;
+    // }
+
+    // if (lid == 0u && gl_WorkGroupID.x < numWorkGroups) {
+    //     AABBBuffer[gl_WorkGroupID.x] = sharedAABB[0];
+    // }
 }
-
-
 // -------------------------------------------------------------
 // 5) Kernel A: Compute Morton codes (one thread per body)
 // - Normalize positions into [0,1]^3 based on scene AABB passed as uniforms
@@ -229,12 +200,10 @@ void encodeMortonKernel()
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= numBodies) return;
 
-    vec3 sceneMin = aabbIn[0];
-    vec3 sceneMax = aabbIn[1];
-
+    AABB scene = aabb[0];
     vec3 pos = srcB.bodies[gid].posMass.xyz;
-    vec3 extent = max(sceneMax - sceneMin, vec3(1e-9));
-    vec3 pNorm = (pos - sceneMin) / extent; // map to [0,1]
+    vec3 extent = max(scene.max - scene.min, vec3(1e-9));
+    vec3 pNorm = (pos - scene.min) / extent; // map to [0,1]
 
     morton[gid] = mortonEncode3D(pNorm);
     index[gid]  = gid;
@@ -253,7 +222,6 @@ void radixHistogramKernel()
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
 
-    // hist is now global
     if (lid < NUM_BUCKETS) hist[lid] = 0u;
     barrier();
 
@@ -269,30 +237,46 @@ void radixHistogramKernel()
     }
 }
 
-// Global scan kernel: run with a single invocation (global x = 1)
+// Global scan kernel: Done in two steps
 // Fills wgScanned with per-workgroup exclusive offsets and globalBase with bucket bases
-void radixScanKernel()
-{
-    if (gl_GlobalInvocationID.x != 0u) return;
+// First step: parallel scan of per bucket totals
 
-    // Compute per-workgroup exclusive offsets and bucket totals
-    for (uint b = 0u; b < NUM_BUCKETS; ++b) {
-        uint accum = 0u;
+void radixParallelScanKernel()
+{
+    uint b = gl_WorkGroupID.x;
+
+    if (gl_LocalInvocationID.x == 0u) {
+        uint sum = 0u;
         for (uint wg = 0u; wg < numWorkGroups; ++wg) {
-            uint idx = wg * NUM_BUCKETS + b;
-            uint c = wgHist[idx];
-            wgScanned[idx] = accum;      // exclusive prefix for this wg and bucket
-            accum += c;
+            uint v = wgHist[wg * NUM_BUCKETS + b];
+            wgScanned[wg * NUM_BUCKETS + b] = sum; // exclusive offset for this workgroup
+            sum += v;
         }
-        globalBase[b] = accum;            // temporarily store bucket totals
+        bucketTotals[b] = sum;
+    }
+    // Other lanes idle; barrier not required since only lane 0 writes.
+}
+
+// Second step: scan of bucket totals
+void radixExclusiveScanKernel()
+{
+    uint lid = gl_LocalInvocationID.x;
+    uint val = (lid < NUM_BUCKETS) ? bucketTotals[lid] : 0u;
+    temp[lid] = val;
+    barrier();
+
+    for (uint offset = 1u; offset < WG_SIZE; offset <<= 1u) {
+        uint add = 0u;
+        if (lid>=offset) add = temp[lid-offset];
+        barrier();
+        temp[lid]+=add;
+        barrier();
     }
 
-    // Exclusive scan of bucket totals into globalBase
-    uint running = 0u;
-    for (uint b = 0u; b < NUM_BUCKETS; ++b) {
-        uint t = globalBase[b];
-        globalBase[b] = running;
-        running += t;
+    uint exclusive = temp[lid]-val;
+
+    if (lid < NUM_BUCKETS) {
+        globalBase[lid] = exclusive;
     }
 }
 
@@ -304,8 +288,6 @@ void radixScatterKernel()
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
     bool isActive = (gid < numBodies);
-
-    // digits is now global
 
     uint key = isActive ? morton[gid] : 0u;
     uint dig = (key >> passShift) & (NUM_BUCKETS - 1u);
@@ -481,7 +463,7 @@ void initLeafNodesKernel()
     
     // Set leaf mass and center-of-mass
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
-    nodes[gid].centerSize = vec4(body.posMass.xyz, 0.0); // tight bounds
+    nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
     
@@ -540,18 +522,13 @@ void propagateNodesKernel()
             centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
         }
         
-        vec3 leftCenter = nodes[leftChild].centerSize.xyz;
-        float leftSize = nodes[leftChild].centerSize.w;
-        vec3 rightCenter = nodes[rightChild].centerSize.xyz;
-        float rightSize = nodes[rightChild].centerSize.w;
-        
-        vec3 minCorner = min(leftCenter - leftSize, rightCenter - rightSize);
-        vec3 maxCorner = max(leftCenter + leftSize, rightCenter + rightSize);
-        vec3 center = (minCorner + maxCorner) * 0.5;
-        float halfSize = length(maxCorner - center);
+
+        AABB leftAABB = nodes[leftChild].aabb;
+        AABB rightAABB = nodes[rightChild].aabb;
+        AABB newAABB = updateAABB(leftAABB, rightAABB);
         
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
-        nodes[nodeIdx].centerSize = vec4(center, halfSize);
+        nodes[nodeIdx].aabb = newAABB;
         nodes[nodeIdx].readyChildren = 3u; // mark processed
         
         // Notify parent and enqueue if ready
@@ -582,6 +559,17 @@ void propagateNodesKernel()
 //   - Write to dstB.bodies[gid]
 // - Note: read from srcB, write to dstB (double-buffering)
 // -------------------------------------------------------------
+
+bool acceptanceCriterion(float s, float d, float theta)
+{
+    return s / d < theta;
+}
+float invDist3(vec3 r, float softening)
+{
+    float dist2 = dot(r, r) + softening;
+    float inv = inversesqrt(dist2);
+    return inv * inv * inv;
+}
 void computeForce() 
 {
     vec3 accel = vec3(0.0);
@@ -590,7 +578,7 @@ void computeForce()
 
     Body body = srcB.bodies[gid];
 
-    uint stack[128];
+    uint stack[1024];
     uint stackSize = 0;
 
     stack[stackSize++] = rootNodeId;
@@ -601,9 +589,11 @@ void computeForce()
         Node node = nodes[nodeIdx];
 
         vec3 r = node.comMass.xyz - body.posMass.xyz;
-        float d = length(r) + SOFTENING;
+        float d = length(r);
+        vec3 extent = node.aabb.max - node.aabb.min;
+        float s = max(extent.x, max(extent.y, extent.z));
 
-        if (acceptanceCriterion(node.centerSize.w*2.0, d, theta)) {
+        if (acceptanceCriterion(s, d, theta)) {
             accel += node.comMass.w * r * invDist3(r, SOFTENING);
         } else {
             if (node.childA != 0xFFFFFFFFu) {
@@ -619,12 +609,22 @@ void computeForce()
     vec3 newVel = body.velPad.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
 
-    barrier();
 
     dstB.bodies[gid].velPad.xyz = newVel;
     dstB.bodies[gid].posMass.xyz = newPos;
     dstB.bodies[gid].posMass.w = body.posMass.w;
     dstB.bodies[gid].color = body.color;
+}
+
+void debugKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    // Only write for the first N slots to keep it simple
+    if (gid >= numWorkGroups) return;
+
+    // Write a unique, easily inspectable pattern:
+    // min = (gid + 0.1, gid + 0.2, gid + 0.3)
+    // max = (gid + 10.1, gid + 10.2, gid + 10.3)
+    aabb[gid] = AABB(vec3(float(gid) + 0.1, float(gid) + 0.2, float(gid) + 0.3), vec3(float(gid) + 10.1, float(gid) + 10.2, float(gid) + 10.3));
 }
 
 
@@ -652,8 +652,10 @@ void main()
     encodeMortonKernel();
 #elif defined(KERNEL_RADIX_HIST)
     radixHistogramKernel();
-#elif defined(KERNEL_RADIX_SCAN)
-    radixScanKernel();
+#elif defined(KERNEL_RADIX_PARALLEL_SCAN)
+    radixParallelScanKernel();
+#elif defined(KERNEL_RADIX_EXCLUSIVE_SCAN)
+    radixExclusiveScanKernel();
 #elif defined(KERNEL_RADIX_SCATTER)
     radixScatterKernel();
 #elif defined(KERNEL_BUILD_BINARY_RADIX_TREE)
@@ -664,6 +666,8 @@ void main()
     propagateNodesKernel();
 #elif defined(KERNEL_COMPUTE_FORCE)
     computeForce();
+#elif defined(KERNEL_DEBUG)
+    debugKernel();
 #else
     // Other kernels go here
 #endif

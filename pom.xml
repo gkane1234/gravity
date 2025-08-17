@@ -116,6 +116,13 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
+        <configuration>
+          <mainClass>com.grumbo.Main</mainClass>
+          <options>
+            <option>-Xmx24g</option>
+            <option>-Xms1g</option>
+          </options>
+        </configuration>
         <executions>
           <execution>
             <id>generate-settings</id>
@@ -132,9 +139,6 @@
             </configuration>
           </execution>
         </executions>
-                <configuration>
-                    <mainClass>com.grumbo.Main</mainClass>
-                </configuration>
             </plugin>
         </plugins>
     </build>
