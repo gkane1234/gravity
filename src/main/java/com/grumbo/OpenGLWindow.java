@@ -24,6 +24,7 @@ public class OpenGLWindow {
     private double lastY = Settings.getInstance().getHeight() / 2.0;
     private boolean firstMouse = true;
     private boolean mouseCaptured = true;
+    private boolean shiftPressed = false;
     
     
     // Reference to gravity simulator
@@ -58,14 +59,14 @@ public class OpenGLWindow {
         this.settingsPane = new SettingsPane();
 
         planets = new ArrayList<>();
-        float[] xRange = {-1000, 1000};
-        float[] yRange = {-1000, 1000};
-        float[] zRange = {-1000, 1000};
-        float[] xVRange = {-100, 100};
-        float[] yVRange = {-100, 100};
-        float[] zVRange = {-100, 100};
+        float[] xRange = {5000, 10000};
+        float[] yRange = {5000, 10000};
+        float[] zRange = {5000, 10000};
+        float[] xVRange = {-0, 0};
+        float[] yVRange = {-0, 0};
+        float[] zVRange = {-0, 0};
         float[] mRange = {100, 1000};
-        planets = Planet.makeNew(10_000_00, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNew(10_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
 
 
@@ -143,6 +144,11 @@ public class OpenGLWindow {
             }
             if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
                 showFPS = !showFPS;
+            }
+
+             // Add shift key handling here
+             if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
+                shiftPressed = (action == GLFW_PRESS);
             }
             // Route keys to focused textfields when not captured
             if (!mouseCaptured && debug) {
@@ -339,6 +345,10 @@ public class OpenGLWindow {
                 if (showFPS) {
                     drawFPS();
                 }
+
+                if (debug) {
+                    drawDebugInfo();
+                }
                 
                 // Draw settings panel if visible (on top of everything)
 
@@ -362,11 +372,88 @@ public class OpenGLWindow {
         }
     }
 
+    private void drawDebugInfo() {
+        if (gpuPoints == null) return;
+        
+        String debugText = gpuPoints.debugString;
+        if (debugText.isEmpty()) return;
+        
+        // Save current OpenGL state
+        glPushMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Set up 2D orthographic projection
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        
+        // Disable depth testing for UI elements
+        glDisable(GL_DEPTH_TEST);
+        
+        // Split performance text into lines
+        String[] lines = debugText.split("\n");
+        float width = 0;
+        for (String line : lines) {
+            if (font.getTextWidth(line) > width) {
+                width = font.getTextWidth(line);
+            }
+        }
+
+
+
+        
+        // Calculate position (right side of screen)
+        int x = Settings.getInstance().getWidth() - (int)width - 20; // 400 pixels from right edge
+        int y = 20;
+        int lineHeight = 16;
+        int padding = 6;
+        
+        // Calculate total height needed
+        int totalHeight = lines.length * (lineHeight+10);
+
+
+        
+        // Draw background rectangle
+        glColor4f(0.0f, 0.0f, 0.0f, 0.8f); // Semi-transparent black
+        glBegin(GL_QUADS);
+        glVertex2f(x - padding, y - padding);
+        glVertex2f(x + width + padding, y - padding); // 280 pixels wide
+        glVertex2f(x + width + padding, y + totalHeight + padding);
+        glVertex2f(x - padding, y + totalHeight + padding);
+        glEnd();
+        
+        // Draw text in white
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            if (font != null && font.isLoaded()) {
+                // Use bitmap font if available
+                font.drawText(line, x, y + i * (lineHeight+10));
+            } 
+        }
+        
+        // Re-enable depth testing
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+
     
     private void processMovement() {
         // Handle relative camera movement based on key states
         Vector3f moveDirection = new Vector3f();
         float moveSpeed = Settings.getInstance().getWASDSensitivity();
+
+        if (shiftPressed) {
+            moveSpeed *= 10;
+        }
         
         // Calculate right vector (perpendicular to forward and up)
         Vector3f right = new Vector3f(Settings.getInstance().getCameraFront()).cross(Settings.getInstance().getCameraUp()).normalize();

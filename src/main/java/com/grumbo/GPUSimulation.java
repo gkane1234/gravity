@@ -26,7 +26,7 @@ public class GPUSimulation {
     private static final int WORK_GROUP_SIZE = 128;
     private static final int PROPAGATE_NODES_ITERATIONS = 30;
     private static final int NUM_RADIX_BUCKETS = 16;
-    private static final boolean DEBUG_BARNES_HUT = false; // Set to false to disable debug output
+    private static final boolean DEBUG_BARNES_HUT = true; // Note debugging will slow down the simulation, inconsistently
     private static final int DEBUG_FRAME_INTERVAL = 6000; // Show debug every N frames
     private int frameCounter = 0;
 
@@ -86,6 +86,22 @@ public class GPUSimulation {
     private int uNearDistLocSphere;
     private int uFarDistLocSphere;
     private int uImpostorPointScaleLoc; // impostor scale
+
+
+    //Debug variables
+    private long aabbTime = 0;
+    private long computeAABBTime = 0;
+    private long collapseAABBTime = 0;
+    private long mortonTime = 0;
+    private long radixSortTime = 0;
+    private long radixSortHistogramTime = 0;
+    private long radixSortScanTime = 0;
+    private long radixSortScatterTime = 0;
+    private long propagateNodesTime = 0;
+    private long buildTreeTime = 0;
+    private long computeForceTime = 0;
+    public String debugString = "";
+
 
 
 
@@ -559,106 +575,190 @@ public class GPUSimulation {
     }
 
     private void stepBarnesHut() {
+        long aabbStartTime = 0;
+        long mortonStartTime = 0;
+        long radixSortStartTime = 0;
+        long buildBinaryRadixTreeStartTime = 0;
+        long computeCOMAndLocationStartTime = 0;
+        long computeForceStartTime = 0;
+
         int numGroups = numGroups();
         if (DEBUG_BARNES_HUT) {
-            System.out.println("=== Barnes-Hut Step (Frame " + frameCounter + ") ===");
-            System.out.println("Bodies: " + planets.size() + ", WorkGroups: " + numGroups);
-            System.out.println("DEBUG: planets list size = " + planets.size());
+            aabbTime = 0;
+            computeAABBTime = 0;
+            collapseAABBTime = 0;
+            mortonTime = 0;
+            radixSortTime = 0;
+            radixSortHistogramTime = 0;
+            radixSortScanTime = 0;
+            radixSortScatterTime = 0;
+            buildTreeTime = 0;
+            propagateNodesTime = 0;
+            computeForceTime = 0;
+
         }
-        //Profiling 
-        long startTime = System.nanoTime();
+
         //Compute AABB
-        if (DEBUG_BARNES_HUT) System.out.println("0. Computing AABB...");
-        long aabbStartTime = System.nanoTime();
-
-        //debug();
-
+        if (DEBUG_BARNES_HUT) {
+            //System.out.println("0. Computing AABB...");
+            aabbStartTime = System.nanoTime();
+        }
         computeAABB(numGroups, DEBUG_BARNES_HUT);
-        glFinish();
 
-        //debugAABB();
-
-
-        long aabbEndTime = System.nanoTime();
-        long aabbDuration = (aabbEndTime - aabbStartTime);
-        if (DEBUG_BARNES_HUT) System.out.println("AABB took " + aabbDuration + " nanoseconds");
-
-        //Debug Kernel
-        //debug();
-        
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            long aabbEndTime = System.nanoTime();
+            long aabbDuration = (aabbEndTime - aabbStartTime);
+            aabbTime += aabbDuration;
+            //System.out.println("AABB took " + aabbDuration + " nanoseconds");
+            
+        }
         //Generate Morton Codes
-        if (DEBUG_BARNES_HUT) System.out.println("1. Generating Morton codes...");
-        long mortonStartTime = System.nanoTime();
 
-
+        if (DEBUG_BARNES_HUT) {
+            //System.out.println("1. Generating Morton codes...");
+            mortonStartTime = System.nanoTime();
+        }
 
         generateMortonCodes(numGroups, DEBUG_BARNES_HUT);
-        glFinish();
 
-        //debugMortonCodes();
-        long mortonEndTime = System.nanoTime();
-        long mortonDuration = (mortonEndTime - mortonStartTime);
-        if (DEBUG_BARNES_HUT) System.out.println("Morton codes took " + mortonDuration + " nanoseconds");
+
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            long mortonEndTime = System.nanoTime();
+            long mortonDuration = (mortonEndTime - mortonStartTime);
+            mortonTime += mortonDuration;
+            //System.out.println("Morton codes took " + mortonDuration + " nanoseconds");
+        }
 
         //Radix Sort
-        if (DEBUG_BARNES_HUT) System.out.println("2. Radix sorting...");
-        long radixSortStartTime = System.nanoTime();
+        if (DEBUG_BARNES_HUT) {
+            //System.out.println("2. Radix sorting...");
+            radixSortStartTime = System.nanoTime();
+        }
 
         radixSort(numGroups, DEBUG_BARNES_HUT);
-        glFinish();
 
-        //debugRadixSort();
-        long radixSortEndTime = System.nanoTime();
-        long radixSortDuration = (radixSortEndTime - radixSortStartTime);
-        if (DEBUG_BARNES_HUT) System.out.println("Radix sort took " + radixSortDuration + " nanoseconds");
-        
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            long radixSortEndTime = System.nanoTime();
+            long radixSortDuration = (radixSortEndTime - radixSortStartTime);
+            radixSortTime += radixSortDuration;
+            //System.out.println("Radix sort took " + radixSortDuration + " nanoseconds");
+        }
+
         //Generate Binary Radix Tree
-        if (DEBUG_BARNES_HUT) System.out.println("3. Building binary radix tree...");
-        long buildBinaryRadixTreeStartTime = System.nanoTime();
+        if (DEBUG_BARNES_HUT) {
+            //System.out.println("3. Building binary radix tree...");
+            buildBinaryRadixTreeStartTime = System.nanoTime();
+        }
 
         buildBinaryRadixTree(numGroups, DEBUG_BARNES_HUT);
-        glFinish();
 
-        
-        long buildBinaryRadixTreeEndTime = System.nanoTime();
-        long buildBinaryRadixTreeDuration = (buildBinaryRadixTreeEndTime - buildBinaryRadixTreeStartTime);
-        if (DEBUG_BARNES_HUT) System.out.println("Build binary radix tree took " + buildBinaryRadixTreeDuration + " nanoseconds");
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            long buildBinaryRadixTreeEndTime = System.nanoTime();
+            long buildBinaryRadixTreeDuration = (buildBinaryRadixTreeEndTime - buildBinaryRadixTreeStartTime);
+            buildTreeTime += buildBinaryRadixTreeDuration;
+           // System.out.println("Build binary radix tree took " + buildBinaryRadixTreeDuration + " nanoseconds");
+        }
 
         //Compute COM and Location
-        if (DEBUG_BARNES_HUT) System.out.println("4. Computing center-of-mass...");
-        long computeCOMAndLocationStartTime = System.nanoTime();
+        if (DEBUG_BARNES_HUT) {
+            //System.out.println("4. Computing center-of-mass...");
+            computeCOMAndLocationStartTime = System.nanoTime();
+        }
 
         computeCOMAndLocation(numGroups, DEBUG_BARNES_HUT);
-        glFinish();
-        //debugTree();
-        long computeCOMAndLocationEndTime = System.nanoTime();
-        long computeCOMAndLocationDuration = (computeCOMAndLocationEndTime - computeCOMAndLocationStartTime);
-        if (DEBUG_BARNES_HUT) System.out.println("Compute center-of-mass took " + computeCOMAndLocationDuration + " nanoseconds");
+
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            long computeCOMAndLocationEndTime = System.nanoTime();
+            long computeCOMAndLocationDuration = (computeCOMAndLocationEndTime - computeCOMAndLocationStartTime);
+            propagateNodesTime += computeCOMAndLocationDuration;
+            //System.out.println("Compute center-of-mass took " + computeCOMAndLocationDuration + " nanoseconds");
+        }
 
         //Compute Force
-        if (DEBUG_BARNES_HUT) System.out.println("5. Computing forces...");
-        long computeForceStartTime = System.nanoTime();
+        if (DEBUG_BARNES_HUT) {
+            //System.out.println("5. Computing forces...");
+            computeForceStartTime = System.nanoTime();
+        }
 
         computeForce(numGroups, DEBUG_BARNES_HUT);
-        glFinish();
-        long computeForceEndTime = System.nanoTime();
-        long computeForceDuration = (computeForceEndTime - computeForceStartTime);
-        if (DEBUG_BARNES_HUT) System.out.println("Compute forces took " + computeForceDuration + " nanoseconds");
-        long clearQueueStartTime = System.nanoTime();
-        if (DEBUG_BARNES_HUT) {
-            System.out.println("=== Barnes-Hut Step (Frame " + frameCounter + ") ===");
-        }
-        glFinish();
-        if (DEBUG_BARNES_HUT) {
-            System.out.println("Clear queue took " + (System.nanoTime() - clearQueueStartTime) + " nanoseconds");
-        }
-        if (DEBUG_BARNES_HUT) System.out.println("=== Barnes-Hut Complete ===\n");
-        long endTime = System.nanoTime();
-        long duration = (endTime - startTime);
-        System.out.println("Barnes-Hut took " + duration + " nanoseconds");
 
-        lastFrameFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            long computeForceEndTime = System.nanoTime();
+            long computeForceDuration = (computeForceEndTime - computeForceStartTime);
+            computeForceTime += computeForceDuration;
+            //System.out.println("Compute forces took " + computeForceDuration + " nanoseconds");
+        }
+
+        // if (DEBUG_BARNES_HUT) {
+        //     System.out.println("=== Barnes-Hut Complete ===\n");
+        //     long endTime = System.nanoTime();
+        //     long duration = (endTime - startTime);
+        //     //System.out.println("Barnes-Hut took " + duration + " nanoseconds");
+        // }
+
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            debugString = printProfiling();
+        }
+    }
+
+    private String printProfiling() {
+        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime;
+        long percentAABB = (aabbTime * 100) / totalTime;
+        long percentAABBCompute = (computeAABBTime * 100) / totalTime;
+        long percentCollapseAABB = (collapseAABBTime * 100) / totalTime;
+        long percentMorton = (mortonTime * 100) / totalTime;
+        long percentRadixSort = (radixSortTime * 100) / totalTime;
+        long percentRadixSortHistogram = (radixSortHistogramTime * 100) / totalTime;
+        long percentRadixSortScan = (radixSortScanTime * 100) / totalTime;
+        long percentRadixSortScatter = (radixSortScatterTime * 100) / totalTime;
+        long percentBuildTree = (buildTreeTime * 100) / totalTime;
+        long percentPropagateNodes = (propagateNodesTime * 100) / totalTime;
+        long percentComputeForce = (computeForceTime * 100) / totalTime;
+
+        final long oneMillion = 1_000_000;
+        return aabbTime/oneMillion + " ms (" + percentAABB + "%)" +":AABB\n" + 
+               "\t" + computeAABBTime/oneMillion + " ms (" + percentAABBCompute + "%)" +":Compute\n" + 
+               "\t" + collapseAABBTime/oneMillion + " ms (" + percentCollapseAABB + "%)" +":Collapse\n" + 
+               mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +
+               radixSortTime/oneMillion + " ms (" + percentRadixSort + "%)" +":Radix Sort\n" +
+               "\t" + radixSortHistogramTime/oneMillion + " ms (" + percentRadixSortHistogram + "%)" +":Histogram\n" +
+               "\t" + radixSortScanTime/oneMillion + " ms (" + percentRadixSortScan + "%)" +":Scan\n" +
+               "\t" + radixSortScatterTime/oneMillion + " ms (" + percentRadixSortScatter + "%)" +":Scatter\n" +
+               buildTreeTime/oneMillion + " ms (" + percentBuildTree + "%)" +":Build Tree\n" +
+               propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":COM\n" +
+               computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
+               totalTime/oneMillion + " ms" +":Total\n";
+    }
+
+    private String getNodes(int start, int end) {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer nodeData = buffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        return Node.getNodes(nodeData, start, end);
+    }
+
+    private String getBodies(int start, int end) {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, SWAPPING_BODIES_IN_SSBO);
+        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer bodyData = buffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+        return Body.getBodies(bodyData, start, end);
         
+        
+
+
+
 
     }
 
@@ -695,9 +795,13 @@ public class GPUSimulation {
     }
 
     private void computeAABB(int numGroupsBodies, boolean debug) {
+        long aabbComputeStartTime = 0;
+        long collapseAABBStartTime = 0;
 
-        //debugAABB();
-        //System.out.println("Before computeAABB");
+        if (debug) {
+             aabbComputeStartTime = System.nanoTime();
+        }
+
 
         // Pass 1: bodies -> aabbOut (one AABB per workgroup)
         glUseProgram(computeAABBKernelProgram);
@@ -708,9 +812,12 @@ public class GPUSimulation {
         glDispatchCompute(numGroups(), 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
+        if (debug) {
+            glFinish(); 
+            computeAABBTime += System.nanoTime() - aabbComputeStartTime;
+             collapseAABBStartTime = System.nanoTime();
+        }
 
-        //debugAABB();
-        //System.out.println("After computeAABB");
  
         glUseProgram(collapseAABBKernelProgram);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
@@ -718,7 +825,11 @@ public class GPUSimulation {
         glDispatchCompute(1, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        //debugAABB();
+        if (debug) {
+            glFinish();
+            collapseAABBTime += System.nanoTime() - collapseAABBStartTime;
+        }
+
     }
 
     private void debugAABB() {
@@ -831,6 +942,9 @@ public class GPUSimulation {
     }
 
     private void radixSort(int numGroups, boolean debug) {
+
+
+
         int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
         
         // Current input/output morton and index buffers
@@ -838,14 +952,22 @@ public class GPUSimulation {
         int currentIndexIn = INDICES_SSBO;
         int currentMortonOut = MORTON_OUT_SSBO;
         int currentIndexOut = INDEX_OUT_SSBO;
+
+        radixSortHistogramTime = 0;
+        radixSortScanTime = 0;
+        radixSortScatterTime = 0;
+
+        long radixSortHistogramStartTime = 0;
+        long radixSortScanStartTime = 0;
+        long radixSortScatterStartTime = 0;
         
         for (int pass = 0; pass < numPasses; pass++) {
             //System.out.println("Radix sort pass " + pass);
             //debugRadixSort();
             
             int passShift = pass * 4; // 4 bits per pass
-            if (DEBUG_BARNES_HUT) System.out.println("Radix sort pass " + pass + " with shift " + passShift);
-            long radixSortHistogramStartTime = System.nanoTime();
+            //if (DEBUG_BARNES_HUT) System.out.println("Radix sort pass " + pass + " with shift " + passShift);
+            radixSortHistogramStartTime = System.nanoTime();
 
             // Phase 1: Histogram
             glUseProgram(radixSortHistogramKernelProgram);
@@ -860,9 +982,15 @@ public class GPUSimulation {
             glDispatchCompute(numGroups, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-            glFinish();
-            if (DEBUG_BARNES_HUT) System.out.println("Radix sort histogram took " + (System.nanoTime() - radixSortHistogramStartTime) + " nanoseconds");
-            long radixSortScanStartTime = System.nanoTime();
+            
+
+            if (debug) {
+                glFinish();
+                radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
+                radixSortScanStartTime = System.nanoTime();
+            }
+
+            
 
             //System.out.println("Radix sort histogram");
             //debugRadixSort();
@@ -894,9 +1022,11 @@ public class GPUSimulation {
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-            glFinish();
-            if (DEBUG_BARNES_HUT) System.out.println("Radix sort scan took " + (System.nanoTime() - radixSortScanStartTime) + " nanoseconds");
-            long radixSortScatterStartTime = System.nanoTime();
+            if (debug) {
+                glFinish();
+                radixSortScanTime += System.nanoTime() - radixSortScanStartTime;
+                radixSortScatterStartTime = System.nanoTime();
+            }
 
             //System.out.println("Radix sort exclusive scan");
             //debugRadixSort();
@@ -918,11 +1048,13 @@ public class GPUSimulation {
             glDispatchCompute(numGroups, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-            glFinish();
+            if (debug) {
+                glFinish();
+                radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
+            }
             
             //System.out.println("Radix sort scatter");
             //debugRadixSort();
-            if (DEBUG_BARNES_HUT) System.out.println("Radix sort scatter took " + (System.nanoTime() - radixSortScatterStartTime) + " nanoseconds");
 
             // Swap input/output buffers for next pass
             int tempMorton = currentMortonIn;
@@ -932,6 +1064,8 @@ public class GPUSimulation {
             currentMortonOut = tempMorton;
             currentIndexOut = tempIndex;
         }
+
+
 
         // Debug: Output buffer data
           //  debugSorting();
@@ -983,8 +1117,6 @@ public class GPUSimulation {
         glDispatchCompute(numGroups, 1, 1); // One thread per body (leaf node)
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        System.out.println("After init leaves");
-        glFinish();
         //debugTree();
 
 

@@ -575,16 +575,18 @@ void propagateNodesKernel()
 // - Note: read from srcB, write to dstB (double-buffering)
 // -------------------------------------------------------------
 
-bool acceptanceCriterion(float s, float d, float theta)
+bool acceptanceCriterion(float s, float invDist, float theta)
 {
-    return s / d < theta;
+    return s * invDist < theta;
 }
-float invDist3(vec3 r, float softening)
+
+float invDist(vec3 r, float softening)
 {
     float dist2 = dot(r, r) + softening;
     float inv = inversesqrt(dist2);
-    return inv * inv * inv;
+    return inv;
 }
+
 void computeForce() 
 {
     vec3 accel = vec3(0.0);
@@ -593,10 +595,10 @@ void computeForce()
 
     Body body = srcB.bodies[gid];
 
-    uint stack[1024];
+    uint stack[64];
     uint stackSize = 0;
 
-    stack[stackSize++] = 0;
+    stack[stackSize++] = numBodies;
 
     while (stackSize > 0) {
         uint nodeIdx = stack[--stackSize];
@@ -604,19 +606,15 @@ void computeForce()
         Node node = nodes[nodeIdx];
 
         vec3 r = node.comMass.xyz - body.posMass.xyz;
-        float d = length(r);
+        float oneOverDist = invDist(r, SOFTENING);
         vec3 extent = node.aabb.max - node.aabb.min;
-        float s = max(extent.x, max(extent.y, extent.z));
-
-        if (acceptanceCriterion(s, d, theta)) {
-            accel += node.comMass.w * r * invDist3(r, SOFTENING);
+        float longestSide = max(extent.x, max(extent.y, extent.z));
+        // stop going deeper if the acceptance criterion is met or we are at a leaf
+        if (node.childA == 0xFFFFFFFFu || acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
+            accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
         } else {
-            if (node.childA != 0xFFFFFFFFu) {
-                stack[stackSize++] = node.childA;
-            }
-            if (node.childB != 0xFFFFFFFFu) {
-                stack[stackSize++] = node.childB;
-            }
+            stack[stackSize++] = node.childA;
+            stack[stackSize++] = node.childB;
         }
     }
 
