@@ -1,5 +1,5 @@
 #version 430
-
+#extension GL_NV_gpu_shader5 : enable
 // =============================================================
 // Barnes–Hut N-body compute shader (outline only)
 // This file contains comments indicating where each piece goes.
@@ -49,7 +49,7 @@ struct Node {
 // 3) Buffers
 layout(std430, binding = 0) readonly buffer BodiesIn  { Body bodies[]; } srcB;
 layout(std430, binding = 1) writeonly buffer BodiesOut { Body bodies[]; } dstB;
-layout(std430, binding = 2) buffer MortonKeys { uint morton[]; };
+layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
 layout(std430, binding = 5) buffer AABBBuffer { AABB aabb[]; };
@@ -58,11 +58,10 @@ layout(std430, binding = 6) buffer WGHist      { uint wgHist[];      }; // [numW
 layout(std430, binding = 7) buffer WGScanned   { uint wgScanned[];   }; // scanned per-workgroup bucket bases
 layout(std430, binding = 8) buffer GlobalBase  { uint globalBase[];  }; // [NUM_BUCKETS] exclusive bases
 layout(std430, binding = 9) buffer BucketTotals { uint bucketTotals[]; }; // size NUM_BUCKETS
-layout(std430, binding = 10) buffer MortonOut   { uint mortonOut[];   };
+layout(std430, binding = 10) buffer MortonOut   { uint64_t mortonOut[];   };
 layout(std430, binding = 11) buffer IndicesOut  { uint indexOut[];    };
-layout(std430, binding = 12) buffer RootNodeBuffer { uint rootNodeId; };
 // Work queue: first two uints are head and tail, followed by items
-layout(std430, binding = 13) buffer WorkQueue { uint head; uint tail; uint items[]; };
+layout(std430, binding = 12) buffer WorkQueue { uint head; uint tail; uint items[]; };
 // Current pass shift (bit offset)
 uniform uint passShift;
 // -------------------------------------------------------------
@@ -77,31 +76,33 @@ shared uint temp[WG_SIZE];           // Already correct
 // -------------------------------------------------------------
 // 4) Helper functions
 // Spread the lower 10 bits of v so there are 2 zero bits between each original bit
-uint expandBits(uint v)
+uint64_t expandBits21(uint v)
 {
-    v &= 0x000003FFu;                 // keep 10 bits
-    v = (v | (v << 16)) & 0x030000FFu;
-    v = (v | (v << 8))  & 0x0300F00Fu;
-    v = (v | (v << 4))  & 0x030C30C3u;
-    v = (v | (v << 2))  & 0x09249249u;
-    return v;
+    uint64_t x = uint64_t(v) & 0x1FFFFFul;
+    x = (x | (x << 32)) & 0x1F00000000FFFFul;
+    x = (x | (x << 16)) & 0x1F0000FF0000FFul;
+    x = (x | (x << 8))  & 0x100F00F00F00F00Ful;
+    x = (x | (x << 4))  & 0x10C30C30C30C30C3ul;
+    x = (x | (x << 2))  & 0x1249249249249249ul;
+    return x;
 }
 
-uint morton3D(uint x, uint y, uint z)
+uint64_t morton3D64(uint x, uint y, uint z)
 {
-    return (expandBits(x) << 2) | (expandBits(y) << 1) | expandBits(z);
+    return (expandBits21(x) << 2) | (expandBits21(y) << 1) | expandBits21(z);
 }
 
-uint mortonEncode3D(vec3 pNorm)
+uint64_t mortonEncode3D(vec3 pNorm)
 {
-    // Quantize to 10 bits per axis in [0, 1023]
-    float fx = clamp(pNorm.x, 0.0, 0.999999) * 1024.0;
-    float fy = clamp(pNorm.y, 0.0, 0.999999) * 1024.0;
-    float fz = clamp(pNorm.z, 0.0, 0.999999) * 1024.0;
+    // Quantize to 21 bits per axis in [0, 2097151]
+    const float MAX_VALUE = 2097151.0;
+    float fx = clamp(floor(pNorm.x * MAX_VALUE), 0.0, MAX_VALUE);
+    float fy = clamp(floor(pNorm.y * MAX_VALUE), 0.0, MAX_VALUE);
+    float fz = clamp(floor(pNorm.z * MAX_VALUE), 0.0, MAX_VALUE);
     uint xi = uint(floor(fx));
     uint yi = uint(floor(fy));
     uint zi = uint(floor(fz));
-    return morton3D(xi, yi, zi);
+    return morton3D64(xi, yi, zi);
 }
 
 
@@ -226,8 +227,8 @@ void radixHistogramKernel()
     barrier();
 
     if (gid < numBodies) {
-        uint key = morton[gid];
-        uint digit = (key >> passShift) & (NUM_BUCKETS - 1u);
+        uint64_t key = morton[gid];
+        uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
         atomicAdd(hist[digit], 1u);
     }
     barrier();
@@ -289,8 +290,8 @@ void radixScatterKernel()
     uint wgId = gl_WorkGroupID.x;
     bool isActive = (gid < numBodies);
 
-    uint key = isActive ? morton[gid] : 0u;
-    uint dig = (key >> passShift) & (NUM_BUCKETS - 1u);
+     uint64_t key = isActive ? morton[gid] : 0ul;
+    uint dig = uint((key >> passShift) & (NUM_BUCKETS - 1u));
     digits[lid] = isActive ? dig : 0xFFFFFFFFu; // sentinel so inactive lanes don't match
     barrier();
 
@@ -309,25 +310,43 @@ void radixScatterKernel()
 }
 
 // -------------------------------------------------------------
-// 7) Kernel C: Build linear octree (LBVH) from sorted keys
+// 7) Kernel C: Build linear binary radix tree from sorted keys
 // - Generate internal node ranges from longest-common-prefix of neighbors
 // - Link child indices and mark leaves
 // - Store node center and halfSize (s)
 // -------------------------------------------------------------
 
 // Helper: count leading common bits between two Morton codes
-uint longestCommonPrefix(uint a, uint b)
+uint longestCommonPrefix(uint64_t a, uint64_t b)
 {
-    if (a == b) return 32u;
-    return 31u - findMSB(a ^ b);
+    if (a == b) return 64u;
+    uint64_t x = a ^ b;
+    uint highBits = uint(x >> 32);
+    uint lowBits = uint(x);
+    if (highBits != 0u) {
+        return 31u - findMSB(uint(highBits));
+    } else {
+        return 63u - findMSB(uint(lowBits));
+    }
 }
 
 // Safe LCP that handles array bounds
 int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(numBodies) || j >= int(numBodies)) return -1;
+    uint64_t mortonI = morton[i];
+    uint64_t mortonJ = morton[j];
 
-    return int(longestCommonPrefix(morton[i], morton[j]));
+    if (mortonI == mortonJ) {
+        uint iu = uint(i);
+        uint ju = uint(j);
+        if (iu == ju) {
+            return 64;
+        } else {
+            return 64 + (31 - findMSB(iu ^ ju));
+        }
+    }
+    return int(longestCommonPrefix(mortonI, mortonJ));
 }
 
 
@@ -378,14 +397,6 @@ void buildBinaryRadixTreeKernel()
     //j ← i + l · d
 
     int j = i + l * direction;
-
-
-    // Detect root node: the one covering the full range [0, numBodies-1]
-    if (min(i, j) == 0 && max(i, j) == int(numBodies - 1)) {
-        // This internal node covers the full range - it's the root
-        rootNodeId = uint(i) + numBodies;
-        nodes[rootNodeId].parentId = 0xFFFFFFFFu;
-    }
     
     // Find split point
     //δnode ← δ(i, j)
@@ -442,6 +453,10 @@ void buildBinaryRadixTreeKernel()
     // Store range info
     nodes[internalIdx].firstBody = uint(min(i, j));
     nodes[internalIdx].bodyCount = uint(max(i, j) - min(i, j) + 1);
+
+    if (i == 0) {
+        nodes[internalIdx].parentId = 0xFFFFFFFFu;
+    }
 }
 
 // -------------------------------------------------------------
@@ -466,16 +481,16 @@ void initLeafNodesKernel()
     nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
+    nodes[gid].readyChildren = 3u;
     
     // Atomically notify parent that this child is ready; if both ready, enqueue parent
     uint parentIdx = nodes[gid].parentId;
-    if (parentIdx != 0xFFFFFFFFu) {
-        uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
-        if (prev + 1u == 2u) {
-            uint idx = atomicAdd(tail, 1u);
-            items[idx] = parentIdx;
-        }
+    uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+    if (prev == 1u) {
+        uint idx = atomicAdd(tail, 1u);
+        items[idx] = parentIdx;
     }
+
 }
 
 // Propagate mass/COM up the tree when children are ready
@@ -535,13 +550,13 @@ void propagateNodesKernel()
         uint parentIdx = nodes[nodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
-            if (prev + 1u == 2u) {
-                uint outIdx = atomicAdd(tail, 1u);
-                items[outIdx] = parentIdx;
+            if (prev == 1u) {
+                items[workIdx] = parentIdx;
             }
         }
-        
+        // Exit the loop
         workIdx += totalThreads;
+        
     }
 }
 // -------------------------------------------------------------
@@ -581,7 +596,7 @@ void computeForce()
     uint stack[1024];
     uint stackSize = 0;
 
-    stack[stackSize++] = rootNodeId;
+    stack[stackSize++] = 0;
 
     while (stackSize > 0) {
         uint nodeIdx = stack[--stackSize];

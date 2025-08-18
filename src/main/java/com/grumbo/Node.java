@@ -18,6 +18,16 @@ public class Node {
     //   };
     // -----
 
+    public static final int COM_MASS_OFFSET = 0;
+    public static final int AABB_MIN_OFFSET = 4;
+    public static final int AABB_MAX_OFFSET = 8;
+    public static final int CHILD_A_OFFSET = 12;
+    public static final int CHILD_B_OFFSET = 13;
+    public static final int FIRST_BODY_OFFSET = 14;
+    public static final int BODY_COUNT_OFFSET = 15;
+    public static final int READY_CHILDREN_OFFSET = 16;
+    public static final int PARENT_ID_OFFSET = 17;
+
     public static final int STRUCT_SIZE = 20;
 
     private float[] comMass;
@@ -64,28 +74,28 @@ public class Node {
         this.aabbMin = new float[3];
         this.aabbMax = new float[3];
 
-        this.comMass[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 0));
-        this.comMass[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 1));
-        this.comMass[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 2));
-        this.comMass[3] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 3));
+        this.comMass[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET));
+        this.comMass[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 1));
+        this.comMass[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 2));
+        this.comMass[3] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 3));
 
-        this.aabbMin[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 4));
-        this.aabbMin[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 5));
-        this.aabbMin[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 6));
+        this.aabbMin[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MIN_OFFSET));
+        this.aabbMin[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MIN_OFFSET + 1));
+        this.aabbMin[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MIN_OFFSET + 2));
         //padding
 
-        this.aabbMax[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 8));
-        this.aabbMax[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 9));
-        this.aabbMax[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + 10));
+        this.aabbMax[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MAX_OFFSET));
+        this.aabbMax[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MAX_OFFSET + 1));
+        this.aabbMax[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MAX_OFFSET + 2));
         //padding
 
-        this.childA = buffer.get(index * STRUCT_SIZE + 12);
-        this.childB = buffer.get(index * STRUCT_SIZE + 13);
-        this.firstBody = buffer.get(index * STRUCT_SIZE + 14);
-        this.bodyCount = buffer.get(index * STRUCT_SIZE + 15);
+        this.childA = buffer.get(index * STRUCT_SIZE + CHILD_A_OFFSET);
+        this.childB = buffer.get(index * STRUCT_SIZE + CHILD_B_OFFSET);
+        this.firstBody = buffer.get(index * STRUCT_SIZE + FIRST_BODY_OFFSET);
+        this.bodyCount = buffer.get(index * STRUCT_SIZE + BODY_COUNT_OFFSET);
 
-        this.readyChildren = buffer.get(index * STRUCT_SIZE + 16);
-        this.parentId = buffer.get(index * STRUCT_SIZE + 17);
+        this.readyChildren = buffer.get(index * STRUCT_SIZE + READY_CHILDREN_OFFSET);
+        this.parentId = buffer.get(index * STRUCT_SIZE + PARENT_ID_OFFSET);
         //padding
         //padding
 

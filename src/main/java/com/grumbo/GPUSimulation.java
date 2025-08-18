@@ -24,8 +24,9 @@ public class GPUSimulation {
 
     // Simulation params
     private static final int WORK_GROUP_SIZE = 128;
+    private static final int PROPAGATE_NODES_ITERATIONS = 30;
     private static final int NUM_RADIX_BUCKETS = 16;
-    private static final boolean DEBUG_BARNES_HUT = true; // Set to false to disable debug output
+    private static final boolean DEBUG_BARNES_HUT = false; // Set to false to disable debug output
     private static final int DEBUG_FRAME_INTERVAL = 6000; // Show debug every N frames
     private int frameCounter = 0;
 
@@ -72,10 +73,8 @@ public class GPUSimulation {
     private final int MORTON_OUT_SSBO_BINDING = 10;
     private int INDEX_OUT_SSBO;
     private final int INDEX_OUT_SSBO_BINDING = 11;
-    private int ROOT_NODE_SSBO;
-    private final int ROOT_NODE_SSBO_BINDING = 12;
     private int WORK_QUEUE_SSBO;
-    private final int WORK_QUEUE_SSBO_BINDING = 13;
+    private final int WORK_QUEUE_SSBO_BINDING = 12;
 
 
 
@@ -280,7 +279,7 @@ public class GPUSimulation {
         
         MORTON_KEYS_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
         
         INDICES_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
@@ -313,15 +312,12 @@ public class GPUSimulation {
         
         MORTON_OUT_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
         
         INDEX_OUT_SSBO = glGenBuffers();
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
         
-        ROOT_NODE_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, ROOT_NODE_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, Integer.BYTES, GL_DYNAMIC_COPY); // Single uint
         
         // Work queue buffer: head (uint), tail (uint), items[numBodies] (uint)
         WORK_QUEUE_SSBO = glGenBuffers();
@@ -477,7 +473,6 @@ public class GPUSimulation {
         if (WG_SCANNED_SSBO != 0) glDeleteBuffers(WG_SCANNED_SSBO);
         if (MORTON_OUT_SSBO != 0) glDeleteBuffers(MORTON_OUT_SSBO);
         if (INDEX_OUT_SSBO != 0) glDeleteBuffers(INDEX_OUT_SSBO);
-        if (ROOT_NODE_SSBO != 0) glDeleteBuffers(ROOT_NODE_SSBO);
         if (WORK_QUEUE_SSBO != 0) glDeleteBuffers(WORK_QUEUE_SSBO);
         if (vao != 0) glDeleteVertexArrays(vao);
         if (sphereVao != 0) glDeleteVertexArrays(sphereVao);
@@ -529,7 +524,7 @@ public class GPUSimulation {
         
         // Resize Barnes-Hut auxiliary buffers
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
@@ -543,11 +538,9 @@ public class GPUSimulation {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, ROOT_NODE_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, Integer.BYTES, GL_DYNAMIC_COPY);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO);
         glBufferData(GL_SHADER_STORAGE_BUFFER, (2 + numBodies) * Integer.BYTES, GL_DYNAMIC_COPY);
 
@@ -582,6 +575,10 @@ public class GPUSimulation {
 
         computeAABB(numGroups, DEBUG_BARNES_HUT);
         glFinish();
+
+        //debugAABB();
+
+
         long aabbEndTime = System.nanoTime();
         long aabbDuration = (aabbEndTime - aabbStartTime);
         if (DEBUG_BARNES_HUT) System.out.println("AABB took " + aabbDuration + " nanoseconds");
@@ -597,6 +594,8 @@ public class GPUSimulation {
 
         generateMortonCodes(numGroups, DEBUG_BARNES_HUT);
         glFinish();
+
+        //debugMortonCodes();
         long mortonEndTime = System.nanoTime();
         long mortonDuration = (mortonEndTime - mortonStartTime);
         if (DEBUG_BARNES_HUT) System.out.println("Morton codes took " + mortonDuration + " nanoseconds");
@@ -607,6 +606,8 @@ public class GPUSimulation {
 
         radixSort(numGroups, DEBUG_BARNES_HUT);
         glFinish();
+
+        //debugRadixSort();
         long radixSortEndTime = System.nanoTime();
         long radixSortDuration = (radixSortEndTime - radixSortStartTime);
         if (DEBUG_BARNES_HUT) System.out.println("Radix sort took " + radixSortDuration + " nanoseconds");
@@ -617,6 +618,8 @@ public class GPUSimulation {
 
         buildBinaryRadixTree(numGroups, DEBUG_BARNES_HUT);
         glFinish();
+
+        
         long buildBinaryRadixTreeEndTime = System.nanoTime();
         long buildBinaryRadixTreeDuration = (buildBinaryRadixTreeEndTime - buildBinaryRadixTreeStartTime);
         if (DEBUG_BARNES_HUT) System.out.println("Build binary radix tree took " + buildBinaryRadixTreeDuration + " nanoseconds");
@@ -627,6 +630,7 @@ public class GPUSimulation {
 
         computeCOMAndLocation(numGroups, DEBUG_BARNES_HUT);
         glFinish();
+        //debugTree();
         long computeCOMAndLocationEndTime = System.nanoTime();
         long computeCOMAndLocationDuration = (computeCOMAndLocationEndTime - computeCOMAndLocationStartTime);
         if (DEBUG_BARNES_HUT) System.out.println("Compute center-of-mass took " + computeCOMAndLocationDuration + " nanoseconds");
@@ -751,8 +755,6 @@ public class GPUSimulation {
         glDispatchCompute(numGroups, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        //debugMortonCodes();
-
     }
 
     private void debugMortonCodes() {
@@ -760,12 +762,22 @@ public class GPUSimulation {
             // Read morton codes from GPU buffer
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
             ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-            IntBuffer mortonData = mortonBuffer.asIntBuffer();
+            LongBuffer mortonData = mortonBuffer.asLongBuffer();
+            HashSet<Long> mortonSet = new HashSet<>();
             
-            for (int i = 0; i < Math.max(10, planets.size()); i++) {
-                int morton = mortonData.get(i);   
+            for (int i = 0; i < Math.min(10, mortonData.capacity()); i++) {
+                long morton = mortonData.get(i);   
                 System.out.printf("  [%d]: %d\n", i, morton);
             }
+
+            for (int i = 0; i < mortonData.capacity(); i++) {
+                if (mortonSet.contains(mortonData.get(i))) {
+                    System.out.println("Duplicate morton code: " + mortonData.get(i));
+                }
+                mortonSet.add(mortonData.get(i));
+            }
+
+            System.out.println("Non-unique morton codes: " + (mortonData.capacity() - mortonSet.size()));
             
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -936,7 +948,6 @@ public class GPUSimulation {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, MORTON_KEYS_SSBO);   // morton keys (sorted)
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, INDICES_SSBO);    // body indices (sorted)
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);    // tree nodes output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, ROOT_NODE_SSBO_BINDING, ROOT_NODE_SSBO); // root node ID output
         
         glUniform1ui(glGetUniformLocation(buildBinaryRadixTreeKernelProgram, "numBodies"), planets.size());
         
@@ -950,9 +961,7 @@ public class GPUSimulation {
 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-        if (debug) {
-            debugTree();
-        }
+
     }
     
     private void computeCOMAndLocation(int numGroups, boolean debug) {
@@ -974,17 +983,23 @@ public class GPUSimulation {
         glDispatchCompute(numGroups, 1, 1); // One thread per body (leaf node)
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        // Dispatch persistent kernel that processes entire queue without CPU intervention
-        glUseProgram(propagateNodesKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO);
-        
-        // Dispatch with enough threads to process all potential work items efficiently
-        // Each thread will process multiple items in round-robin fashion
-        int maxPossibleNodes = planets.size() - 1; // Internal nodes
-        int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
-        glDispatchCompute(workGroups, 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        System.out.println("After init leaves");
+        glFinish();
+        //debugTree();
+
+
+        for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
+            glUseProgram(propagateNodesKernelProgram);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO);
+            
+            // Dispatch with enough threads to process all potential work items efficiently
+            // Each thread will process multiple items in round-robin fashion
+            int maxPossibleNodes = planets.size() - 1; // Internal nodes
+            int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+            glDispatchCompute(workGroups, 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
     }
 
     private void computeForce(int numGroups, boolean debug) {
@@ -996,8 +1011,7 @@ public class GPUSimulation {
         checkGLError("Bodies out SSBO bind");      // bodies output
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);
         checkGLError("Nodes SSBO bind");    // tree nodes
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, ROOT_NODE_SSBO_BINDING, ROOT_NODE_SSBO);
-        checkGLError("Root node SSBO bind"); // root node ID input
+        
         
         // Set uniforms
         float theta = (float)Settings.getInstance().getTheta();
@@ -1253,58 +1267,58 @@ public class GPUSimulation {
             
             int numLeaves = planets.size();
             int totalNodes = 2 * planets.size() - 1;
-            boolean foundStuckNodes = false;
+            // boolean foundStuckNodes = false;
             
-            for (int i = numLeaves; i < totalNodes; i++) { // Check internal nodes only
-                int offset = i * Node.STRUCT_SIZE;
-                if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-                    int readyChildren = nodeData.get(offset + 12);
-                    if (readyChildren < 2) {
-                        foundStuckNodes = true;
-                        int childA = nodeData.get(offset + 8);
-                        int childB = nodeData.get(offset + 9);
-                        int parentId = nodeData.get(offset + 13);
-                        float mass = Float.intBitsToFloat(nodeData.get(offset + 3));
+            // for (int i = numLeaves; i < totalNodes; i++) { // Check internal nodes only
+            //     int offset = i * Node.STRUCT_SIZE;
+            //     if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+            //         int readyChildren = nodeData.get(offset + Node.READY_CHILDREN_OFFSET);
+            //         if (readyChildren < 2) {
+            //             foundStuckNodes = true;
+            //             int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+            //             int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
+            //             int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
+            //             float mass = Float.intBitsToFloat(nodeData.get(offset + Node.COM_MASS_OFFSET));
                         
-                        System.out.printf("STUCK Node[%d]: ready=%d childA=%d childB=%d parent=%d mass=%.3f\n", 
-                            i, readyChildren, 
-                            childA == 0xFFFFFFFF ? -1 : childA,
-                            childB == 0xFFFFFFFF ? -1 : childB,
-                            parentId == 0xFFFFFFFF ? -1 : parentId,
-                            mass);
+            //             // System.out.printf("STUCK Node[%d]: ready=%d childA=%d childB=%d parent=%d mass=%.3f\n", 
+            //             //     i, readyChildren, 
+            //             //     childA == 0xFFFFFFFF ? -1 : childA,
+            //             //     childB == 0xFFFFFFFF ? -1 : childB,
+            //             //     parentId == 0xFFFFFFFF ? -1 : parentId,
+            //             //     mass);
                             
-                        // Check children status
-                        if (childA != 0xFFFFFFFF && childA < totalNodes) {
-                            int childAOffset = childA * Node.STRUCT_SIZE;
-                            if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-                                int childAReady = childA < numLeaves ? 1 : nodeData.get(childAOffset + 12); // Leaves are always ready
-                                float childAMass = Float.intBitsToFloat(nodeData.get(childAOffset + 3));
-                                System.out.printf("  Child A[%d]: ready=%d mass=%.3f%s\n", 
-                                    childA, childAReady, childAMass, childA < numLeaves ? " (leaf)" : "");
-                            }
-                        }
-                        if (childB != 0xFFFFFFFF && childB < totalNodes) {
-                            int childBOffset = childB * Node.STRUCT_SIZE;
-                            if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-                                int childBReady = childB < numLeaves ? 1 : nodeData.get(childBOffset + 12); // Leaves are always ready
-                                float childBMass = Float.intBitsToFloat(nodeData.get(childBOffset + 3));
-                                System.out.printf("  Child B[%d]: ready=%d mass=%.3f%s\n", 
-                                    childB, childBReady, childBMass, childB < numLeaves ? " (leaf)" : "");
-                            }
-                        }
-                    }
-                }
-            }
+            //             // Check children status
+            //             if (childA != 0xFFFFFFFF && childA < totalNodes) {
+            //                 int childAOffset = childA * Node.STRUCT_SIZE;
+            //                 if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+            //                     int childAReady = childA < numLeaves ? 1 : nodeData.get(childAOffset + Node.READY_CHILDREN_OFFSET); // Leaves are always ready
+            //                     float childAMass = Float.intBitsToFloat(nodeData.get(childAOffset + Node.COM_MASS_OFFSET));
+            //                     System.out.printf("  Child A[%d]: ready=%d mass=%.3f%s\n", 
+            //                         childA, childAReady, childAMass, childA < numLeaves ? " (leaf)" : "");
+            //                 }
+            //             }
+            //             if (childB != 0xFFFFFFFF && childB < totalNodes) {
+            //                 int childBOffset = childB * Node.STRUCT_SIZE;
+            //                 if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+            //                     int childBReady = childB < numLeaves ? 1 : nodeData.get(childBOffset + Node.READY_CHILDREN_OFFSET); // Leaves are always ready
+            //                     float childBMass = Float.intBitsToFloat(nodeData.get(childBOffset + Node.COM_MASS_OFFSET));
+            //                     System.out.printf("  Child B[%d]: ready=%d mass=%.3f%s\n", 
+            //                         childB, childBReady, childBMass, childB < numLeaves ? " (leaf)" : "");
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
             
-            if (!foundStuckNodes) {
-                System.out.println("No stuck nodes found - all internal nodes have readyChildren >= 2");
-            }
+            // if (!foundStuckNodes) {
+            //     System.out.println("No stuck nodes found - all internal nodes have readyChildren >= 2");
+            // }
             
-            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             
-            System.out.println("Tree nodes:");
-            // Read tree nodes
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+            // System.out.println("Tree nodes:");
+            // // Read tree nodes
+            // glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
         
             // Read tree nodes
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
@@ -1318,10 +1332,10 @@ public class GPUSimulation {
             
             // Show first few leaf nodes (indices 0 to numBodies-1)
 
-            System.out.println(Node.getNodes(nodeData, 0, Math.min(100, numLeaves)));
+            System.out.println(Node.getNodes(nodeData, 0, Math.min(20, numLeaves)));
             
             // Show internal nodes from halfway point (indices numBodies to 2*numBodies-2)
-            System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 100, totalNodes)));
+            System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 20, totalNodes)));
 
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             verifyTreeStructure(nodeData, numLeaves, totalNodes);
@@ -1345,7 +1359,7 @@ public class GPUSimulation {
             int offset = i * Node.STRUCT_SIZE;
             if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
             
-            int parentId = nodeData.get(offset + 13);
+            int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
             
             // Check for root nodes
             if (parentId == 0xFFFFFFFF) {
@@ -1366,8 +1380,8 @@ public class GPUSimulation {
             
             // For internal nodes, check children
             if (i >= numLeaves) {
-                int childA = nodeData.get(offset + 8);
-                int childB = nodeData.get(offset + 9);
+                int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+                int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
                 
                 if (childA != 0xFFFFFFFF) {
                     if (childA >= totalNodes || childA < 0) {
@@ -1403,14 +1417,14 @@ public class GPUSimulation {
             int offset = i * Node.STRUCT_SIZE;
             if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
             
-            int childA = nodeData.get(offset + 8);
-            int childB = nodeData.get(offset + 9);
+            int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+            int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
             
             // Check childA relationship
             if (childA != 0xFFFFFFFF && childA < totalNodes) {
                 int childAOffset = childA * Node.STRUCT_SIZE;
                 if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-                    int childAParent = nodeData.get(childAOffset + 13);
+                    int childAParent = nodeData.get(childAOffset + Node.PARENT_ID_OFFSET);
                     if (childAParent != i) {
                         System.out.printf("ERROR: Internal[%d] claims childA=%d, but Node[%d] has parent=%d\n", 
                             i, childA, childA, childAParent == 0xFFFFFFFF ? -1 : childAParent);
@@ -1423,7 +1437,7 @@ public class GPUSimulation {
             if (childB != 0xFFFFFFFF && childB < totalNodes) {
                 int childBOffset = childB * Node.STRUCT_SIZE;
                 if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-                    int childBParent = nodeData.get(childBOffset + 13);
+                    int childBParent = nodeData.get(childBOffset + Node.PARENT_ID_OFFSET);
                     if (childBParent != i) {
                         System.out.printf("ERROR: Internal[%d] claims childB=%d, but Node[%d] has parent=%d\n", 
                             i, childB, childB, childBParent == 0xFFFFFFFF ? -1 : childBParent);
@@ -1444,7 +1458,7 @@ public class GPUSimulation {
             if (!hasParent[i]) {
                 int offset = i * Node.STRUCT_SIZE;
                 if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-                    int parentId = nodeData.get(offset + 13);
+                    int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
                     if (parentId != 0xFFFFFFFF) {
                         System.out.printf("ERROR: Node[%d] claims parent=%d but no node claims it as child\n", 
                             i, parentId);
@@ -1460,8 +1474,8 @@ public class GPUSimulation {
             int offset = i * Node.STRUCT_SIZE;
             if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
             
-            int childA = nodeData.get(offset + 12);
-            int childB = nodeData.get(offset + 13);
+            int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+            int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
             
             if (childA != 0xFFFFFFFF && childA < totalNodes) {
                 if (usedAsChild[childA]) {
