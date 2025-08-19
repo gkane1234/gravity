@@ -57,7 +57,7 @@ public class Settings {
 		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("doubleArray"); p.setEditable(true); properties.put("shift", p); }
 
 		// Time step
-		{ Property<Float> p = Property.createFloatProperty("dt", 0.001f, 0.001f); p.setEditable(true); properties.put("dt", p); }
+		{ Property<Float> p = Property.createFloatProperty("dt", 0.1f, 0.1f); p.setEditable(true); properties.put("dt", p); }
 
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
@@ -69,10 +69,10 @@ public class Settings {
 		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false, true));
 
 		// Planet density
-		{ Property<Float> p = Property.createFloatProperty("density", 0.5f, 0.5f); p.setEditable(true); properties.put("density", p); }
+		{ Property<Float> p = Property.createFloatProperty("density", 1f, 1f); p.setEditable(true); properties.put("density", p); }
 
 		// Collision elasticity
-		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));
+		properties.put("elasticity", Property.createDoubleProperty("elasticity", 0.3, 0.3, 0.0, 1.0, true));
 
 		// Default planet color
 		properties.put("defaultPlanetColor", Property.createColorPropertyFromRGB("defaultPlanetColor", 0x6dbdef, 0x6dbdef, true));
@@ -123,7 +123,13 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
 
 		// Barnes-Hut acceptance criterion
-		{ Property<Float> p = Property.createFloatProperty("theta",0.5f, 0.5f); p.setEditable(true); properties.put("theta", p); }
+		{ Property<Float> p = Property.createFloatProperty("theta", 0.5f, 0.5f); p.setEditable(true); properties.put("theta", p); }
+
+		// Collision enabled
+		properties.put("collision", Property.createBooleanProperty("collision", false, false, true));
+
+		// Collision restitution
+		{ Property<Float> p = Property.createFloatProperty("restitution", 0.3f, 0.3f); p.setEditable(true); properties.put("restitution", p); }
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
@@ -237,6 +243,13 @@ public class Settings {
 
 	public float getTheta() { return getValue("theta"); }
 	public void setTheta(float value) { setValue("theta", value); }
+
+	public boolean isCollision() { return getValue("collision"); }
+	public void setCollision(boolean value) { setValue("collision", value); }
+
+	public void toggleCollision() { setCollision(!isCollision()); }
+	public float getRestitution() { return getValue("restitution"); }
+	public void setRestitution(float value) { setValue("restitution", value); }
 
 	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
 

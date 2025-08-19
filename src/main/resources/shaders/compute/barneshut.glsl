@@ -10,15 +10,16 @@
 // 1) Constants and configuration
 // - Define workgroup size, softening, Barnes–Hut theta, etc.
 layout(local_size_x = 128) in;
-const float SOFTENING = 0.1;
+uniform float softening;
 uniform float theta;
 uniform float dt;
 uniform uint numBodies;
 uniform float elasticity;
 uniform float density;
-
-// Scene AABB used to normalize positions into [0,1]^3
+uniform float restitution;
+uniform bool collision;
 uniform uint numWorkGroups; // number of workgroups dispatched for histogram/scatter
+uniform uint passShift;
 // Radix parameters
 const uint RADIX_BITS = 4u;                 // 4 bits per pass
 const uint NUM_BUCKETS = 1u << RADIX_BITS;  // 16 buckets
@@ -64,8 +65,9 @@ layout(std430, binding = 10) buffer MortonOut   { uint64_t mortonOut[];   };
 layout(std430, binding = 11) buffer IndicesOut  { uint indexOut[];    };
 // Work queue: first two uints are head and tail, followed by items
 layout(std430, binding = 12) buffer WorkQueue { uint head; uint tail; uint items[]; };
+layout(std430, binding = 13) buffer MergeQueue { uint mergeQueueTail; uvec2 mergeQueue[];};
 // Current pass shift (bit offset)
-uniform uint passShift;
+
 // -------------------------------------------------------------
 
 // -------------------------------------------------------------
@@ -593,7 +595,7 @@ float cbrt(float x)
 {
     return pow(x, 1.0/3.0);
 }
-
+// Compute the force on a body. Dispatched with (numGroups,1,1)
 void computeForce() 
 {
     vec3 accel = vec3(0.0);
@@ -613,7 +615,7 @@ void computeForce()
         Node node = nodes[nodeIdx];
 
         vec3 r = node.comMass.xyz - body.posMass.xyz;
-        float oneOverDist = invDist(r, SOFTENING);
+        float oneOverDist = invDist(r, softening);
         vec3 extent = node.aabb.max - node.aabb.min;
         float longestSide = max(extent.x, max(extent.y, extent.z));
         // stop going deeper if the acceptance criterion is met or we are at a leaf
@@ -623,7 +625,7 @@ void computeForce()
                 float bodyRadius = cbrt(body.posMass.w);
                 float otherRadius = cbrt(other.posMass.w);
                 float dist = length(r);
-                if (dist < bodyRadius + otherRadius) {
+                if (collision && dist < bodyRadius + otherRadius) {
                     vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;
                     vec3 normal = normalize(r);
                     float vImpact = dot(velocityDifference, normal);
@@ -638,10 +640,18 @@ void computeForce()
 
                     float penetration = bodyRadius + otherRadius - dist;
                     if (penetration > 0) {
-                        const float restitution = 0.2;
                         vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
                         body.posMass.xyz -= correction;
                     }
+                }else if (dist < bodyRadius + otherRadius) {
+                    //merge bodies
+                    // Store the indices into a buffer.
+                    if (mergeQueueTail < mergeQueue.length()) {
+                        mergeQueue[mergeQueueTail++] = uvec2(gid, index[nodeIdx]);
+                        mergeQueueTail = atomicAdd(mergeQueueTail, 1u);
+                    }
+                    
+                    
                 }else {
                     accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
                 }
@@ -667,6 +677,34 @@ void computeForce()
     dstB.bodies[gid].posMass.w = body.posMass.w;
     dstB.bodies[gid].color = body.color;
 }
+// Merge bodies in the merge queue. Dispatched with (1,1,1)
+// Non-deterministic, naive approach to merging.
+Body mergeBodies(Body body1, Body body2) {
+    Body mergedBody;    
+    float newMass = body1.posMass.w + body2.posMass.w;
+    vec3 newPos = (body1.posMass.xyz * body1.posMass.w + body2.posMass.xyz * body2.posMass.w) / newMass;
+    mergedBody.posMass.xyz = newPos;
+    mergedBody.posMass.w = newMass;
+    mergedBody.velPad.xyz = (body1.velPad.xyz * body1.posMass.w + body2.velPad.xyz * body2.posMass.w) / newMass;
+    mergedBody.velPad.w = newMass;
+    mergedBody.color = vec4(1.0, 1.0, 1.0, 1.0);
+    return mergedBody;
+}
+void mergeBodiesKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid > 0) return;
+    for (uint i = 0; i < mergeQueueTail; i++) {
+        uvec2 bodies = mergeQueue[i];
+        Body body1 = srcB.bodies[bodies.x];
+        Body body2 = srcB.bodies[bodies.y];
+        Body mergedBody = mergeBodies(body1, body2);
+        dstB.bodies[bodies.x] = mergedBody;
+        dstB.bodies[bodies.y] = Body(vec4(0.0), vec4(0.0), vec4(0.0)); //dead body
+    }
+}
+
+
+
 
 void debugKernel() {
     uint gid = gl_GlobalInvocationID.x;

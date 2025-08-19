@@ -20,6 +20,10 @@ public class UIButton extends UIElement {
         this(0, 0, 0, 0, label, onClick);
     }
 
+    public void setOnClick(Runnable onClick) {
+        this.onClick = onClick;
+    }
+
 
 
     public void setText(String text) {

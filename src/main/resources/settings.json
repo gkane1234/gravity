@@ -1,12 +1,12 @@
 {
   "drawTail" : false,
-  "elasticity" : 1.0,
+  "elasticity" : 0.3,
   "shift" : [ 0.0, 0.0, 0.0 ],
   "nearPlane" : 0.1,
   "fov" : 45.0,
   "defaultBackgroundColor" : -16777216,
   "theta" : 0.5,
-  "dt" : 0.001,
+  "dt" : 0.1,
   "farPlane" : 1000000.0,
   "mouseWheelSensitivity" : 20.0,
   "sphereSegments" : 12,
@@ -21,10 +21,11 @@
     "z" : -1.0,
     "finite" : true
   },
-  "density" : 0.5,
+  "density" : 1.0,
   "zoom" : 0.01,
   "follow" : false,
   "yaw" : -90.0,
+  "collision" : false,
   "tailLength" : 10,
   "cameraPos" : {
     "x" : 0.0,
@@ -33,6 +34,7 @@
     "finite" : true
   },
   "cameraMoveSpeed" : 5.0,
+  "restitution" : 0.3,
   "cameraUp" : {
     "x" : 0.0,
     "y" : 1.0,

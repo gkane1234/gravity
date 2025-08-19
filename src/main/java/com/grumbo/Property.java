@@ -446,10 +446,12 @@ public class Property<T> {
     private ArrayList<UIElement> createBooleanEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UIButton toggle = new UIButton("", () -> {
+        UIButton toggle = new UIButton((Boolean) Settings.getInstance().getValue(name) ? "On" : "Off", null);
+        toggle.setOnClick(() -> {
             try {
                 boolean current = (Boolean) Settings.getInstance().getValue(name);
                 Settings.getInstance().setValue(name, !current);
+                toggle.setText(!current ? "On" : "Off");
                 Settings.getInstance().saveSettings();
             } catch (Exception ignore) {
             }
