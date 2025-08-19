@@ -10,10 +10,12 @@
 // 1) Constants and configuration
 // - Define workgroup size, softening, Barnes–Hut theta, etc.
 layout(local_size_x = 128) in;
-const float SOFTENING = 0.0001;
+const float SOFTENING = 0.1;
 uniform float theta;
 uniform float dt;
 uniform uint numBodies;
+uniform float elasticity;
+uniform float density;
 
 // Scene AABB used to normalize positions into [0,1]^3
 uniform uint numWorkGroups; // number of workgroups dispatched for histogram/scatter
@@ -50,7 +52,7 @@ struct Node {
 layout(std430, binding = 0) readonly buffer BodiesIn  { Body bodies[]; } srcB;
 layout(std430, binding = 1) writeonly buffer BodiesOut { Body bodies[]; } dstB;
 layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
-layout(std430, binding = 3) buffer Indices    { uint index[]; };
+layout(std430, binding = 3) buffer Indices    { uint index[]; }; // index[nodeId] = bodyId
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
 layout(std430, binding = 5) buffer AABBBuffer { AABB aabb[]; };
 // Radix sort auxiliary buffers
@@ -587,6 +589,11 @@ float invDist(vec3 r, float softening)
     return inv;
 }
 
+float cbrt(float x)
+{
+    return pow(x, 1.0/3.0);
+}
+
 void computeForce() 
 {
     vec3 accel = vec3(0.0);
@@ -595,7 +602,7 @@ void computeForce()
 
     Body body = srcB.bodies[gid];
 
-    uint stack[64];
+    uint stack[128];
     uint stackSize = 0;
 
     stack[stackSize++] = numBodies;
@@ -610,9 +617,41 @@ void computeForce()
         vec3 extent = node.aabb.max - node.aabb.min;
         float longestSide = max(extent.x, max(extent.y, extent.z));
         // stop going deeper if the acceptance criterion is met or we are at a leaf
-        if (node.childA == 0xFFFFFFFFu || acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
+        if (node.childA == 0xFFFFFFFFu) {
+            if (index[nodeIdx] != gid) {
+                Body other = srcB.bodies[index[nodeIdx]];
+                float bodyRadius = cbrt(body.posMass.w);
+                float otherRadius = cbrt(other.posMass.w);
+                float dist = length(r);
+                if (dist < bodyRadius + otherRadius) {
+                    vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;
+                    vec3 normal = normalize(r);
+                    float vImpact = dot(velocityDifference, normal);
+
+                    if (vImpact < 0) {
+                        float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
+                    
+                        float j = (1+elasticity)*mEff*vImpact;
+
+                        body.velPad.xyz += normal * j / body.posMass.w;
+                    }
+
+                    float penetration = bodyRadius + otherRadius - dist;
+                    if (penetration > 0) {
+                        const float restitution = 0.2;
+                        vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
+                        body.posMass.xyz -= correction;
+                    }
+                }else {
+                    accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+                }
+            }
+            
+        }
+        else if (acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-        } else {
+        }
+        else {
             stack[stackSize++] = node.childA;
             stack[stackSize++] = node.childB;
         }

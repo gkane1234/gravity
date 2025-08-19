@@ -50,8 +50,16 @@ public class OpenGLWindow {
         LOADING,
         RUNNING,
         PAUSED,
+        FRAME_ADVANCE
     }
-    private State state = State.RUNNING;
+    private State state = State.FRAME_ADVANCE;
+    
+    // Add frame advance state tracking
+    private boolean frameReady = false;
+    
+    // FPS limiting using GPU swap interval
+    private int maxFPS = 60; // Default max FPS
+    private int swapInterval = 1; // Default swap interval (1 = vsync, 2 = every 2nd frame, etc.)
 
 
     public OpenGLWindow() {
@@ -59,14 +67,20 @@ public class OpenGLWindow {
         this.settingsPane = new SettingsPane();
 
         planets = new ArrayList<>();
-        float[] xRange = {5000, 10000};
-        float[] yRange = {5000, 10000};
-        float[] zRange = {5000, 10000};
+        float[] xRange = {0, 200};
+        float[] yRange = {0, 200};
+        float[] zRange = {0, 200};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};
-        float[] mRange = {100, 1000};
-        planets = Planet.makeNew(10_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        float[] mRange = {10, 100};
+        float[] radius = {100, 1000};
+        Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
+        Planet center2 = new Planet(100,0,0,0,0,0,10);
+        planets = Planet.makeNew(1000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets.add(center);
+        planets.add(center2);
+        //planets = Planet.mergeOverlappingPlanets(planets);
         //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
 
 
@@ -119,8 +133,11 @@ public class OpenGLWindow {
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
-        // Disable v-sync for unlimited FPS
+        // Disable v-sync for unlimited FPS initially
         glfwSwapInterval(0);
+        
+        // Set initial FPS limit
+        setMaxFPS(maxFPS);
 
         // Set cursor to disabled (hidden and locked to window)
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -144,6 +161,23 @@ public class OpenGLWindow {
             }
             if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
                 showFPS = !showFPS;
+            }
+            if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
+                if (state == State.FRAME_ADVANCE) {
+                    state = State.RUNNING;
+                    System.out.println("Switched to continuous simulation mode");
+                } else {
+                    state = State.FRAME_ADVANCE;
+                    System.out.println("Switched to frame advance mode - press ENTER to advance frames");
+                }
+            }
+            if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
+                printFPSInfo();
+            }
+            if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+                if (state == State.FRAME_ADVANCE) {
+                    frameReady = true;
+                }
             }
 
              // Add shift key handling here
@@ -266,6 +300,9 @@ public class OpenGLWindow {
         System.out.println("Mouse wheel: Zoom in/out");
         System.out.println("ESC: Toggle mouse cursor (press to release/capture mouse)");
         System.out.println("F1: Toggle FPS display");
+        System.out.println("F2: Toggle frame advance mode");
+        System.out.println("F3: Show FPS limiting information");
+        System.out.println("Enter: Advance one frame (when in frame advance mode)");
         System.out.println("P: Toggle performance stats");
         System.out.println("I: Print detailed performance info");
         System.out.println("B: Toggle chunk borders");
@@ -275,6 +312,7 @@ public class OpenGLWindow {
         System.out.println("Up/Down arrows: Change chunk size");
         System.out.println("[/]: Change simulation speed");
         System.out.println("+/-: Zoom in/out");
+        System.out.println("FPS Limiting: Use setMaxFPS(int) method to set GPU-based frame rate limit");
         System.out.println("==================");
         System.out.println("Initial camera position: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z);
         System.out.println("Initial zoom: " + Settings.getInstance().getZoom());
@@ -297,6 +335,8 @@ public class OpenGLWindow {
         lastTime = glfwGetTime();
         
         while (!glfwWindowShouldClose(window)) {
+
+
             
             // Update FPS calculation
             updateFPS();
@@ -345,18 +385,77 @@ public class OpenGLWindow {
                 if (showFPS) {
                     drawFPS();
                 }
-
-                if (debug) {
-                    drawDebugInfo();
-                }
                 
                 // Draw settings panel if visible (on top of everything)
+                if (debug) {
+                    drawDebugInfo();
+                    settingsPane.draw(font);
+                }
+                
+                
 
-            }
+            } else if (state == State.FRAME_ADVANCE) {
+                // In frame advance mode, we just render the current state
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            if (debug) {
-                settingsPane.draw(font);
+                // Process WASD movement
+                if (!settingsPane.textFieldFocused) {
+                    processMovement();
+                }
 
+                // Set up 3D projection matrix
+                setupProjection();
+                
+                // Set up view matrix (camera)
+                setupCamera();
+
+                // Draw GPU points
+                // Compute MVP using JOML from current Settings camera state
+                float fov = Settings.getInstance().getFov();
+                float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+                float near = Settings.getInstance().getNearPlane();
+                float far = Settings.getInstance().getFarPlane();
+
+                Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
+                Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
+                Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
+                Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
+                Matrix4f view = new Matrix4f().lookAt(eye, center, up);
+                Matrix4f mvp = new Matrix4f(proj).mul(view);
+                try (MemoryStack stack = stackPush()) {
+                    FloatBuffer mvpBuf = stack.mallocFloat(16);
+                    mvp.get(mvpBuf);
+                    gpuPoints.setMvp(mvpBuf);
+                }
+                // Update camera-dependent uniforms for mesh spheres
+                gpuPoints.setCameraPos(eye.x, eye.y, eye.z);
+                
+                // Only advance simulation if Enter was pressed
+                if (frameReady) {
+                    gpuPoints.step();
+                    frameReady = false; // Reset for next Enter press
+                }
+                
+                gpuPoints.render();
+                
+                // Draw crosshair last (on top)
+                drawCrosshair();
+                
+                // Draw FPS display (on top)
+                if (showFPS) {
+                    drawFPS();
+                }
+                
+                // Draw frame advance indicator
+                drawFrameAdvanceIndicator();
+                
+                // Draw settings panel if visible (on top of everything)
+                if (debug) {
+                    drawDebugInfo();
+                    settingsPane.draw(font);
+                }
+                
+                
             }
 
             glfwSwapBuffers(window);
@@ -372,11 +471,71 @@ public class OpenGLWindow {
         }
     }
 
+    private void drawFrameAdvanceIndicator() {
+        if (font == null || !font.isLoaded()) {
+            return;
+        }
+
+        // Save current OpenGL state
+        glPushMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Set up 2D orthographic projection
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Disable depth testing for UI elements
+        glDisable(GL_DEPTH_TEST);
+        
+        // Draw frame advance indicator in top-right corner
+        String indicatorText = "FRAME ADVANCE MODE";
+        String instructionText = "Press ENTER to advance";
+        
+        int x = Settings.getInstance().getWidth() - 200;
+        int y = 20;
+        int padding = 4;
+        
+        // Get text dimensions
+        float textWidth = font.getTextWidth(indicatorText);
+        float textHeight = font.getCharHeight();
+        
+        // Draw background rectangle
+        glColor4f(0.0f, 0.0f, 0.0f, 0.8f); // Semi-transparent black
+        glBegin(GL_QUADS);
+        glVertex2f(x - padding, y - padding);
+        glVertex2f(x + textWidth + padding, y - padding);
+        glVertex2f(x + textWidth + padding, y + textHeight * 2 + padding);
+        glVertex2f(x - padding, y + textHeight * 2 + padding);
+        glEnd();
+        
+        // Draw indicator text in yellow
+        glColor4f(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
+        font.drawText(indicatorText, x, y);
+        
+        // Draw instruction text in white
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
+        font.drawText(instructionText, x, y + textHeight);
+        
+        // Re-enable depth testing
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+    
     private void drawDebugInfo() {
         if (gpuPoints == null) return;
         
-        String debugText = gpuPoints.debugString;
-        if (debugText.isEmpty()) return;
+        String performanceText = gpuPoints.debugString;
+        if (performanceText.isEmpty()) return;
         
         // Save current OpenGL state
         glPushMatrix();
@@ -387,13 +546,14 @@ public class OpenGLWindow {
         // Set up 2D orthographic projection
         glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
         glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
         glLoadIdentity();
         
         // Disable depth testing for UI elements
         glDisable(GL_DEPTH_TEST);
         
         // Split performance text into lines
-        String[] lines = debugText.split("\n");
+        String[] lines = performanceText.split("\n");
         float width = 0;
         for (String line : lines) {
             if (font.getTextWidth(line) > width) {
@@ -406,7 +566,7 @@ public class OpenGLWindow {
         
         // Calculate position (right side of screen)
         int x = Settings.getInstance().getWidth() - (int)width - 20; // 400 pixels from right edge
-        int y = 20;
+        int y = 80;
         int lineHeight = 16;
         int padding = 6;
         
@@ -653,5 +813,48 @@ public class OpenGLWindow {
         glMatrixMode(GL_MODELVIEW);
     }
 
+    public void setMaxFPS(int maxFPS) {
+        this.maxFPS = maxFPS;
+        
+        // Apply the FPS limit using GPU swap intervals
+        if (maxFPS <= 0) {
+            // Unlimited FPS - no vsync
+            glfwSwapInterval(0);
+        } else if (maxFPS >= 60) {
+            // 60+ FPS - use vsync (swap every frame)
+            glfwSwapInterval(1);
+        } else {
+            // Custom FPS - calculate swap interval
+            // For example: 30 FPS = swap every 2 frames (60/30 = 2)
+            int interval = java.lang.Math.max(1, 60 / maxFPS);
+            glfwSwapInterval(interval);
+        }
+    }
+    
+    public void applyFPSLimit() {
+        // Re-apply the current FPS settings
+        setMaxFPS(maxFPS);
+    }
+    
+    public int getSwapInterval() {
+        // Get the current swap interval from GLFW
+        return glfwGetWindowAttrib(window, GLFW_CONTEXT_REVISION);
+    }
+    
+    public void printFPSInfo() {
+        System.out.println("Current FPS Limit: " + maxFPS);
+        System.out.println("Current Swap Interval: " + getSwapInterval());
+        if (maxFPS <= 0) {
+            System.out.println("FPS Mode: Unlimited (no vsync)");
+        } else if (maxFPS >= 60) {
+            System.out.println("FPS Mode: Vsync enabled (60+ FPS)");
+        } else {
+            System.out.println("FPS Mode: Custom limit (" + maxFPS + " FPS)");
+        }
+    }
+
+    public int getMaxFPS() {
+        return maxFPS;
+    }
 
 } 

@@ -17,11 +17,16 @@ uniform float uRadiusScale; // radius = sqrt(mass) * scale
 out vec3 vWorldPos;
 out vec4 vColor;
 
+float cbrt(float x)
+{
+    return pow(x, 1.0/3.0);
+}
+
 // We use gl_InstanceID to fetch per-planet data
 void main() {
   vec3 center = srcB.bodies[gl_InstanceID].posMass.xyz;
   float mass = srcB.bodies[gl_InstanceID].posMass.w;
-  float radius = sqrt(max(mass, 0.0)) * uRadiusScale;
+  float radius = cbrt(max(mass, 0.0)) * uRadiusScale;
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;
   vColor = srcB.bodies[gl_InstanceID].color;

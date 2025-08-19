@@ -69,7 +69,7 @@ public class Settings {
 		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false, true));
 
 		// Planet density
-		{ Property<Float> p = Property.createFloatProperty("density", 1f, 1f); p.setEditable(true); properties.put("density", p); }
+		{ Property<Float> p = Property.createFloatProperty("density", 0.5f, 0.5f); p.setEditable(true); properties.put("density", p); }
 
 		// Collision elasticity
 		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));

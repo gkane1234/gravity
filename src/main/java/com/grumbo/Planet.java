@@ -89,6 +89,51 @@ public class Planet {
 		return ret;
 	}
 
+	public static Planet makeNewInOrbit(float[] radius, float[] m, Planet center) {
+		float r = (float)(Math.random()*(radius[1]-radius[0])+radius[0]);
+		float orbitalSpeed = (float)(1.1*Math.sqrt(center.mass/r));
+		float theta = (float)(Math.random()*2*Math.PI);
+		float phi = (float)(Math.PI/2);
+		float x = (float)(r*Math.cos(theta)*Math.sin(phi));
+		float y = (float)(r*Math.sin(theta)*Math.sin(phi));
+		float z = (float)(r*Math.cos(phi));
+		float xV = (float)(-orbitalSpeed*Math.sin(theta)*Math.sin(phi));
+		float yV = (float)(orbitalSpeed*Math.cos(theta)*Math.sin(phi));
+		float zV = (float)(-orbitalSpeed*Math.cos(phi));
+		Planet ret = new Planet(x, y, z, xV, yV, zV, randomInRange(m));
+		return ret;
+	}
+
+	public static ArrayList<Planet> makeNewInOrbit(int num, float[] m, Planet center, float[] radius) {
+		ArrayList<Planet> ret = new ArrayList<>();
+		for (int i=0;i<num;i++) {
+			ret.add(makeNewInOrbit(radius, m, center));
+		}
+		return ret;
+	}
+
+	public static ArrayList<Planet> mergeOverlappingPlanets(ArrayList<Planet> planets) {
+		ArrayList<Planet> ret = new ArrayList<>();
+		for (Planet planet : planets) {
+			ret.add(planet);
+		}
+		int remaining = planets.size();
+		for (int i=0;i<remaining;i++) {
+			for (int j=i+1;j<remaining;j++) {
+				if (planets.get(i).getRadius() + planets.get(j).getRadius() > Math.sqrt(Math.pow(planets.get(i).x - planets.get(j).x, 2) + Math.pow(planets.get(i).y - planets.get(j).y, 2) + Math.pow(planets.get(i).z - planets.get(j).z, 2))) {
+					planets.get(i).merge(planets.get(j));
+					ret.set(i, planets.get(i));
+					ret.remove(j);
+					remaining--;
+					j--;
+				}
+			}
+		}
+
+		System.out.println("Merged " + (planets.size() - remaining) + " planets");
+		return ret;
+	}
+
 
 	private static float randomInRange(float[] range) {
 		return (float)(Math.random()*(range[1]-range[0])+range[0]);

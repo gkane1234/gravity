@@ -132,7 +132,7 @@ public class GPUSimulation {
 
     private int maxMeshInstances = 500000;
 
-    private float sphereRadiusScale = 0.3f; // radius = sqrt(mass) * scale
+    private float sphereRadiusScale = Settings.getInstance().getDensity(); // radius = sqrt(mass) * scale
 
     // Distance-based color/brightness params (defaults)
     private float cameraX = 0f, cameraY = 0f, cameraZ = 0f;
@@ -1151,6 +1151,8 @@ public class GPUSimulation {
         glUniform1ui(glGetUniformLocation(computeForceKernelProgram, "numBodies"), planets.size());
         glUniform1f(glGetUniformLocation(computeForceKernelProgram, "theta"), theta);
         glUniform1f(glGetUniformLocation(computeForceKernelProgram, "dt"), dt);
+        glUniform1f(glGetUniformLocation(computeForceKernelProgram, "elasticity"), (float)Settings.getInstance().getElasticity());
+        glUniform1f(glGetUniformLocation(computeForceKernelProgram, "density"), (float)Settings.getInstance().getDensity());
 
         glDispatchCompute(numGroups, 1, 1); // One thread per body
 
@@ -1645,6 +1647,7 @@ public class GPUSimulation {
             rootCount, totalNodes, numLeaves, totalNodes - numLeaves);
         System.out.println("=== END VERIFICATION ===\n");
     }
+
 
     
 }
