@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.UI;
 
 import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL11.*;

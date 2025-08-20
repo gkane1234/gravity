@@ -1,9 +1,16 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.function.Predicate;
 import org.joml.Vector3f;
+
+import com.grumbo.UI.UIButton;
+import com.grumbo.UI.UIElement;
+import com.grumbo.UI.UIRow;
+import com.grumbo.UI.UISlider;
+import com.grumbo.UI.UIText;
+import com.grumbo.UI.UITextField;
 
 public class Property<T> {
     private String name;

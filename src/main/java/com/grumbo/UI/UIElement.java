@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.UI;
 
 public abstract class UIElement {
     protected float x;

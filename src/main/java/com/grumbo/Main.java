@@ -1,5 +1,7 @@
 package com.grumbo;
 
+import com.grumbo.simulation.OpenGLWindow;
+
 /**
  * Main - Application Entry Point
  * =============================

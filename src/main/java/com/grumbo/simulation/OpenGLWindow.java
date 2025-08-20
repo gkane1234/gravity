@@ -1,8 +1,12 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.*;
+
+import com.grumbo.UI.BitmapFont;
+import com.grumbo.gpu.GravityUI;
+
 import org.joml.*;
 
 import java.nio.*;
@@ -321,7 +325,7 @@ public class OpenGLWindow {
 
         // Initialize embedded GPU points simulation (headless)
         gpuPoints = new GPUSimulation(planets);
-        gpuPoints.initWithCurrentContext();
+        gpuPoints.init();
 
         // Enable depth testing for 3D
         //glEnable(GL_DEPTH_TEST);

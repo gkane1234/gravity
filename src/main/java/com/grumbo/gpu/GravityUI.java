@@ -1,6 +1,9 @@
-package com.grumbo;
+package com.grumbo.gpu;
 
 import org.lwjgl.glfw.GLFW;
+
+import com.grumbo.simulation.Settings;
+
 import java.util.ArrayList;
 
 public class GravityUI {

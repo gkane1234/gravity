@@ -1,8 +1,16 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.grumbo.UI.BitmapFont;
+import com.grumbo.UI.UIButton;
+import com.grumbo.UI.UIElement;
+import com.grumbo.UI.UIRow;
+import com.grumbo.UI.UISlider;
+import com.grumbo.UI.UIText;
+import com.grumbo.UI.UITextField;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -153,7 +161,7 @@ public class SettingsPane {
         titleAndPageButtons.get(0).draw(font);
         renderedRows.add(titleAndPageButtons.get(0));
        
-        float pageY = yPos+titleAndPageButtons.get(0).height+verticalPadding;
+        float pageY = yPos+titleAndPageButtons.get(0).getHeight(font)+verticalPadding;
         pageHeight = bottomY - pageY;
 
         for (Property<?> prop : propertyRows) {
@@ -161,12 +169,12 @@ public class SettingsPane {
             UIRow row = prop.getEditorRow();
             row.calculateSize(font);
             float yPosOnPage = (float) (yPos - pageHeight*currentPage);
-            if (yPosOnPage>=pageY && yPosOnPage+row.height<=pageY+pageHeight) {
+            if (yPosOnPage>=pageY && yPosOnPage+row.getHeight(font)<=pageY+pageHeight) {
                 row.setPosition(xOffset, yPosOnPage);
                 row.draw(font);
                 renderedRows.add(row);
             }
-            yPos += row.height+verticalPadding;
+            yPos += row.getHeight(font)+verticalPadding;
             
         }
 

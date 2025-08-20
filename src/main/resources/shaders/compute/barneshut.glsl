@@ -121,6 +121,8 @@ AABB updateAABB(AABB a, AABB b) {
     result.max = max(a.max, b.max);
     return result;
 }
+// SSBO's: BodiesIn, aabb
+// Uniforms: numBodies
 void computeNewAABBKernel() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
@@ -157,6 +159,7 @@ void computeNewAABBKernel() {
             aabb[wgId] = sharedAABB[0];
     }
 }
+// SSBO's: aabb
 void collapseAABBKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid > 0) return;

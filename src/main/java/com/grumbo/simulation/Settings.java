@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import java.awt.Color;
 import java.io.File;
@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.ArrayList;
 import org.joml.Vector3f;
 import java.net.URL;

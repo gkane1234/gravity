@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.gpu;
 
 import java.util.Arrays;
 import java.nio.IntBuffer;
@@ -12,6 +12,8 @@ public class Body {
     public static final int COLOR_OFFSET = 8;
 
     public static final int STRUCT_SIZE = 12;
+
+    public static final Type[] bodyTypes = new Type[] { Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT };
 
     private float[] posMass;
     private float[] velPad;

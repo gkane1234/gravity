@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.gpu;
 
 import java.util.Arrays;
 import java.nio.IntBuffer;
@@ -29,6 +29,11 @@ public class Node {
     public static final int PARENT_ID_OFFSET = 17;
 
     public static final int STRUCT_SIZE = 20;
+    public static final Type[] nodeTypes = new Type[] { Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.FLOAT, 
+                                                        Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.PADDING, 
+                                                        Type.FLOAT, Type.FLOAT, Type.FLOAT, Type.PADDING, 
+                                                        Type.UINT, Type.UINT, Type.UINT, Type.UINT, 
+                                                        Type.UINT, Type.UINT, Type.PADDING, Type.PADDING };
 
     private float[] comMass;
     private float[] aabbMin;
