@@ -30,8 +30,7 @@ public class OpenGLWindow {
     private boolean mouseCaptured = true;
     private boolean shiftPressed = false;
     
-    
-    // Reference to gravity simulator
+
     private GravityUI ui;
     private SettingsPane settingsPane;
     
@@ -44,10 +43,8 @@ public class OpenGLWindow {
     private int frameCount = 0;
     private double fps = 0.0;
     
-    // Bitmap font for UI text
     private BitmapFont font;
-    // Embedded GPU sim that renders into this window
-    private GPUSimulation gpuPoints;
+    private GPUSimulation gpuSimulation;
     private ArrayList<Planet> planets;
 
     private enum State {
@@ -58,12 +55,10 @@ public class OpenGLWindow {
     }
     private State state = State.FRAME_ADVANCE;
     
-    // Add frame advance state tracking
     private boolean frameReady = false;
     
     // FPS limiting using GPU swap interval
     private int maxFPS = 60; // Default max FPS
-    private int swapInterval = 1; // Default swap interval (1 = vsync, 2 = every 2nd frame, etc.)
 
 
     public OpenGLWindow() {
@@ -93,19 +88,8 @@ public class OpenGLWindow {
     public void run() {
         init();
         loop();
+        cleanup();
 
-        // Cleanup font resources
-        if (font != null) {
-            font.cleanup();
-        }
-        
-        // Free the window callbacks and destroy the window
-        glfwFreeCallbacks(window);
-        glfwDestroyWindow(window);
-
-        // Terminate GLFW and free the error callback
-        glfwTerminate();
-        glfwSetErrorCallback(null).free();
     }
 
     private void init() {
@@ -132,14 +116,10 @@ public class OpenGLWindow {
         // Setup callbacks
         setupCallbacks();
 
-        // Center the window
-        centerWindow();
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
-        // Disable v-sync for unlimited FPS initially
-        glfwSwapInterval(0);
-        
+
         // Set initial FPS limit
         setMaxFPS(maxFPS);
 
@@ -148,7 +128,231 @@ public class OpenGLWindow {
 
         // Make the window visible
         glfwShowWindow(window);
+
+        GL.createCapabilities();
+        
+        // Initialize bitmap font
+        font = new BitmapFont();
+
+        System.out.println(getStartupInfo());
+        
+        // Initialize GPU simulation
+        gpuSimulation = new GPUSimulation(planets);
+        gpuSimulation.init();
+
+        // Enable depth testing for 3D
+        glEnable(GL_DEPTH_TEST);
+        
     }
+
+    private void loop() {
+        System.out.println("Starting render loop...");
+        
+        // Initialize FPS timing
+        lastTime = glfwGetTime();
+        
+        while (!glfwWindowShouldClose(window)) {
+
+
+            
+            // Update FPS calculation
+            updateFPS();
+
+            if (state == State.RUNNING) {
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                // Process WASD movement
+                if (!settingsPane.textFieldFocused) {
+                    processMovement();
+                }
+
+                // Set up 3D projection matrix
+                setupProjection();
+                
+                // Set up view matrix (camera)
+                setupCamera();
+
+                // Compute MVP using JOML from current Settings camera state
+                float fov = Settings.getInstance().getFov();
+                float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+                float near = Settings.getInstance().getNearPlane();
+                float far = Settings.getInstance().getFarPlane();
+
+                Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
+                Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
+                Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
+                Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
+                Matrix4f view = new Matrix4f().lookAt(eye, center, up);
+                Matrix4f mvp = new Matrix4f(proj).mul(view);
+                try (MemoryStack stack = stackPush()) {
+                    FloatBuffer mvpBuf = stack.mallocFloat(16);
+                    mvp.get(mvpBuf);
+                    gpuSimulation.setMvp(mvpBuf);
+                }
+                // Update camera-dependent uniforms for mesh spheres
+                gpuSimulation.setCameraPos(eye.x, eye.y, eye.z);
+                gpuSimulation.step();
+                gpuSimulation.render();
+                
+                // Draw crosshair last (on top)
+                drawCrosshair();
+                
+                // Draw FPS display (on top)
+                if (showFPS) {
+                    drawFPS();
+                }
+                
+                // Draw settings panel if visible (on top of everything)
+                if (debug) {
+                    drawDebugInfo();
+                    settingsPane.draw(font);
+                }
+                
+                
+
+            } else if (state == State.FRAME_ADVANCE) {
+                // In frame advance mode, we just render the current state
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                // Process WASD movement
+                if (!settingsPane.textFieldFocused) {
+                    processMovement();
+                }
+
+                // Set up 3D projection matrix
+                setupProjection();
+                
+                // Set up view matrix (camera)
+                setupCamera();
+
+                // Draw GPU points
+                // Compute MVP using JOML from current Settings camera state
+                float fov = Settings.getInstance().getFov();
+                float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+                float near = Settings.getInstance().getNearPlane();
+                float far = Settings.getInstance().getFarPlane();
+
+                Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
+                Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
+                Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
+                Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
+                Matrix4f view = new Matrix4f().lookAt(eye, center, up);
+                Matrix4f mvp = new Matrix4f(proj).mul(view);
+                try (MemoryStack stack = stackPush()) {
+                    FloatBuffer mvpBuf = stack.mallocFloat(16);
+                    mvp.get(mvpBuf);
+                    gpuSimulation.setMvp(mvpBuf);
+                }
+                // Update camera-dependent uniforms for mesh spheres
+                gpuSimulation.setCameraPos(eye.x, eye.y, eye.z);
+                
+                // Only advance simulation if Enter was pressed
+                if (frameReady) {
+                    gpuSimulation.step();
+                    frameReady = false; // Reset for next Enter press
+                }
+                
+                gpuSimulation.render();
+                
+                // Draw crosshair last (on top)
+                drawCrosshair();
+                
+                // Draw FPS display (on top)
+                if (showFPS) {
+                    drawFPS();
+                }
+                
+                // Draw frame advance indicator
+                drawFrameAdvanceIndicator();
+                
+                // Draw settings panel if visible (on top of everything)
+                if (debug) {
+                    drawDebugInfo();
+                    settingsPane.draw(font);
+                }
+                
+                
+            }
+
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+            
+        }
+        
+        System.out.println("Render loop ended");
+
+        // Cleanup embedded sim GL objects
+        if (gpuSimulation != null) {
+            gpuSimulation.cleanupEmbedded();
+        }
+    }
+ 
+    // Input Methods
+
+    private void updateCameraDirection() {
+        Vector3f direction = new Vector3f();
+        direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
+        direction.y = (float)java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getPitch()));
+        direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
+        Settings.getInstance().setCameraFront(direction.normalize());
+    }
+    
+    private void processMovement() {
+        // Handle relative camera movement based on key states
+        Vector3f moveDirection = new Vector3f();
+        float moveSpeed = Settings.getInstance().getWASDSensitivity();
+
+        if (shiftPressed) {
+            moveSpeed *= 10;
+        }
+        
+        // Calculate right vector (perpendicular to forward and up)
+        Vector3f right = new Vector3f(Settings.getInstance().getCameraFront()).cross(Settings.getInstance().getCameraUp()).normalize();
+        
+        // Check key states and calculate relative movement
+        for (GravityUI.KeyEvent event : ui.keyEvents) {
+            if (event.pressed) {
+                switch (event.key) {
+                    case GLFW.GLFW_KEY_W: // Forward in camera direction
+                        moveDirection.add(new Vector3f(Settings.getInstance().getCameraFront()).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_S: // Backward from camera direction
+                        moveDirection.sub(new Vector3f(Settings.getInstance().getCameraFront()).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_A: // Left relative to camera
+                        moveDirection.sub(new Vector3f(right).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_D: // Right relative to camera
+                        moveDirection.add(new Vector3f(right).mul(moveSpeed));
+                        break;
+                    case GLFW.GLFW_KEY_Q: // Up in world space
+                        moveDirection.y += moveSpeed;
+                        break;
+                    case GLFW.GLFW_KEY_E: // Down in world space
+                        moveDirection.y -= moveSpeed;
+                        break;
+                }
+            }
+        }
+        
+        // Apply movement to camera position
+        if (moveDirection.length() > 0) {
+            Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
+            
+            // Update Settings to reflect new camera position
+            Settings.getInstance().setShift(new double[] {Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z});
+        }
+        
+        // Run other UI key functions (non-movement controls)
+        for (GravityUI.KeyEvent event : ui.keyEvents) {
+            if (event.pressed) {
+                event.action.run();
+            }
+        }
+    }
+    
+    
+    // Initialization Methods
     
     private void setupCallbacks() {
         // Key callback
@@ -175,9 +379,7 @@ public class OpenGLWindow {
                     System.out.println("Switched to frame advance mode - press ENTER to advance frames");
                 }
             }
-            if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
-                printFPSInfo();
-            }
+
             if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
                 if (state == State.FRAME_ADVANCE) {
                     frameReady = true;
@@ -261,218 +463,181 @@ public class OpenGLWindow {
         });
     }
     
-    private void updateCameraDirection() {
-        Vector3f direction = new Vector3f();
-        direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
-        direction.y = (float)java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getPitch()));
-        direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
-        Settings.getInstance().setCameraFront(direction.normalize());
+    private String getStartupInfo() {
+        String info = "";
+        if (!font.isLoaded()) {
+            info += "Warning: Bitmap font not loaded, using fallback text rendering" + "\n";
+        }
+        info += "OpenGL Version: " + glGetString(GL_VERSION) + "\n";
+        info += "OpenGL Vendor: " + glGetString(GL_VENDOR) + "\n";
+        info += "OpenGL Renderer: " + glGetString(GL_RENDERER) + "\n";
+        info += "=== CONTROLS ===" + "\n";
+        info += "Mouse: Look around (FPS-style)" + "\n";
+        info += "WASD: Move camera (relative to view direction)" + "\n";
+        info += "QE: Move up/down" + "\n";
+        info += "Mouse wheel: Zoom in/out" + "\n";
+        info += "ESC: Toggle mouse cursor (press to release/capture mouse)" + "\n";
+        info += "F1: Toggle FPS display" + "\n";
+        info += "F2: Toggle frame advance mode" + "\n";
+        info += "F3: Show FPS limiting information" + "\n";
+        info += "Enter: Advance one frame (when in frame advance mode)" + "\n";
+        info += "P: Toggle performance stats" + "\n";
+        info += "I: Print detailed performance info" + "\n";
+        info += "B: Toggle chunk borders" + "\n";
+        info += "T: Toggle planet trails" + "\n";
+        info += "F: Toggle follow mode" + "\n";
+        info += "R: Reset performance counters" + "\n";
+        info += "Up/Down arrows: Change chunk size" + "\n";
+        info += "[/]: Change simulation speed" + "\n";
+        info += "+/-: Zoom in/out" + "\n";
+        info += "FPS Limiting: Use setMaxFPS(int) method to set GPU-based frame rate limit" + "\n";
+        info += "==================" + "\n";
+        info += "Initial camera position: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z + "\n";
+        info += "Initial zoom: " + Settings.getInstance().getZoom() + "\n";
+        info += "Initial shift: " + java.util.Arrays.toString(Settings.getInstance().getShift()) + "\n";
+        info += "Camera front: " + Settings.getInstance().getCameraFront().x + ", " + Settings.getInstance().getCameraFront().y + ", " + Settings.getInstance().getCameraFront().z + "\n";
+        return info;
+
+    }
+
+    private void setupProjection() {
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        
+        float fov = Settings.getInstance().getFov();
+        float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+        float near = Settings.getInstance().getNearPlane();
+        float far = Settings.getInstance().getFarPlane();
+        
+        // Simple perspective matrix
+        float fH = (float) java.lang.Math.tan(java.lang.Math.toRadians(fov) / 2.0) * near;
+        float fW = fH * aspect;
+        
+        glFrustum(-fW, fW, -fH, fH, near, far);
     }
     
-    private void centerWindow() {
-        try (MemoryStack stack = stackPush()) {
-            IntBuffer pWidth = stack.mallocInt(1);
-            IntBuffer pHeight = stack.mallocInt(1);
-
-            glfwGetWindowSize(window, pWidth, pHeight);
-            GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-
-            glfwSetWindowPos(
-                window,
-                (vidmode.width() - pWidth.get(0)) / 2,
-                (vidmode.height() - pHeight.get(0)) / 2
-            );
-        }
+    private void setupCamera() {
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        
+        // Get camera position from Settings
+        Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
+        Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
+        Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
+        
+        // Manual lookAt implementation
+        Vector3f f = new Vector3f(center).sub(eye).normalize();
+        Vector3f s = new Vector3f(f).cross(up).normalize();
+        Vector3f u = new Vector3f(s).cross(f);
+        
+        float[] m = new float[16];
+        m[0] = s.x; m[4] = s.y; m[8] = s.z; m[12] = 0;
+        m[1] = u.x; m[5] = u.y; m[9] = u.z; m[13] = 0;
+        m[2] = -f.x; m[6] = -f.y; m[10] = -f.z; m[14] = 0;
+        m[3] = 0; m[7] = 0; m[11] = 0; m[15] = 1;
+        
+        glMultMatrixf(m);
+        glTranslatef(-eye.x, -eye.y, -eye.z);
     }
-
-    private void loop() {
-        GL.createCapabilities();
+    
+    // Drawing Methods
+    private void drawCrosshair() {
+        // Save current matrices
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
         
-        // Initialize bitmap font AFTER OpenGL context is created
-        font = new BitmapFont();
-        if (!font.isLoaded()) {
-            System.out.println("Warning: Bitmap font not loaded, using fallback text rendering");
+        // Set up 2D orthographic projection for crosshair
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Disable depth testing for crosshair
+        glDisable(GL_DEPTH_TEST);
+        
+        // Set crosshair color (white)
+        glColor3f(1.0f, 1.0f, 1.0f);
+        glLineWidth(2.0f);
+        
+        // Calculate center of screen
+        float centerX = Settings.getInstance().getWidth() / 2.0f;
+        float centerY = Settings.getInstance().getHeight() / 2.0f;
+        float crosshairSize = 10.0f;
+        
+        // Draw crosshair lines
+        glBegin(GL_LINES);
+        // Horizontal line
+        glVertex2f(centerX - crosshairSize, centerY);
+        glVertex2f(centerX + crosshairSize, centerY);
+        // Vertical line
+        glVertex2f(centerX, centerY - crosshairSize);
+        glVertex2f(centerX, centerY + crosshairSize);
+        glEnd();
+        
+        // Re-enable depth testing
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+    
+    private void drawFPS() {
+        if (font == null || !font.isLoaded()) {
+            return; // Skip if font is not available
         }
         
-        System.out.println("OpenGL Version: " + glGetString(GL_VERSION));
-        System.out.println("OpenGL Vendor: " + glGetString(GL_VENDOR));
-        System.out.println("OpenGL Renderer: " + glGetString(GL_RENDERER));
-        System.out.println("=== CONTROLS ===");
-        System.out.println("Mouse: Look around (FPS-style)");
-        System.out.println("WASD: Move camera (relative to view direction)");
-        System.out.println("QE: Move up/down");
-        System.out.println("Mouse wheel: Zoom in/out");
-        System.out.println("ESC: Toggle mouse cursor (press to release/capture mouse)");
-        System.out.println("F1: Toggle FPS display");
-        System.out.println("F2: Toggle frame advance mode");
-        System.out.println("F3: Show FPS limiting information");
-        System.out.println("Enter: Advance one frame (when in frame advance mode)");
-        System.out.println("P: Toggle performance stats");
-        System.out.println("I: Print detailed performance info");
-        System.out.println("B: Toggle chunk borders");
-        System.out.println("T: Toggle planet trails");
-        System.out.println("F: Toggle follow mode");
-        System.out.println("R: Reset performance counters");
-        System.out.println("Up/Down arrows: Change chunk size");
-        System.out.println("[/]: Change simulation speed");
-        System.out.println("+/-: Zoom in/out");
-        System.out.println("FPS Limiting: Use setMaxFPS(int) method to set GPU-based frame rate limit");
-        System.out.println("==================");
-        System.out.println("Initial camera position: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z);
-        System.out.println("Initial zoom: " + Settings.getInstance().getZoom());
-        System.out.println("Initial shift: " + java.util.Arrays.toString(Settings.getInstance().getShift()));
-        System.out.println("Camera front: " + Settings.getInstance().getCameraFront().x + ", " + Settings.getInstance().getCameraFront().y + ", " + Settings.getInstance().getCameraFront().z);
-
-        // Initialize embedded GPU points simulation (headless)
-        gpuPoints = new GPUSimulation(planets);
-        gpuPoints.init();
-
-        // Enable depth testing for 3D
-        //glEnable(GL_DEPTH_TEST);
+        // Save current OpenGL state
+        glPushMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
         
-        // Set the clear color to dark gray
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-
-        System.out.println("Starting render loop...");
+        // Set up 2D orthographic projection
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
         
-        // Initialize FPS timing
-        lastTime = glfwGetTime();
+        // Disable depth testing for UI elements
+        glDisable(GL_DEPTH_TEST);
         
-        while (!glfwWindowShouldClose(window)) {
-
-
-            
-            // Update FPS calculation
-            updateFPS();
-
-            if (state == State.RUNNING) {
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                // Process WASD movement
-                if (!settingsPane.textFieldFocused) {
-                    processMovement();
-                }
-
-                // Set up 3D projection matrix
-                setupProjection();
-                
-                // Set up view matrix (camera)
-                setupCamera();
-
-                // Draw GPU points
-                // Compute MVP using JOML from current Settings camera state
-                float fov = Settings.getInstance().getFov();
-                float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
-                float near = Settings.getInstance().getNearPlane();
-                float far = Settings.getInstance().getFarPlane();
-
-                Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
-                Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
-                Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
-                Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
-                Matrix4f view = new Matrix4f().lookAt(eye, center, up);
-                Matrix4f mvp = new Matrix4f(proj).mul(view);
-                try (MemoryStack stack = stackPush()) {
-                    FloatBuffer mvpBuf = stack.mallocFloat(16);
-                    mvp.get(mvpBuf);
-                    gpuPoints.setMvp(mvpBuf);
-                }
-                // Update camera-dependent uniforms for mesh spheres
-                gpuPoints.setCameraPos(eye.x, eye.y, eye.z);
-                gpuPoints.step();
-                gpuPoints.render();
-                
-                // Draw crosshair last (on top)
-                drawCrosshair();
-                
-                // Draw FPS display (on top)
-                if (showFPS) {
-                    drawFPS();
-                }
-                
-                // Draw settings panel if visible (on top of everything)
-                if (debug) {
-                    drawDebugInfo();
-                    settingsPane.draw(font);
-                }
-                
-                
-
-            } else if (state == State.FRAME_ADVANCE) {
-                // In frame advance mode, we just render the current state
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                // Process WASD movement
-                if (!settingsPane.textFieldFocused) {
-                    processMovement();
-                }
-
-                // Set up 3D projection matrix
-                setupProjection();
-                
-                // Set up view matrix (camera)
-                setupCamera();
-
-                // Draw GPU points
-                // Compute MVP using JOML from current Settings camera state
-                float fov = Settings.getInstance().getFov();
-                float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
-                float near = Settings.getInstance().getNearPlane();
-                float far = Settings.getInstance().getFarPlane();
-
-                Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
-                Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
-                Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
-                Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
-                Matrix4f view = new Matrix4f().lookAt(eye, center, up);
-                Matrix4f mvp = new Matrix4f(proj).mul(view);
-                try (MemoryStack stack = stackPush()) {
-                    FloatBuffer mvpBuf = stack.mallocFloat(16);
-                    mvp.get(mvpBuf);
-                    gpuPoints.setMvp(mvpBuf);
-                }
-                // Update camera-dependent uniforms for mesh spheres
-                gpuPoints.setCameraPos(eye.x, eye.y, eye.z);
-                
-                // Only advance simulation if Enter was pressed
-                if (frameReady) {
-                    gpuPoints.step();
-                    frameReady = false; // Reset for next Enter press
-                }
-                
-                gpuPoints.render();
-                
-                // Draw crosshair last (on top)
-                drawCrosshair();
-                
-                // Draw FPS display (on top)
-                if (showFPS) {
-                    drawFPS();
-                }
-                
-                // Draw frame advance indicator
-                drawFrameAdvanceIndicator();
-                
-                // Draw settings panel if visible (on top of everything)
-                if (debug) {
-                    drawDebugInfo();
-                    settingsPane.draw(font);
-                }
-                
-                
-            }
-
-            glfwSwapBuffers(window);
-            glfwPollEvents();
-            
-        }
+        // Format FPS string
+        String fpsText = String.format("FPS: %.1f", fps);
         
-        System.out.println("Render loop ended");
-
-        // Cleanup embedded sim GL objects
-        if (gpuPoints != null) {
-            gpuPoints.cleanupEmbedded();
-        }
+        // Draw FPS in top-left corner with a black background for better readability
+        int x = 10;
+        int y = 20;
+        int padding = 4;
+        
+        // Get text dimensions
+        float textWidth = font.getTextWidth(fpsText);
+        float textHeight = font.getCharHeight();
+        
+        // Draw background rectangle
+        glColor4f(0.0f, 0.0f, 0.0f, 0.7f); // Semi-transparent black
+        glBegin(GL_QUADS);
+        glVertex2f(x - padding, y - padding);
+        glVertex2f(x + textWidth + padding, y - padding);
+        glVertex2f(x + textWidth + padding, y + textHeight + padding);
+        glVertex2f(x - padding, y + textHeight + padding);
+        glEnd();
+        
+        // Draw text in white
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
+        font.drawText(fpsText, x, y);
+        
+        // Re-enable depth testing
+        glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
     }
 
     private void drawFrameAdvanceIndicator() {
@@ -536,9 +701,9 @@ public class OpenGLWindow {
     }
     
     private void drawDebugInfo() {
-        if (gpuPoints == null) return;
+        if (gpuSimulation == null) return;
         
-        String performanceText = gpuPoints.debugString;
+        String performanceText = gpuSimulation.debugString;
         if (performanceText.isEmpty()) return;
         
         // Save current OpenGL state
@@ -609,147 +774,24 @@ public class OpenGLWindow {
         glMatrixMode(GL_MODELVIEW);
     }
 
-    
-    private void processMovement() {
-        // Handle relative camera movement based on key states
-        Vector3f moveDirection = new Vector3f();
-        float moveSpeed = Settings.getInstance().getWASDSensitivity();
 
-        if (shiftPressed) {
-            moveSpeed *= 10;
+    private void cleanup() {
+        // Cleanup font resources
+        if (font != null) {
+            font.cleanup();
         }
         
-        // Calculate right vector (perpendicular to forward and up)
-        Vector3f right = new Vector3f(Settings.getInstance().getCameraFront()).cross(Settings.getInstance().getCameraUp()).normalize();
-        
-        // Check key states and calculate relative movement
-        for (GravityUI.KeyEvent event : ui.keyEvents) {
-            if (event.pressed) {
-                switch (event.key) {
-                    case GLFW.GLFW_KEY_W: // Forward in camera direction
-                        moveDirection.add(new Vector3f(Settings.getInstance().getCameraFront()).mul(moveSpeed));
-                        break;
-                    case GLFW.GLFW_KEY_S: // Backward from camera direction
-                        moveDirection.sub(new Vector3f(Settings.getInstance().getCameraFront()).mul(moveSpeed));
-                        break;
-                    case GLFW.GLFW_KEY_A: // Left relative to camera
-                        moveDirection.sub(new Vector3f(right).mul(moveSpeed));
-                        break;
-                    case GLFW.GLFW_KEY_D: // Right relative to camera
-                        moveDirection.add(new Vector3f(right).mul(moveSpeed));
-                        break;
-                    case GLFW.GLFW_KEY_Q: // Up in world space
-                        moveDirection.y += moveSpeed;
-                        break;
-                    case GLFW.GLFW_KEY_E: // Down in world space
-                        moveDirection.y -= moveSpeed;
-                        break;
-                }
-            }
-        }
-        
-        // Apply movement to camera position
-        if (moveDirection.length() > 0) {
-            Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
-            
-            // Update Settings to reflect new camera position
-            Settings.getInstance().setShift(new double[] {Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z});
-        }
-        
-        // Run other UI key functions (non-movement controls)
-        for (GravityUI.KeyEvent event : ui.keyEvents) {
-            if (event.pressed) {
-                event.action.run();
-            }
-        }
+        // Free the window callbacks and destroy the window
+        glfwFreeCallbacks(window);
+        glfwDestroyWindow(window);
+
+        // Terminate GLFW and free the error callback
+        gpuSimulation.cleanupEmbedded();
+        glfwTerminate();
+        glfwSetErrorCallback(null).free();
     }
-    
-    private void setupProjection() {
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        
-        float fov = Settings.getInstance().getFov();
-        float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
-        float near = Settings.getInstance().getNearPlane();
-        float far = Settings.getInstance().getFarPlane();
-        
-        // Simple perspective matrix
-        float fH = (float) java.lang.Math.tan(java.lang.Math.toRadians(fov) / 2.0) * near;
-        float fW = fH * aspect;
-        
-        glFrustum(-fW, fW, -fH, fH, near, far);
-    }
-    
-    private void setupCamera() {
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-        
-        // Get camera position from Settings
-        Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
-        Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
-        Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
-        
-        // Manual lookAt implementation
-        Vector3f f = new Vector3f(center).sub(eye).normalize();
-        Vector3f s = new Vector3f(f).cross(up).normalize();
-        Vector3f u = new Vector3f(s).cross(f);
-        
-        float[] m = new float[16];
-        m[0] = s.x; m[4] = s.y; m[8] = s.z; m[12] = 0;
-        m[1] = u.x; m[5] = u.y; m[9] = u.z; m[13] = 0;
-        m[2] = -f.x; m[6] = -f.y; m[10] = -f.z; m[14] = 0;
-        m[3] = 0; m[7] = 0; m[11] = 0; m[15] = 1;
-        
-        glMultMatrixf(m);
-        glTranslatef(-eye.x, -eye.y, -eye.z);
-    }
-    
-    
-    
-    private void drawCrosshair() {
-        // Save current matrices
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Set up 2D orthographic projection for crosshair
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Disable depth testing for crosshair
-        glDisable(GL_DEPTH_TEST);
-        
-        // Set crosshair color (white)
-        glColor3f(1.0f, 1.0f, 1.0f);
-        glLineWidth(2.0f);
-        
-        // Calculate center of screen
-        float centerX = Settings.getInstance().getWidth() / 2.0f;
-        float centerY = Settings.getInstance().getHeight() / 2.0f;
-        float crosshairSize = 10.0f;
-        
-        // Draw crosshair lines
-        glBegin(GL_LINES);
-        // Horizontal line
-        glVertex2f(centerX - crosshairSize, centerY);
-        glVertex2f(centerX + crosshairSize, centerY);
-        // Vertical line
-        glVertex2f(centerX, centerY - crosshairSize);
-        glVertex2f(centerX, centerY + crosshairSize);
-        glEnd();
-        
-        // Re-enable depth testing
-        glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-    }
+
+    // Setters and Getters
     
     private void updateFPS() {
         double currentTime = glfwGetTime();
@@ -763,60 +805,6 @@ public class OpenGLWindow {
         }
     }
     
-    private void drawFPS() {
-        if (font == null || !font.isLoaded()) {
-            return; // Skip if font is not available
-        }
-        
-        // Save current OpenGL state
-        glPushMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Set up 2D orthographic projection
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-        
-        // Disable depth testing for UI elements
-        glDisable(GL_DEPTH_TEST);
-        
-        // Format FPS string
-        String fpsText = String.format("FPS: %.1f", fps);
-        
-        // Draw FPS in top-left corner with a black background for better readability
-        int x = 10;
-        int y = 20;
-        int padding = 4;
-        
-        // Get text dimensions
-        float textWidth = font.getTextWidth(fpsText);
-        float textHeight = font.getCharHeight();
-        
-        // Draw background rectangle
-        glColor4f(0.0f, 0.0f, 0.0f, 0.7f); // Semi-transparent black
-        glBegin(GL_QUADS);
-        glVertex2f(x - padding, y - padding);
-        glVertex2f(x + textWidth + padding, y - padding);
-        glVertex2f(x + textWidth + padding, y + textHeight + padding);
-        glVertex2f(x - padding, y + textHeight + padding);
-        glEnd();
-        
-        // Draw text in white
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
-        font.drawText(fpsText, x, y);
-        
-        // Re-enable depth testing
-        glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-    }
-
     public void setMaxFPS(int maxFPS) {
         this.maxFPS = maxFPS;
         
@@ -834,31 +822,21 @@ public class OpenGLWindow {
             glfwSwapInterval(interval);
         }
     }
-    
-    public void applyFPSLimit() {
-        // Re-apply the current FPS settings
-        setMaxFPS(maxFPS);
-    }
-    
+        
     public int getSwapInterval() {
         // Get the current swap interval from GLFW
         return glfwGetWindowAttrib(window, GLFW_CONTEXT_REVISION);
     }
     
-    public void printFPSInfo() {
-        System.out.println("Current FPS Limit: " + maxFPS);
-        System.out.println("Current Swap Interval: " + getSwapInterval());
-        if (maxFPS <= 0) {
-            System.out.println("FPS Mode: Unlimited (no vsync)");
-        } else if (maxFPS >= 60) {
-            System.out.println("FPS Mode: Vsync enabled (60+ FPS)");
-        } else {
-            System.out.println("FPS Mode: Custom limit (" + maxFPS + " FPS)");
-        }
-    }
-
     public int getMaxFPS() {
         return maxFPS;
     }
+
+    public void applyFPSLimit() {
+        // Re-apply the current FPS settings
+        setMaxFPS(maxFPS);
+    }
+
+    
 
 } 
