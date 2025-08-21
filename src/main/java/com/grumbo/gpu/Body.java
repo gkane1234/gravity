@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.gpu;
 
 import java.util.Arrays;
 import java.nio.IntBuffer;

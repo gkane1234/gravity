@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -13,6 +13,8 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
+
+import com.grumbo.UI.*;
 
 public class OpenGLWindow {
 
@@ -66,24 +68,27 @@ public class OpenGLWindow {
         this.ui = new GravityUI();
         this.settingsPane = new SettingsPane();
 
-        planets = new ArrayList<>();
-        float[] xRange = {0, 200};
-        float[] yRange = {0, 200};
-        float[] zRange = {0, 200};
+        planets = createBoxSimulation();
+
+    }
+
+    public ArrayList<Planet> createBoxSimulation() {
+        ArrayList<Planet> planets = new ArrayList<>();
+        float[] xRange = {-4000, 4000};
+        float[] yRange = {-4000, 4000};
+        float[] zRange = {-4000, 4000};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};
         float[] mRange = {10, 100};
         float[] radius = {100, 1000};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
-        Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNew(1000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        //Planet center2 = new Planet(100,0,0,0,0,0,10);
+        planets = Planet.makeNew(10000000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(center);
-        planets.add(center2);
-        //planets = Planet.mergeOverlappingPlanets(planets);
-        //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
+        //planets.add(center2);
 
-
+        return planets;
     }
 
     public void run() {

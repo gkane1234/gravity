@@ -1,8 +1,11 @@
-package com.grumbo;
+package com.grumbo.UI;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.grumbo.simulation.Property;
+import com.grumbo.simulation.Settings;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.glfw.GLFW.*;

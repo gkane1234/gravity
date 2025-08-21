@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import java.awt.Color;
 import java.io.File;
@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.ArrayList;
 import org.joml.Vector3f;
 import java.net.URL;
@@ -57,7 +58,7 @@ public class Settings {
 		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("doubleArray"); p.setEditable(true); properties.put("shift", p); }
 
 		// Time step
-		{ Property<Float> p = Property.createFloatProperty("dt", 0.001f, 0.001f); p.setEditable(true); properties.put("dt", p); }
+		{ Property<Float> p = Property.createFloatProperty("dt", 0.1f, 0.1f); p.setEditable(true); properties.put("dt", p); }
 
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }

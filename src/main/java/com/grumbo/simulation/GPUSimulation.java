@@ -1,6 +1,9 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import org.lwjgl.*;
+
+import com.grumbo.gpu.Body;
+import com.grumbo.gpu.Node;
 
 import java.nio.*;
 import java.util.ArrayList;
@@ -11,6 +14,7 @@ import java.nio.file.Paths;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.nio.file.Path;
 
 import static org.lwjgl.opengl.GL43C.*;
 
@@ -26,10 +30,10 @@ public class GPUSimulation {
     private static final int WORK_GROUP_SIZE = 128;
     private static final int PROPAGATE_NODES_ITERATIONS = 30;
     private static final int NUM_RADIX_BUCKETS = 16;
-    private static final boolean DEBUG_BARNES_HUT = true; // Note debugging will slow down the simulation, inconsistently
+    private static final boolean DEBUG_BARNES_HUT = false; // Note debugging will slow down the simulation, inconsistently
     private static final int DEBUG_FRAME_INTERVAL = 6000; // Show debug every N frames
     private int frameCounter = 0;
-
+    private static final boolean USE_SPLIT_KERNELS = true;
     private int computeAABBKernelProgram;
     private int collapseAABBKernelProgram;
     private int mortonKernelProgram;
@@ -161,7 +165,7 @@ public class GPUSimulation {
 
     public void createAndAttachComputeShader(int program, String kernelName) {
         int computeShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(computeShader, insertDefineAfterVersion(getComputeShaderSource(), kernelName));
+        glShaderSource(computeShader, insertDefineAfterVersion(getComputeShaderSource(), kernelName, USE_SPLIT_KERNELS));
         glCompileShader(computeShader);
         checkShader(computeShader);
         glAttachShader(program, computeShader);
@@ -1137,8 +1141,6 @@ public class GPUSimulation {
     private void computeForce(int numGroups, boolean debug) {
         checkGLError("Before compute force");
         glUseProgram(computeForceKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);
-        checkGLError("Bodies in SSBO bind");      // bodies input
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_OUT_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO);
         checkGLError("Bodies out SSBO bind");      // bodies output
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);
@@ -1189,15 +1191,9 @@ public class GPUSimulation {
 
     // ----------------- SHADERS -----------------
 
-    private String getComputeShaderSource() {
-        try {
-            return Files.readString(Paths.get("src/main/resources/shaders/compute/barneshut.glsl"));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read Barnes-Hut compute shader: " + e.getMessage());
-        }
-    }
 
-    private String insertDefineAfterVersion(String shaderSource, String defineValue) {
+    private String insertDefineAfterVersion(String shaderSource, String defineValue, boolean useSplitKernels) {
+        if (!useSplitKernels) {
         // Find the first newline after #version
         int versionEnd = shaderSource.indexOf('\n');
         if (versionEnd == -1) {
@@ -1209,7 +1205,65 @@ public class GPUSimulation {
         return shaderSource.substring(0, versionEnd + 1) + 
                "#define " + defineValue + "\n" + 
                shaderSource.substring(versionEnd + 1);
+
+
+        }
+
+        // Insert the define after the initial preamble (#version and any #extension lines)
+        int insertPos = 0;
+        int pos = 0;
+        while (pos < shaderSource.length()) {
+            int lineEnd = shaderSource.indexOf('\n', pos);
+            if (lineEnd == -1) lineEnd = shaderSource.length();
+            String line = shaderSource.substring(pos, lineEnd).trim();
+            if (line.startsWith("#version") || line.startsWith("#extension")) {
+                insertPos = lineEnd + 1; // include newline
+                pos = lineEnd + 1;
+                continue;
+            }
+            break;
+        }
+        String defineLine = "#define " + defineValue + "\n";
+        return shaderSource.substring(0, insertPos) + defineLine + shaderSource.substring(insertPos);
+
+
+    
     }
+
+
+
+    public static String getComputeShaderSource() {
+        // Entry point shader that includes all shared code and phase kernels
+        String entryPath = "src/main/resources/shaders/compute/bh_main.glsl";
+        try {
+            return preprocessShader(entryPath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read Barnes-Hut compute shader: " + e.getMessage());
+        }
+    }
+
+    private static String preprocessShader(String filePath) throws IOException {
+        // Very small preprocessor supporting lines of the form: #include "relative/path.glsl"
+        Path path = Paths.get(filePath);
+        StringBuilder out = new StringBuilder();
+        for (String line : Files.readAllLines(path)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#include\"") || trimmed.startsWith("#include \"")) {
+                int start = trimmed.indexOf('"');
+                int end = trimmed.lastIndexOf('"');
+                if (start >= 0 && end > start) {
+                    String includeRel = trimmed.substring(start + 1, end);
+                    Path includePath = path.getParent().resolve(includeRel);
+                    out.append(preprocessShader(includePath.toString()));
+                    out.append('\n');
+                    continue;
+                }
+            }
+            out.append(line).append('\n');
+        }
+        return out.toString();
+    }
+
 
     private String getVertexShaderSource() {
         try {

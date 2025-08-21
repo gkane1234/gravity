@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 public final class GPUCommands {
 

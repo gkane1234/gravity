@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.UI;
 import java.awt.*;
 
 public class ColorWheel {

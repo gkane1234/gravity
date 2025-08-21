@@ -1,6 +1,7 @@
-package com.grumbo;
+package com.grumbo.UI;
 
 import static org.lwjgl.opengl.GL11.*;
+
 
 public class UIButton extends UIElement {
 

@@ -1,4 +1,6 @@
-package com.grumbo;
+package com.grumbo.UI;
+
+
 
 public class UIText extends UIElement {
     public String text;

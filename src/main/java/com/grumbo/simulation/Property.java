@@ -1,9 +1,11 @@
-package com.grumbo;
+package com.grumbo.simulation;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.function.Predicate;
 import org.joml.Vector3f;
+
+import com.grumbo.UI.*;
 
 public class Property<T> {
     private String name;

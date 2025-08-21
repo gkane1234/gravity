@@ -1,0 +1,96 @@
+// Binary radix tree build and helpers
+
+uint longestCommonPrefix(uint64_t a, uint64_t b)
+{
+    if (a == b) return 64u;
+    uint64_t x = a ^ b;
+    uint highBits = uint(x >> 32);
+    uint lowBits = uint(x);
+    if (highBits != 0u) {
+        return 31u - findMSB(uint(highBits));
+    } else {
+        return 63u - findMSB(uint(lowBits));
+    }
+}
+
+int safeLCP(int i, int j)
+{
+    if (i < 0 || j < 0 || i >= int(numBodies) || j >= int(numBodies)) return -1;
+    uint64_t mortonI = morton[i];
+    uint64_t mortonJ = morton[j];
+
+    if (mortonI == mortonJ) {
+        uint iu = uint(i);
+        uint ju = uint(j);
+        if (iu == ju) {
+            return 64;
+        } else {
+            return 64 + (31 - findMSB(iu ^ ju));
+        }
+    }
+    return int(longestCommonPrefix(mortonI, mortonJ));
+}
+
+void buildBinaryRadixTreeKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= numBodies - 1u) return;
+    const int i = int(gid);
+
+    int lcpRight = safeLCP(i, i + 1);
+    int lcpLeft = safeLCP(i, i - 1);
+    int direction = (lcpLeft > lcpRight) ? -1 : 1;
+
+    int deltaMin = safeLCP(i, i - direction);
+    int lmax = 2;
+    while (safeLCP(i, i + direction * lmax) > deltaMin) {
+        lmax *= 2;
+    }
+
+    int l = 0;
+    int t = lmax / 2;
+    while (t > 0) {
+        if (safeLCP(i, i + direction * (l + t)) > deltaMin) {
+            l = l + t;
+        }
+        t /= 2;
+    }
+    int j = i + l * direction;
+
+    int deltaNode = safeLCP(i, j);
+    int s = 0;
+    t = l;
+    while (t>1) {
+        t = (t + 1) / 2;
+        if (safeLCP(i, i + (s + t) * direction) > deltaNode) {
+            s += t;
+        }
+    }
+    int gamma = i + s*direction + min(direction,0);
+
+    uint leftChild, rightChild;
+    if (min(i,j)==gamma) {
+        leftChild = uint(gamma);
+    } else {
+        leftChild = uint(gamma) + numBodies;
+    }
+    if (max(i,j)==gamma+1) {
+        rightChild = uint(gamma+1);
+    } else {
+        rightChild = uint(gamma+1) + numBodies;
+    }
+
+    uint internalIdx = uint(i) + numBodies;
+    nodes[internalIdx].childA = leftChild;
+    nodes[internalIdx].childB = rightChild;
+    nodes[internalIdx].readyChildren = 0u;
+    nodes[leftChild].parentId = internalIdx;
+    nodes[rightChild].parentId = internalIdx;
+    nodes[internalIdx].firstBody = uint(min(i, j));
+    nodes[internalIdx].bodyCount = uint(max(i, j) - min(i, j) + 1);
+    if (i == 0) {
+        nodes[internalIdx].parentId = 0xFFFFFFFFu;
+    }
+}
+
+

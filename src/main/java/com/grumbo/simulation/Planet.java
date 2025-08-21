@@ -1,4 +1,4 @@
-package com.grumbo;
+package com.grumbo.simulation;
 import java.awt.Color;
 import java.util.ArrayList;
 
