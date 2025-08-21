@@ -2,8 +2,7 @@ package com.grumbo.simulation;
 
 import org.lwjgl.*;
 
-import com.grumbo.gpu.Body;
-import com.grumbo.gpu.Node;
+import com.grumbo.gpu.*;
 
 import java.nio.*;
 import java.util.ArrayList;
@@ -15,6 +14,8 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.HashMap;
 
 import static org.lwjgl.opengl.GL43C.*;
 
@@ -24,15 +25,12 @@ import static org.lwjgl.opengl.GL43C.*;
 public class GPUSimulation {
     private int vao; // points VAO
 
-    private long lastFrameFence = 0L;
 
     // Simulation params
     private static final int WORK_GROUP_SIZE = 128;
     private static final int PROPAGATE_NODES_ITERATIONS = 30;
     private static final int NUM_RADIX_BUCKETS = 16;
     private static final boolean DEBUG_BARNES_HUT = false; // Note debugging will slow down the simulation, inconsistently
-    private static final int DEBUG_FRAME_INTERVAL = 6000; // Show debug every N frames
-    private int frameCounter = 0;
     private static final boolean USE_SPLIT_KERNELS = true;
     private int computeAABBKernelProgram;
     private int collapseAABBKernelProgram;
@@ -50,35 +48,44 @@ public class GPUSimulation {
     private int impostorProgram; // point-sprite impostor spheres
     private int sphereProgram;   // instanced mesh spheres
 
-    private int SWAPPING_BODIES_IN_SSBO;
-    private int SWAPPING_BODIES_OUT_SSBO;
+    public Map<String, SSBO> ssbos;
+    private SSBO FIXED_BODIES_IN_SSBO;
+    private SSBO FIXED_BODIES_OUT_SSBO;
+    private SSBO SWAPPING_BODIES_IN_SSBO;
+    private SSBO SWAPPING_BODIES_OUT_SSBO;
+    private SSBO MORTON_IN_SSBO;
+    private SSBO INDEX_IN_SSBO;
+    private SSBO CURRENT_MORTON_IN_SSBO;
+    private SSBO CURRENT_MORTON_OUT_SSBO;
+    private SSBO CURRENT_INDEX_IN_SSBO;
+    private SSBO CURRENT_INDEX_OUT_SSBO;
+    private SSBO NODES_SSBO;
+    private SSBO AABB_SSBO;
+    private SSBO WG_HIST_SSBO;
+    private SSBO WG_SCANNED_SSBO;
+    private SSBO GLOBAL_BASE_SSBO;
+    private SSBO BUCKET_TOTALS_SSBO;
+    private SSBO MORTON_OUT_SSBO;
+    private SSBO INDEX_OUT_SSBO;
+    private SSBO WORK_QUEUE_SSBO;
+    private SSBO MERGE_QUEUE_SSBO;
 
-    private int FIXED_BODIES_IN_SSBO;
+    
+
     private final int BODIES_IN_SSBO_BINDING = 0;
-    private int FIXED_BODIES_OUT_SSBO;
     private final int BODIES_OUT_SSBO_BINDING = 1;
-    private int MORTON_KEYS_SSBO;
-    private final int MORTON_KEYS_SSBO_BINDING = 2;
-    private int INDICES_SSBO;
-    private final int INDICES_SSBO_BINDING = 3;
-    private int NODES_SSBO;
+    private final int MORTON_IN_SSBO_BINDING = 2;
+    private final int INDEX_IN_SSBO_BINDING = 3;
     private final int NODES_SSBO_BINDING = 4;
-    private int AABB_SSBO;
     private final int AABB_SSBO_BINDING = 5;
-    private int WG_HIST_SSBO;
     private final int WG_HIST_SSBO_BINDING = 6;
-    private int WG_SCANNED_SSBO;
     private final int WG_SCANNED_SSBO_BINDING = 7;
-    private int GLOBAL_BASE_SSBO;
     private final int GLOBAL_BASE_SSBO_BINDING = 8;
-    private int BUCKET_TOTALS_SSBO;
     private final int BUCKET_TOTALS_SSBO_BINDING = 9;
-    private int MORTON_OUT_SSBO;
     private final int MORTON_OUT_SSBO_BINDING = 10;
-    private int INDEX_OUT_SSBO;
     private final int INDEX_OUT_SSBO_BINDING = 11;
-    private int WORK_QUEUE_SSBO;
     private final int WORK_QUEUE_SSBO_BINDING = 12;
+    private final int MERGE_QUEUE_SSBO_BINDING = 13;
 
 
 
@@ -146,6 +153,7 @@ public class GPUSimulation {
 
     public GPUSimulation(ArrayList<Planet> planets) {
         this.planets = planets;
+        ssbos = new HashMap<String, SSBO>();
     }
 
     private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue = new ConcurrentLinkedQueue<>();
@@ -284,67 +292,93 @@ public class GPUSimulation {
         uFarDistLocSphere = glGetUniformLocation(sphereProgram, "uFarDist");
 
         // Create SSBOs
-        FIXED_BODIES_IN_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, packPlanets(planets), GL_DYNAMIC_COPY);
+        FIXED_BODIES_IN_SSBO = new SSBO(BODIES_IN_SSBO_BINDING, () -> {
+            return packPlanets(planets);
+        }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes);
+        ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
 
-        FIXED_BODIES_OUT_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, planets.size() * 12 * Float.BYTES, GL_DYNAMIC_COPY);
+        FIXED_BODIES_OUT_SSBO = new SSBO(BODIES_OUT_SSBO_BINDING, () -> {
+            return planets.size() * Body.STRUCT_SIZE * Float.BYTES;
+        }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes);
+        ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
-        // Create Barnes-Hut auxiliary SSBOs
-        int numBodies = planets.size();
-        int numWorkGroups = numGroups();
-        int NUM_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
-        
-        MORTON_KEYS_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
-        
-        INDICES_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        
-        NODES_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY); // 16 uints per node (2 vec4s + 6 uints + 2 padding)
+        MORTON_IN_SSBO = new SSBO(MORTON_IN_SSBO_BINDING, () -> {
+            return planets.size() * Long.BYTES;
+        }, "MORTON_IN_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        ssbos.put(MORTON_IN_SSBO.getName(), MORTON_IN_SSBO);
 
-        // AABB ping-pong buffers (vec3 pairs per workgroup)
-        AABB_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 4 * Float.BYTES, GL_DYNAMIC_COPY);
-        
-        WG_HIST_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        
-        WG_SCANNED_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        
-        GLOBAL_BASE_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
+        INDEX_IN_SSBO = new SSBO(INDEX_IN_SSBO_BINDING, () -> {
+            return planets.size() * Integer.BYTES;
+        }, "INDEX_IN_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(INDEX_IN_SSBO.getName(), INDEX_IN_SSBO);
 
-        BUCKET_TOTALS_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        
-        MORTON_OUT_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
-        
-        INDEX_OUT_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        
-        
-        // Work queue buffer: head (uint), tail (uint), items[numBodies] (uint)
-        WORK_QUEUE_SSBO = glGenBuffers();
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 + numBodies) * Integer.BYTES, GL_DYNAMIC_COPY);
+        NODES_SSBO = new SSBO(NODES_SSBO_BINDING, () -> {
+            return (2 * planets.size() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
+        }, "NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
+        ssbos.put(NODES_SSBO.getName(), NODES_SSBO);
+
+        AABB_SSBO = new SSBO(AABB_SSBO_BINDING, () -> {
+            return numGroups() * 2 * 4 * Float.BYTES;
+        }, "AABB_SSBO", 8, new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT });
+        ssbos.put(AABB_SSBO.getName(), AABB_SSBO);
+
+        WG_HIST_SSBO = new SSBO(WG_HIST_SSBO_BINDING, () -> {
+            return numGroups() * NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "WG_HIST_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(WG_HIST_SSBO.getName(), WG_HIST_SSBO);
+
+        WG_SCANNED_SSBO = new SSBO(WG_SCANNED_SSBO_BINDING, () -> {
+            return numGroups() * NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "WG_SCANNED_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(WG_SCANNED_SSBO.getName(), WG_SCANNED_SSBO);
+
+        GLOBAL_BASE_SSBO = new SSBO(GLOBAL_BASE_SSBO_BINDING, () -> {
+            return NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "GLOBAL_BASE_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(GLOBAL_BASE_SSBO.getName(), GLOBAL_BASE_SSBO);
+
+        BUCKET_TOTALS_SSBO = new SSBO(BUCKET_TOTALS_SSBO_BINDING, () -> {
+            return NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "BUCKET_TOTALS_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(BUCKET_TOTALS_SSBO.getName(), BUCKET_TOTALS_SSBO);
+
+        MORTON_OUT_SSBO = new SSBO(MORTON_OUT_SSBO_BINDING, () -> {
+            return planets.size() * Long.BYTES;
+        }, "MORTON_OUT_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        ssbos.put(MORTON_OUT_SSBO.getName(), MORTON_OUT_SSBO);
+
+        INDEX_OUT_SSBO = new SSBO(INDEX_OUT_SSBO_BINDING, () -> {
+            return planets.size() * Integer.BYTES;
+        }, "INDEX_OUT_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(INDEX_OUT_SSBO.getName(), INDEX_OUT_SSBO);
+
+        WORK_QUEUE_SSBO = new SSBO(WORK_QUEUE_SSBO_BINDING, () -> {
+            return (2 + planets.size()) * Integer.BYTES;
+        }, "WORK_QUEUE_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(WORK_QUEUE_SSBO.getName(), WORK_QUEUE_SSBO);
+
+        MERGE_QUEUE_SSBO = new SSBO(MERGE_QUEUE_SSBO_BINDING, () -> {
+            return planets.size() * Integer.BYTES;
+        }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT });
+        ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+        FIXED_BODIES_IN_SSBO.createBuffer();
+
+        FIXED_BODIES_OUT_SSBO.createBuffer();
+        MORTON_IN_SSBO.createBuffer();
+        INDEX_IN_SSBO.createBuffer();
+        NODES_SSBO.createBuffer();
+        AABB_SSBO.createBuffer();
+        WG_HIST_SSBO.createBuffer();
+        WG_SCANNED_SSBO.createBuffer();
+        GLOBAL_BASE_SSBO.createBuffer();
+        BUCKET_TOTALS_SSBO.createBuffer();
+        MORTON_OUT_SSBO.createBuffer();
+        INDEX_OUT_SSBO.createBuffer();
+        WORK_QUEUE_SSBO.createBuffer();
+        MERGE_QUEUE_SSBO.createBuffer();
 
         SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
         SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
@@ -361,7 +395,7 @@ public class GPUSimulation {
 
         // 2) Bind program & buffers exactly like the shader expects
         glUseProgram(debugKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());
         glUniform1ui(glGetUniformLocation(debugKernelProgram, "numWorkGroups"), numGroups());
 
         // 3) Set uniforms
@@ -376,7 +410,7 @@ public class GPUSimulation {
         glFinish(); // ok for debug
 
         // 6) Readback the buffer contents
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO.getBufferLocation());
         ByteBuffer bb = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         FloatBuffer fb = bb.asFloatBuffer();
 
@@ -401,7 +435,7 @@ public class GPUSimulation {
         // Do not clear or swap; caller owns window
         glUseProgram(renderProgram);
         // MVP will be sent by caller before rendering
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         glBindVertexArray(vao);
         glDrawArrays(GL_POINTS, 0, planets.size());
         glUseProgram(0);
@@ -410,7 +444,7 @@ public class GPUSimulation {
     public void renderImpostorSpheres() {
         glUseProgram(impostorProgram);
         glUniform1f(uImpostorPointScaleLoc, impostorPointScale);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         glBindVertexArray(vao);
         glDrawArrays(GL_POINTS, 0, planets.size());
         glUseProgram(0);
@@ -419,7 +453,7 @@ public class GPUSimulation {
     public void renderMeshSpheres() {
         if (sphereVao == 0 || sphereIndexCount == 0) return;
         glUseProgram(sphereProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         glBindVertexArray(sphereVao);
         glUniform1f(uSphereRadiusScaleLoc, sphereRadiusScale);
         // Distance/color uniforms
@@ -483,17 +517,20 @@ public class GPUSimulation {
         if (impostorProgram != 0) glDeleteProgram(impostorProgram);
         if (sphereProgram != 0) glDeleteProgram(sphereProgram);
         if (debugKernelProgram != 0) glDeleteProgram(debugKernelProgram);
-        if (FIXED_BODIES_IN_SSBO != 0) glDeleteBuffers(FIXED_BODIES_IN_SSBO);
-        if (FIXED_BODIES_OUT_SSBO != 0) glDeleteBuffers(FIXED_BODIES_OUT_SSBO);
-        if (MORTON_KEYS_SSBO != 0) glDeleteBuffers(MORTON_KEYS_SSBO);
-        if (INDICES_SSBO != 0) glDeleteBuffers(INDICES_SSBO);
-        if (NODES_SSBO != 0) glDeleteBuffers(NODES_SSBO);
-        if (AABB_SSBO != 0) glDeleteBuffers(AABB_SSBO);
-        if (WG_HIST_SSBO != 0) glDeleteBuffers(WG_HIST_SSBO);
-        if (WG_SCANNED_SSBO != 0) glDeleteBuffers(WG_SCANNED_SSBO);
-        if (MORTON_OUT_SSBO != 0) glDeleteBuffers(MORTON_OUT_SSBO);
-        if (INDEX_OUT_SSBO != 0) glDeleteBuffers(INDEX_OUT_SSBO);
-        if (WORK_QUEUE_SSBO != 0) glDeleteBuffers(WORK_QUEUE_SSBO);
+        if (FIXED_BODIES_IN_SSBO != null) FIXED_BODIES_IN_SSBO.delete();
+        if (FIXED_BODIES_OUT_SSBO != null) FIXED_BODIES_OUT_SSBO.delete();
+        if (MORTON_IN_SSBO != null) MORTON_IN_SSBO.delete();
+        if (INDEX_IN_SSBO != null) INDEX_IN_SSBO.delete();
+        if (NODES_SSBO != null) NODES_SSBO.delete();
+        if (AABB_SSBO != null) AABB_SSBO.delete();
+        if (WG_HIST_SSBO != null) WG_HIST_SSBO.delete();
+        if (WG_SCANNED_SSBO != null) WG_SCANNED_SSBO.delete();
+        if (GLOBAL_BASE_SSBO != null) GLOBAL_BASE_SSBO.delete();
+        if (BUCKET_TOTALS_SSBO != null) BUCKET_TOTALS_SSBO.delete();
+        if (MORTON_OUT_SSBO != null) MORTON_OUT_SSBO.delete();
+        if (INDEX_OUT_SSBO != null) INDEX_OUT_SSBO.delete();
+        if (WORK_QUEUE_SSBO != null) WORK_QUEUE_SSBO.delete();
+        if (MERGE_QUEUE_SSBO != null) MERGE_QUEUE_SSBO.delete();
         if (vao != 0) glDeleteVertexArrays(vao);
         if (sphereVao != 0) glDeleteVertexArrays(sphereVao);
         if (sphereVbo != 0) glDeleteBuffers(sphereVbo);
@@ -523,7 +560,7 @@ public class GPUSimulation {
     public void uploadPlanetsData(List<Planet> newPlanets) {
         this.planets = new ArrayList<>(newPlanets);
         FloatBuffer data = packPlanets(this.planets);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO.getBufferLocation());
         glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
@@ -537,37 +574,37 @@ public class GPUSimulation {
         int NUM_BUCKETS = 16;
 
         // Resize body buffers
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, bytes, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_OUT_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_OUT_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, bytes, GL_DYNAMIC_COPY);
         
         // Resize Barnes-Hut auxiliary buffers
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 4 * Float.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO.getBufferLocation());
         glBufferData(GL_SHADER_STORAGE_BUFFER, (2 + numBodies) * Integer.BYTES, GL_DYNAMIC_COPY);
 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
         FloatBuffer data = packPlanets(this.planets);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO.getBufferLocation());
         glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
@@ -742,7 +779,7 @@ public class GPUSimulation {
     }
 
     private String getNodes(int start, int end) {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO.getBufferLocation());
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer nodeData = buffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -751,7 +788,7 @@ public class GPUSimulation {
     }
 
     private String getBodies(int start, int end) {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, SWAPPING_BODIES_IN_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, SWAPPING_BODIES_IN_SSBO.getBufferLocation());
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer bodyData = buffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -770,7 +807,7 @@ public class GPUSimulation {
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
         
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, SWAPPING_BODIES_IN_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, SWAPPING_BODIES_IN_SSBO.getBufferLocation());
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         FloatBuffer bodyData = buffer.asFloatBuffer();
         
@@ -809,8 +846,8 @@ public class GPUSimulation {
 
         // Pass 1: bodies -> aabbOut (one AABB per workgroup)
         glUseProgram(computeAABBKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO.getBufferLocation());
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());
         glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numBodies"), planets.size());
         glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numWorkGroups"), numGroups());
         glDispatchCompute(numGroups(), 1, 1);
@@ -824,7 +861,7 @@ public class GPUSimulation {
 
  
         glUseProgram(collapseAABBKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());
         glUniform1ui(glGetUniformLocation(collapseAABBKernelProgram, "numWorkGroups"), numGroups());
         glDispatchCompute(1, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -837,7 +874,7 @@ public class GPUSimulation {
     }
 
     private void debugAABB() {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO.getBufferLocation());
         ByteBuffer bb = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         FloatBuffer fb = bb.asFloatBuffer();
 
@@ -859,10 +896,10 @@ public class GPUSimulation {
         glUseProgram(mortonKernelProgram);
         
         // Bind bodies (input) and morton/index (output)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);      // bodies input
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, MORTON_KEYS_SSBO);   // morton keys output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, INDICES_SSBO);    // indices output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO);   // AABB input (from computeAABB)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO.getBufferLocation());      // bodies input
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, MORTON_IN_SSBO.getBufferLocation());   // morton keys output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, INDEX_IN_SSBO.getBufferLocation());    // indices output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());   // AABB input (from computeAABB)
         
         // Set uniforms
         glUniform1ui(glGetUniformLocation(mortonKernelProgram, "numBodies"), planets.size());
@@ -875,7 +912,7 @@ public class GPUSimulation {
     private void debugMortonCodes() {
         
             // Read morton codes from GPU buffer
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO.getBufferLocation());
             ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             LongBuffer mortonData = mortonBuffer.asLongBuffer();
             HashSet<Long> mortonSet = new HashSet<>();
@@ -898,35 +935,35 @@ public class GPUSimulation {
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         }
     private void debugRadixSort() {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO.getBufferLocation());
         ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer mortonData = mortonBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO.getBufferLocation());
         ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer indexData = indexBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO.getBufferLocation());
         ByteBuffer wgHistBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer wgHistData = wgHistBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO.getBufferLocation());
         ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO.getBufferLocation());
         ByteBuffer globalBaseBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer globalBaseData = globalBaseBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO.getBufferLocation());
         ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO.getBufferLocation());
         ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO.getBufferLocation());
         ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -952,10 +989,10 @@ public class GPUSimulation {
         int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
         
         // Current input/output morton and index buffers
-        int currentMortonIn = MORTON_KEYS_SSBO;
-        int currentIndexIn = INDICES_SSBO;
-        int currentMortonOut = MORTON_OUT_SSBO;
-        int currentIndexOut = INDEX_OUT_SSBO;
+        int currentMortonIn = MORTON_IN_SSBO.getBufferLocation();
+        int currentIndexIn = INDEX_IN_SSBO.getBufferLocation();
+        int currentMortonOut = MORTON_OUT_SSBO.getBufferLocation();
+        int currentIndexOut = INDEX_OUT_SSBO.getBufferLocation();
 
         radixSortHistogramTime = 0;
         radixSortScanTime = 0;
@@ -975,9 +1012,9 @@ public class GPUSimulation {
 
             // Phase 1: Histogram
             glUseProgram(radixSortHistogramKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, currentMortonIn);    // morton input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, currentIndexIn);     // index input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO);         // workgroup histograms
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, currentMortonIn);    // morton input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, currentIndexIn);     // index input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO.getBufferLocation());         // workgroup histograms
             
             glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "numBodies"), planets.size());
             glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "passShift"), passShift);
@@ -1002,9 +1039,9 @@ public class GPUSimulation {
 
             // Phase 2: Scan
             glUseProgram(radixSortParallelScanKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO);         // workgroup histograms input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO);      // scanned per-wg bases output
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO);     // global bucket bases output
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO.getBufferLocation());         // workgroup histograms input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO.getBufferLocation());      // scanned per-wg bases output
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO.getBufferLocation());     // global bucket bases output
             
             glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numBodies"), planets.size());
             glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numWorkGroups"), numGroups);
@@ -1016,8 +1053,8 @@ public class GPUSimulation {
            // debugRadixSort();
 
             glUseProgram(radixSortExclusiveScanKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO_BINDING, BUCKET_TOTALS_SSBO);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO_BINDING, BUCKET_TOTALS_SSBO.getBufferLocation());
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO.getBufferLocation());
 
             glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numBodies"), planets.size());
             glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numWorkGroups"), numGroups);
@@ -1038,10 +1075,10 @@ public class GPUSimulation {
 
             // Phase 3: Scatter
             glUseProgram(radixSortScatterKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, currentMortonIn);    // morton input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, currentIndexIn);     // index input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO);      // scanned bases
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO);     // global bases
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, currentMortonIn);    // morton input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, currentIndexIn);     // index input
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO.getBufferLocation());      // scanned bases
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO.getBufferLocation());     // global bases
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO_BINDING, currentMortonOut);   // morton output
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO_BINDING, currentIndexOut);    // index output
             
@@ -1076,16 +1113,16 @@ public class GPUSimulation {
         
         // After final pass, sorted data is in currentMortonIn/currentIndexIn
         // Update our "current" buffers to point to the final sorted data
-        MORTON_KEYS_SSBO = currentMortonIn;
-        INDICES_SSBO = currentIndexIn;
+        MORTON_IN_SSBO.setBufferLocation(currentMortonIn);
+        INDEX_IN_SSBO.setBufferLocation(currentIndexIn);
 
     }
 
     private void buildBinaryRadixTree(int numGroups, boolean debug) {
         glUseProgram(buildBinaryRadixTreeKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, MORTON_KEYS_SSBO);   // morton keys (sorted)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, INDICES_SSBO);    // body indices (sorted)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);    // tree nodes output
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, MORTON_IN_SSBO.getBufferLocation());   // morton keys (sorted)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, INDEX_IN_SSBO.getBufferLocation());    // body indices (sorted)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());    // tree nodes output
         
         glUniform1ui(glGetUniformLocation(buildBinaryRadixTreeKernelProgram, "numBodies"), planets.size());
         
@@ -1104,14 +1141,14 @@ public class GPUSimulation {
     
     private void computeCOMAndLocation(int numGroups, boolean debug) {
         glUseProgram(initLeavesKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO);      // bodies input  
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO_BINDING, MORTON_KEYS_SSBO);   // morton keys (for reference)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDICES_SSBO_BINDING, INDICES_SSBO);    // sorted body indices
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);    // nodes to initialize
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO); // work queue buffer
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO.getBufferLocation());      // bodies input  
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, MORTON_IN_SSBO.getBufferLocation());   // morton keys (for reference)
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, INDEX_IN_SSBO.getBufferLocation());    // sorted body indices
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());    // nodes to initialize
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO.getBufferLocation()); // work queue buffer
         
         // Reset work queue head/tail to 0 before init
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO.getBufferLocation());
         ByteBuffer initQ = BufferUtils.createByteBuffer(2 * Integer.BYTES);
         initQ.putInt(0).putInt(0).flip();
         glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, initQ);
@@ -1126,8 +1163,8 @@ public class GPUSimulation {
 
         for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
             glUseProgram(propagateNodesKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO.getBufferLocation());
             
             // Dispatch with enough threads to process all potential work items efficiently
             // Each thread will process multiple items in round-robin fashion
@@ -1141,9 +1178,9 @@ public class GPUSimulation {
     private void computeForce(int numGroups, boolean debug) {
         checkGLError("Before compute force");
         glUseProgram(computeForceKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_OUT_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_OUT_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         checkGLError("Bodies out SSBO bind");      // bodies output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());
         checkGLError("Nodes SSBO bind");    // tree nodes
         
         
@@ -1162,9 +1199,9 @@ public class GPUSimulation {
 
         
         // Swap source and destination buffers for next iteration
-        int tmp = SWAPPING_BODIES_IN_SSBO;
-        SWAPPING_BODIES_IN_SSBO = SWAPPING_BODIES_OUT_SSBO;
-        SWAPPING_BODIES_OUT_SSBO = tmp;
+        int tmp = SWAPPING_BODIES_IN_SSBO.getBufferLocation()           ;
+        SWAPPING_BODIES_IN_SSBO.setBufferLocation(SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
+        SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmp);
     }
     
 
@@ -1412,7 +1449,7 @@ public class GPUSimulation {
     private void debugSorting() {
         System.out.println("=== RADIX SORT RESULTS ===");
             // Read sorted Morton codes
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_KEYS_SSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO.getBufferLocation());
             ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer mortonData = mortonBuffer.asIntBuffer();
             System.out.println("Sorted Morton codes:");
@@ -1428,7 +1465,7 @@ public class GPUSimulation {
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             
             // Read sorted body indices
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO.getBufferLocation());
             ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer indexData = indexBuffer.asIntBuffer();
             System.out.println("Sorted body indices:");
@@ -1449,7 +1486,7 @@ public class GPUSimulation {
             
             // First check for stuck nodes with readyChildren < 2
             System.out.println("=== STUCK NODE ANALYSIS ===");
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO.getBufferLocation());
             ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer nodeData = nodeBuffer.asIntBuffer();
             
@@ -1509,7 +1546,7 @@ public class GPUSimulation {
             // glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
         
             // Read tree nodes
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO.getBufferLocation());
             //ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             //IntBuffer nodeData = nodeBuffer.asIntBuffer();
             System.out.println("Tree nodes:");

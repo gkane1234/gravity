@@ -29,6 +29,11 @@ public class Node {
     public static final int PARENT_ID_OFFSET = 17;
 
     public static final int STRUCT_SIZE = 20;
+    public static final VariableType[] nodeTypes = new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, 
+        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.PADDING, 
+        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.PADDING, 
+        VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, 
+        VariableType.UINT, VariableType.UINT, VariableType.PADDING, VariableType.PADDING }; 
 
     private float[] comMass;
     private float[] aabbMin;
