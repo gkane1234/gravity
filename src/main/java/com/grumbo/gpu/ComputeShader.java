@@ -85,9 +85,9 @@ public class ComputeShader {
                 gpuSimulation.ssbos.get(ssboName).bind();
             }
         }
-        System.out.println("Dispatching compute shader: "  +program+ " with " + xWorkGroupsFunction.getXWorkGroups() + " work groups");
+        //System.out.println("Dispatching compute shader: "  +program+ " with " + xWorkGroupsFunction.getXWorkGroups() + " work groups");
         glDispatchCompute(xWorkGroupsFunction.getXWorkGroups(), 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        //glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
     }
 

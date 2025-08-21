@@ -1,5 +1,15 @@
 // Force computation and merging
+bool acceptanceCriterion(float s, float invDist, float thetaVal)
+{
+    return s * invDist < thetaVal;
+}
 
+float invDist(vec3 r, float soft)
+{
+    float dist2 = dot(r, r) + soft;
+    float inv = inversesqrt(dist2);
+    return inv;
+}
 void computeForce() 
 {
     vec3 accel = vec3(0.0);
@@ -20,34 +30,35 @@ void computeForce()
         vec3 extent = node.aabb.max - node.aabb.min;
         float longestSide = max(extent.x, max(extent.y, extent.z));
         if (node.childA == 0xFFFFFFFFu) {
-            if (index[nodeIdx] != gid) {
-                Body other = srcB.bodies[index[nodeIdx]];
-                float bodyRadius = pow(body.posMass.w, 1.0/3.0);
-                float otherRadius = pow(other.posMass.w, 1.0/3.0);
-                float dist = length(r);
-                if (collision && dist < bodyRadius + otherRadius) {
-                    vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;
-                    vec3 normal = normalize(r);
-                    float vImpact = dot(velocityDifference, normal);
-                    if (vImpact < 0) {
-                        float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
-                        float j = (1+elasticity)*mEff*vImpact;
-                        body.velPad.xyz += normal * j / body.posMass.w;
-                    }
-                    float penetration = bodyRadius + otherRadius - dist;
-                    if (penetration > 0) {
-                        vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
-                        body.posMass.xyz -= correction;
-                    }
-                } else if (dist < bodyRadius + otherRadius) {
-                    if (mergeQueueTail < mergeQueue.length()) {
-                        mergeQueue[mergeQueueTail++] = uvec2(gid, index[nodeIdx]);
-                        mergeQueueTail = atomicAdd(mergeQueueTail, 1u);
-                    }
-                } else {
-                    accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-                }
-            }
+            accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+            // if (index[nodeIdx] != gid) {
+            //     Body other = srcB.bodies[index[nodeIdx]];
+            //     float bodyRadius = pow(body.posMass.w, 1.0/3.0);
+            //     float otherRadius = pow(other.posMass.w, 1.0/3.0);
+            //     float dist = length(r);
+            //     if (collision && dist < bodyRadius + otherRadius) {
+            //         vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;
+            //         vec3 normal = normalize(r);
+            //         float vImpact = dot(velocityDifference, normal);
+            //         if (vImpact < 0) {
+            //             float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
+            //             float j = (1+elasticity)*mEff*vImpact;
+            //             body.velPad.xyz += normal * j / body.posMass.w;
+            //         }
+            //         float penetration = bodyRadius + otherRadius - dist;
+            //         if (penetration > 0) {
+            //             vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
+            //             body.posMass.xyz -= correction;
+            //         }
+            //     } else if (dist < bodyRadius + otherRadius) {
+            //         if (mergeQueueTail < mergeQueue.length()) {
+            //             mergeQueue[mergeQueueTail++] = uvec2(gid, index[nodeIdx]);
+            //             mergeQueueTail = atomicAdd(mergeQueueTail, 1u);
+            //         }
+            //     } else {
+            //         accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+            //     }
+            // }
         }
         else if (acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;

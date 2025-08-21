@@ -41,7 +41,7 @@ public class GPUSimulation {
 
     // These can be freely changed here
     private static final int PROPAGATE_NODES_ITERATIONS = 30;
-    private static final boolean DEBUG_BARNES_HUT = true; // Note debugging will slow down the simulation, inconsistently
+    private boolean DEBUG_BARNES_HUT = true; // Note debugging will slow down the simulation, inconsistently
 
 
     public enum RenderMode {
@@ -163,8 +163,9 @@ public class GPUSimulation {
 
     private ArrayList<Planet> planets;
 
-    public GPUSimulation(ArrayList<Planet> planets) {
+    public GPUSimulation(ArrayList<Planet> planets, boolean debug) {
         this.planets = planets;
+        this.DEBUG_BARNES_HUT = debug;
         this.renderMode = RenderMode.MESH_SPHERES;
         this.commandQueue = new ConcurrentLinkedQueue<>();
     }
@@ -215,8 +216,6 @@ public class GPUSimulation {
 
     public void initRender() {
         
-        // Create Render Shaders
-
         // Create render shader (points)
         renderProgram = glCreateProgram();
         int vs = glCreateShader(GL_VERTEX_SHADER);
@@ -586,20 +585,24 @@ public class GPUSimulation {
         }
 
         computeAABBKernel.run();
-
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (DEBUG_BARNES_HUT) {
             glFinish(); 
-            computeAABBTime += System.nanoTime() - computeAABBStartTime;
+            computeAABBTime = System.nanoTime() - computeAABBStartTime;
             collapseAABBStartTime = System.nanoTime();
         }
 
         collapseAABBKernel.run();
-
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (DEBUG_BARNES_HUT) {
             glFinish();
-            collapseAABBTime += System.nanoTime() - collapseAABBStartTime;
+            collapseAABBTime = System.nanoTime() - collapseAABBStartTime;
             aabbTime = computeAABBTime + collapseAABBTime;
+
+            glFinish();
         }
+
+
 
     }
 
@@ -609,10 +612,10 @@ public class GPUSimulation {
         }
 
         mortonKernel.run();
-
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (DEBUG_BARNES_HUT) {
             glFinish();
-            mortonTime += System.nanoTime() - mortonTime;
+            mortonTime = System.nanoTime() - mortonTime;
         }
 
     }
@@ -651,6 +654,7 @@ public class GPUSimulation {
 
             // Phase 1: Histogram
             radixSortHistogramKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             if (DEBUG_BARNES_HUT) {
                 glFinish();
@@ -660,7 +664,7 @@ public class GPUSimulation {
 
             // Phase 2: Scan
             radixSortParallelScanKernel.run();
-
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             if (DEBUG_BARNES_HUT) {
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
@@ -668,7 +672,7 @@ public class GPUSimulation {
             }
 
             radixSortExclusiveScanKernel.run();
-            
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             if (DEBUG_BARNES_HUT) {
                 glFinish();
@@ -678,7 +682,7 @@ public class GPUSimulation {
 
             // Phase 3: Scatter
             radixSortScatterKernel.run();
-
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             if (DEBUG_BARNES_HUT) {
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
@@ -708,6 +712,7 @@ public class GPUSimulation {
             buildTreeTime = System.nanoTime();
         }
         buildBinaryRadixTreeKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (DEBUG_BARNES_HUT) {
             glFinish();
             buildTreeTime = System.nanoTime() - buildTreeTime;
@@ -726,6 +731,7 @@ public class GPUSimulation {
         SSBO.unBind();
 
         initLeavesKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         if (DEBUG_BARNES_HUT) {
             glFinish();
@@ -735,6 +741,7 @@ public class GPUSimulation {
 
         for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
             propagateNodesKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
         if (DEBUG_BARNES_HUT) {
             glFinish();
@@ -749,6 +756,7 @@ public class GPUSimulation {
         }
 
         computeForceKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (DEBUG_BARNES_HUT) {
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;

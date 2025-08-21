@@ -1,16 +1,10 @@
-package com.grumbo.simulation;
+package com.grumbo.UI;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.grumbo.UI.BitmapFont;
-import com.grumbo.UI.UIButton;
-import com.grumbo.UI.UIElement;
-import com.grumbo.UI.UIRow;
-import com.grumbo.UI.UISlider;
-import com.grumbo.UI.UIText;
-import com.grumbo.UI.UITextField;
+import com.grumbo.simulation.*;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -151,7 +145,7 @@ public class SettingsPane {
         float xOffset = 20.0f;
         float bottomSpace = 80.0f;
         float bottomY = Settings.getInstance().getHeight() - bottomSpace;
-        float verticalPadding = 10.0f;
+        float verticalPadding = 20.0f;
 
 
         // Title (update existing element text and draw)
