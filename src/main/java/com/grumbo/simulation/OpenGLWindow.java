@@ -48,9 +48,8 @@ public class OpenGLWindow {
         FRAME_ADVANCE
     }
     public State state = State.FRAME_ADVANCE;
-    
-    private boolean frameReady = false;
-    
+
+    private boolean advanceFrame = false;
     // FPS limiting using GPU swap interval
     private int maxFPS = 60; // Default max FPS
 
@@ -133,8 +132,8 @@ public class OpenGLWindow {
         System.out.println(getStartupInfo());
         
         // Initialize GPU simulation
-        gpuSimulation = new GPUSimulation(planets);
-        gpuSimulation.initWithCurrentContext();
+        gpuSimulation = new GPUSimulation(this, planets, Render.RenderMode.MESH_SPHERES, debug);
+        gpuSimulation.init();
         
 
         // Enable depth testing for 3D
@@ -159,14 +158,7 @@ public class OpenGLWindow {
             getCameraView();
 
 
-            if (state == State.RUNNING || frameReady) {
-                gpuSimulation.step();
-                frameReady = false; // Reset for next Enter press on frame advance mode
-            }
-
-            
-
-            gpuSimulation.render();
+            gpuSimulation.step(state);
             
             // Draw crosshair
             drawCrosshair();
@@ -369,10 +361,14 @@ public class OpenGLWindow {
     public long getWindow() {
         return window;
     }
-    public void setFrameReady(boolean frameReady) {
-        this.frameReady = frameReady;
+    public void setAdvanceFrame(boolean advanceFrame) {
+        this.advanceFrame = advanceFrame;
     }
     public double getFPS() {
         return fps;
+    }
+
+    public boolean advanceFrame() {
+        return advanceFrame;
     }
 } 

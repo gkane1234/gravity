@@ -1,5 +1,7 @@
 package com.grumbo.gpu;
 
+import static org.lwjgl.opengl.GL43C.*;
+
 public class Uniform<T> {
 
     // uniform float softening;
@@ -43,5 +45,20 @@ public class Uniform<T> {
 
     public boolean isUnsigned() {
         return unsigned;
+    }
+
+    public void uploadToShader(int program) {
+        //System.out.println("Uploading " + name + " to shader " + program + " with value " + getValue());
+        if (getValue().getClass().equals(Integer.class)) {
+            if (unsigned) {
+                glUniform1ui(glGetUniformLocation(program, name), (Integer) getValue());
+            } else {
+                glUniform1i(glGetUniformLocation(program, name), (Integer) getValue());
+            }
+        } else if (getValue().getClass().equals(Float.class)) {
+            glUniform1f(glGetUniformLocation(program, name), (Float) getValue());
+        } else if (getClass().equals(Boolean.class)) {
+            glUniform1i(glGetUniformLocation(program, name), (Boolean) getValue() ? 1 : 0);
+        }
     }
 }

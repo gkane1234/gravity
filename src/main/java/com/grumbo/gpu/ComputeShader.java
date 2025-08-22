@@ -7,20 +7,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import com.grumbo.simulation.BarnesHut;
 import com.grumbo.simulation.GPUSimulation;
 
 public class ComputeShader {
     private int program;
     private int computeShader;
-    private Uniform[] uniforms;
+    private Uniform<?>[] uniforms;
     private String[] ssboNames;
     private xWorkGroupsFunction xWorkGroupsFunction;
-    private GPUSimulation gpuSimulation;
+    private BarnesHut barnesHut;
     public interface xWorkGroupsFunction {
         int getXWorkGroups();
     }
 
-    public ComputeShader(int program, String kernelName, Uniform[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, GPUSimulation gpuSimulation) {
+    public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BarnesHut barnesHut) {
         this.program = program;
         this.computeShader = glCreateShader(GL_COMPUTE_SHADER);
         glShaderSource(computeShader, insertDefineAfterVersion(getComputeShaderSource(), kernelName));
@@ -32,17 +33,17 @@ public class ComputeShader {
         this.uniforms = uniforms;
         this.ssboNames = ssboNames;
         this.xWorkGroupsFunction = xWorkGroupsFunction;
-        this.gpuSimulation = gpuSimulation;
+        this.barnesHut = barnesHut;
     }
 
-    public ComputeShader(String kernelName, GPUSimulation gpuSimulation) {
-        this(glCreateProgram(), kernelName, null, null, null, gpuSimulation);
+    public ComputeShader(String kernelName, BarnesHut barnesHut) {
+        this(glCreateProgram(), kernelName, null, null, null, barnesHut);
     }
 
     public void debug(int numOutputs) {
         for (String ssboName : ssboNames) {
             System.out.println(ssboName + ":");
-            System.out.println(gpuSimulation.ssbos.get(ssboName).getData(0, numOutputs));
+            System.out.println(barnesHut.ssbos.get(ssboName).getData(0, numOutputs));
         }
     }
 
@@ -61,37 +62,31 @@ public class ComputeShader {
 
 
     public void run() {
+        runBarrierless();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    }
+
+    public void runBarrierless() {
         glUseProgram(program);
         if (uniforms != null) {
-            for (Uniform uniform : uniforms) {
-                if (uniform.getValue() instanceof Integer) {
-                    if (uniform.isUnsigned()) {
-                        glUniform1ui(glGetUniformLocation(program, uniform.getName()), (Integer)uniform.getValue());
-                    } else {
-                        glUniform1i(glGetUniformLocation(program, uniform.getName()), (Integer)uniform.getValue());
-                    }
-                } else if (uniform.getValue() instanceof Float) {
-                    glUniform1f(glGetUniformLocation(program, uniform.getName()), (Float)uniform.getValue());
-                } else if (uniform.getValue() instanceof Boolean) {
-                    glUniform1i(glGetUniformLocation(program, uniform.getName()), (Boolean)uniform.getValue() ? 1 : 0);
-                }
-                else {
-                    throw new RuntimeException("Uniform type not supported: " + uniform.getValue().getClass());
-                }
+            for (Uniform<?> uniform : uniforms) {
+                System.out.println("Uploading uniform: " + uniform.getName());
+                uniform.uploadToShader(program);
             }
         }
         if (ssboNames != null) {
             for (String ssboName : ssboNames) {
-                gpuSimulation.ssbos.get(ssboName).bind();
+                System.out.println("Binding SSBO: " + ssboName);
+                barnesHut.ssbos.get(ssboName).bind();
             }
         }
         //System.out.println("Dispatching compute shader: "  +program+ " with " + xWorkGroupsFunction.getXWorkGroups() + " work groups");
         glDispatchCompute(xWorkGroupsFunction.getXWorkGroups(), 1, 1);
-        //glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
     }
 
-    public void setUniforms(Uniform[] uniforms) {
+    public void setUniforms(Uniform<?>[] uniforms) {
         this.uniforms = uniforms;
     }
 
@@ -104,11 +99,11 @@ public class ComputeShader {
     public void setXWorkGroupsFunction(xWorkGroupsFunction xWorkGroupsFunction) {
         this.xWorkGroupsFunction = xWorkGroupsFunction;
     }
-    public void getUniforms(Uniform[] uniforms) {
-        this.uniforms = uniforms;
+    public Uniform<?>[] getUniforms() {
+        return uniforms;
     }
-    public void getSSBOs(String[] ssboNames) {
-        this.ssboNames = ssboNames;
+    public String[] getSSBOs() {
+        return ssboNames;
     }
 
     public void delete() {

@@ -1,0 +1,1234 @@
+package com.grumbo.simulation;
+
+import com.grumbo.simulation.GPUSimulation;
+import com.grumbo.gpu.*;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.nio.ByteBuffer;
+import java.nio.LongBuffer;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.lwjgl.BufferUtils;
+import static org.lwjgl.opengl.GL43C.*;
+
+
+public class BarnesHut {
+
+    // Simulation params
+    //To change these, you need to also change their definitions in the compute shader
+    private static final int WORK_GROUP_SIZE = 128;
+    private static final int NUM_RADIX_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
+
+
+
+    // These can be freely changed here
+    private static final int PROPAGATE_NODES_ITERATIONS = 30;
+    private boolean debug;
+
+
+
+
+    // Uniforms
+    public Map<String, Uniform<?>> uniforms;
+    private Uniform<Integer> numWorkGroupsUniform;
+    private Uniform<Float> softeningUniform;
+    private Uniform<Float> thetaUniform;
+    private Uniform<Float> dtUniform;
+    private Uniform<Integer> numBodiesUniform;
+    private Uniform<Float> elasticityUniform;
+    private Uniform<Float> densityUniform;
+    private Uniform<Float> restitutionUniform;
+    private Uniform<Boolean> collisionUniform;
+    private Uniform<Integer> mergeQueueTailUniform;
+    private Uniform<Integer> passShiftUniform;
+
+    // Uniform local variables
+    private int passShift;
+
+    // Compute Shaders
+    private ComputeShader computeAABBKernel;
+    private ComputeShader collapseAABBKernel;
+    private ComputeShader mortonKernel;
+    private ComputeShader radixSortHistogramKernel;
+    private ComputeShader radixSortParallelScanKernel;
+    private ComputeShader radixSortExclusiveScanKernel;
+    private ComputeShader radixSortScatterKernel;
+    private ComputeShader buildBinaryRadixTreeKernel;
+    private ComputeShader initLeavesKernel;
+    private ComputeShader propagateNodesKernel;
+    private ComputeShader computeForceKernel;
+    private ComputeShader mergeBodiesKernel;
+    private ComputeShader debugKernel;
+
+    // SSBOs
+    public Map<String, SSBO> ssbos;
+    private SSBO FIXED_BODIES_IN_SSBO;
+    private SSBO FIXED_BODIES_OUT_SSBO;
+    private SSBO SWAPPING_BODIES_IN_SSBO;
+    private SSBO SWAPPING_BODIES_OUT_SSBO;
+    private SSBO MORTON_IN_SSBO;
+    private SSBO INDEX_IN_SSBO;
+    private SSBO CURRENT_MORTON_IN_SSBO;
+    private SSBO CURRENT_MORTON_OUT_SSBO;
+    private SSBO CURRENT_INDEX_IN_SSBO;
+    private SSBO CURRENT_INDEX_OUT_SSBO;
+    private SSBO NODES_SSBO;
+    private SSBO AABB_SSBO;
+    private SSBO WG_HIST_SSBO;
+    private SSBO WG_SCANNED_SSBO;
+    private SSBO GLOBAL_BASE_SSBO;
+    private SSBO BUCKET_TOTALS_SSBO;
+    private SSBO MORTON_OUT_SSBO;
+    private SSBO INDEX_OUT_SSBO;
+    private SSBO WORK_QUEUE_SSBO;
+    private SSBO MERGE_QUEUE_SSBO;
+
+    
+
+    //Debug variables
+    private long aabbTime;
+    private long computeAABBTime;
+    private long collapseAABBTime;
+    private long mortonTime;
+    private long radixSortTime;
+    private long radixSortHistogramTime;
+    private long radixSortScanParallelTime;
+    private long radixSortScanExclusiveTime;
+    private long radixSortScatterTime;
+    private long computeCOMAndLocationTime;
+    private long initLeavesTime;
+    private long propagateNodesTime;
+    private long buildTreeTime;
+    private long computeForceTime;
+    public String debugString;
+    private GPUSimulation gpuSimulation;
+
+    public BarnesHut(GPUSimulation gpuSimulation, boolean debug) {
+        this.gpuSimulation = gpuSimulation;
+        this.debug = debug;
+    }
+
+    
+    public void step() {
+
+        computeAABB();
+
+        generateMortonCodes();
+
+        radixSort();
+
+        buildBinaryRadixTree();
+
+        computeCOMAndLocation();
+
+        computeForce();
+
+            if (debug) {
+            debugString = printProfiling();
+        }
+    }
+
+    /* --------- Initialization --------- */
+
+    public void init() {
+        initComputeSSBOs();
+        initComputeUniforms();
+        initComputeShaders();
+    }
+
+
+    private void initComputeSSBOs() {
+        
+        //Create SSBOs
+
+        ssbos = new HashMap<>();
+
+        FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
+            return packPlanets(gpuSimulation.getPlanets());
+        }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes);
+        ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
+
+        FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES;
+        }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes);
+        ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
+
+        MORTON_IN_SSBO = new SSBO(SSBO.MORTON_IN_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Long.BYTES;
+        }, "MORTON_IN_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        ssbos.put(MORTON_IN_SSBO.getName(), MORTON_IN_SSBO);
+
+        INDEX_IN_SSBO = new SSBO(SSBO.INDEX_IN_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Integer.BYTES;
+        }, "INDEX_IN_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(INDEX_IN_SSBO.getName(), INDEX_IN_SSBO);
+
+        NODES_SSBO = new SSBO(SSBO.NODES_SSBO_BINDING, () -> {
+            return (2 * gpuSimulation.numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
+        }, "NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
+        ssbos.put(NODES_SSBO.getName(), NODES_SSBO);
+
+        AABB_SSBO = new SSBO(SSBO.AABB_SSBO_BINDING, () -> {
+            return numGroups() * 2 * 4 * Float.BYTES;
+        }, "AABB_SSBO", 8, new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT });
+        ssbos.put(AABB_SSBO.getName(), AABB_SSBO);
+
+        WG_HIST_SSBO = new SSBO(SSBO.WG_HIST_SSBO_BINDING, () -> {
+            return numGroups() * NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "WG_HIST_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(WG_HIST_SSBO.getName(), WG_HIST_SSBO);
+
+        WG_SCANNED_SSBO = new SSBO(SSBO.WG_SCANNED_SSBO_BINDING, () -> {
+            return numGroups() * NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "WG_SCANNED_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(WG_SCANNED_SSBO.getName(), WG_SCANNED_SSBO);
+
+        GLOBAL_BASE_SSBO = new SSBO(SSBO.GLOBAL_BASE_SSBO_BINDING, () -> {
+            return NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "GLOBAL_BASE_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(GLOBAL_BASE_SSBO.getName(), GLOBAL_BASE_SSBO);
+
+        BUCKET_TOTALS_SSBO = new SSBO(SSBO.BUCKET_TOTALS_SSBO_BINDING, () -> {
+            return NUM_RADIX_BUCKETS * Integer.BYTES;
+        }, "BUCKET_TOTALS_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(BUCKET_TOTALS_SSBO.getName(), BUCKET_TOTALS_SSBO);
+
+        MORTON_OUT_SSBO = new SSBO(SSBO.MORTON_OUT_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Long.BYTES;
+        }, "MORTON_OUT_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        ssbos.put(MORTON_OUT_SSBO.getName(), MORTON_OUT_SSBO);
+
+        INDEX_OUT_SSBO = new SSBO(SSBO.INDEX_OUT_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Integer.BYTES;
+        }, "INDEX_OUT_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(INDEX_OUT_SSBO.getName(), INDEX_OUT_SSBO);
+
+        WORK_QUEUE_SSBO = new SSBO(SSBO.WORK_QUEUE_SSBO_BINDING, () -> {
+            return (2 + gpuSimulation.numBodies()) * Integer.BYTES;
+        }, "WORK_QUEUE_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(WORK_QUEUE_SSBO.getName(), WORK_QUEUE_SSBO);
+
+        MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Integer.BYTES;
+        }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT });
+        ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
+
+
+        for (SSBO ssbo : ssbos.values()) {
+            ssbo.createBuffer();
+        }
+
+        // Create Swapping SSBOs
+        SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
+        SWAPPING_BODIES_IN_SSBO.setName("SWAPPING_BODIES_IN_SSBO");
+        ssbos.put(SWAPPING_BODIES_IN_SSBO.getName(), SWAPPING_BODIES_IN_SSBO);
+        SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
+        SWAPPING_BODIES_OUT_SSBO.setName("SWAPPING_BODIES_OUT_SSBO");
+        ssbos.put(SWAPPING_BODIES_OUT_SSBO.getName(), SWAPPING_BODIES_OUT_SSBO);
+        CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
+        CURRENT_MORTON_IN_SSBO.setName("CURRENT_MORTON_IN_SSBO");
+        ssbos.put(CURRENT_MORTON_IN_SSBO.getName(), CURRENT_MORTON_IN_SSBO);
+        CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
+        CURRENT_MORTON_OUT_SSBO.setName("CURRENT_MORTON_OUT_SSBO");
+        ssbos.put(CURRENT_MORTON_OUT_SSBO.getName(), CURRENT_MORTON_OUT_SSBO);
+        CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
+        CURRENT_INDEX_IN_SSBO.setName("CURRENT_INDEX_IN_SSBO");
+        ssbos.put(CURRENT_INDEX_IN_SSBO.getName(), CURRENT_INDEX_IN_SSBO);
+        CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
+        CURRENT_INDEX_OUT_SSBO.setName("CURRENT_INDEX_OUT_SSBO");
+        ssbos.put(CURRENT_INDEX_OUT_SSBO.getName(), CURRENT_INDEX_OUT_SSBO);
+    }
+
+    private void initComputeUniforms() {
+        uniforms = new HashMap<>();
+        uniforms.put("numWorkGroups", numWorkGroupsUniform);
+        uniforms.put("softening", softeningUniform);
+        uniforms.put("theta", thetaUniform);
+        uniforms.put("dt", dtUniform);
+        uniforms.put("numBodies", numBodiesUniform);
+        uniforms.put("elasticity", elasticityUniform);
+        uniforms.put("density", densityUniform);
+        uniforms.put("restitution", restitutionUniform);
+        uniforms.put("collision", collisionUniform);
+        uniforms.put("mergeQueueTail", mergeQueueTailUniform);
+        uniforms.put("passShift", passShiftUniform);
+        numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
+            return numGroups();
+        }, true);
+        softeningUniform = new Uniform<Float>("softening", () -> {
+            return Settings.getInstance().getSoftening();
+        });
+        thetaUniform = new Uniform<Float>("theta", () -> {
+            return Settings.getInstance().getTheta();
+        });
+        dtUniform = new Uniform<Float>("dt", () -> {
+            return Settings.getInstance().getDt();
+        });
+        numBodiesUniform = new Uniform<Integer>("numBodies", () -> {
+            return gpuSimulation.numBodies();
+        }, true);
+        elasticityUniform = new Uniform<Float>("elasticity", () -> {
+            return (float)Settings.getInstance().getElasticity();
+        });
+        densityUniform = new Uniform<Float>("density", () -> {
+            return (float)Settings.getInstance().getDensity();
+        });
+        restitutionUniform = new Uniform<Float>("restitution", () -> {
+            return 0.2f;
+        });
+        passShiftUniform = new Uniform<Integer>("passShift", () -> {
+            return passShift;
+        }, true);
+
+    }
+
+    private void initComputeShaders() {
+        
+        //Compute AABB Kernel
+        computeAABBKernel = new ComputeShader("KERNEL_COMPUTE_AABB", this);
+        computeAABBKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+            numWorkGroupsUniform
+        });
+        computeAABBKernel.setSSBOs(new String[] {
+            "AABB_SSBO",
+            "SWAPPING_BODIES_IN_SSBO"
+        });
+        computeAABBKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        collapseAABBKernel = new ComputeShader("KERNEL_COLLAPSE_AABB", this);
+        collapseAABBKernel.setUniforms(new Uniform[] {
+            numWorkGroupsUniform
+        });
+        collapseAABBKernel.setSSBOs(new String[] {
+            "AABB_SSBO",
+        });
+        collapseAABBKernel.setXWorkGroupsFunction(() -> {
+            return 1;
+        });
+
+        mortonKernel = new ComputeShader("KERNEL_MORTON", this);
+        mortonKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+        });
+        mortonKernel.setSSBOs(new String[] {
+            "MORTON_IN_SSBO",
+            "SWAPPING_BODIES_IN_SSBO",
+            "INDEX_IN_SSBO",
+            "AABB_SSBO"
+
+        });
+        mortonKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        radixSortHistogramKernel = new ComputeShader("KERNEL_RADIX_HIST", this);
+        radixSortHistogramKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+            passShiftUniform,
+            numWorkGroupsUniform
+        });
+        radixSortHistogramKernel.setSSBOs(new String[] {
+            "CURRENT_MORTON_IN_SSBO",
+            "CURRENT_INDEX_IN_SSBO",
+            "WG_HIST_SSBO",
+        });
+        radixSortHistogramKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        radixSortParallelScanKernel = new ComputeShader("KERNEL_RADIX_PARALLEL_SCAN", this);
+        radixSortParallelScanKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+            numWorkGroupsUniform
+        });
+        radixSortParallelScanKernel.setSSBOs(new String[] {
+            "WG_HIST_SSBO",
+            "WG_SCANNED_SSBO",
+            "GLOBAL_BASE_SSBO",
+        });
+        radixSortParallelScanKernel.setXWorkGroupsFunction(() -> {
+            return NUM_RADIX_BUCKETS;
+        });
+
+        radixSortExclusiveScanKernel = new ComputeShader("KERNEL_RADIX_EXCLUSIVE_SCAN", this);
+        radixSortExclusiveScanKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+            numWorkGroupsUniform
+        });
+        radixSortExclusiveScanKernel.setSSBOs(new String[] {
+            "GLOBAL_BASE_SSBO",
+            "BUCKET_TOTALS_SSBO",
+        });
+        radixSortExclusiveScanKernel.setXWorkGroupsFunction(() -> {
+            return 1;
+        });
+
+        radixSortScatterKernel = new ComputeShader("KERNEL_RADIX_SCATTER", this);
+
+        radixSortScatterKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+            passShiftUniform,
+            numWorkGroupsUniform
+        });
+
+        radixSortScatterKernel.setSSBOs(new String[] {
+            "CURRENT_MORTON_IN_SSBO",
+            "CURRENT_INDEX_IN_SSBO",
+            "WG_SCANNED_SSBO",
+            "GLOBAL_BASE_SSBO",
+            "BUCKET_TOTALS_SSBO",
+            "CURRENT_MORTON_OUT_SSBO",
+            "CURRENT_INDEX_OUT_SSBO",
+        });
+
+
+        radixSortScatterKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+
+        buildBinaryRadixTreeKernel = new ComputeShader("KERNEL_BUILD_BINARY_RADIX_TREE", this);
+        buildBinaryRadixTreeKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+        });
+        
+        buildBinaryRadixTreeKernel.setSSBOs(new String[] {
+            "CURRENT_MORTON_IN_SSBO",
+            "CURRENT_INDEX_IN_SSBO",
+            "NODES_SSBO",
+        });
+
+        buildBinaryRadixTreeKernel.setXWorkGroupsFunction(() -> {
+            int numInternalNodes = gpuSimulation.numBodies() - 1;
+            int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+            return internalNodeGroups;
+        });
+
+        //Compute COM and Location Kernels
+
+        initLeavesKernel = new ComputeShader("KERNEL_INIT_LEAVES", this);
+
+        initLeavesKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+        }); 
+
+        initLeavesKernel.setSSBOs(new String[] {
+            "SWAPPING_BODIES_IN_SSBO",
+            "NODES_SSBO",
+            "MORTON_IN_SSBO",
+            "INDEX_IN_SSBO",
+            "WORK_QUEUE_SSBO",
+        });
+
+        initLeavesKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        propagateNodesKernel = new ComputeShader("KERNEL_PROPAGATE_NODES", this);
+
+        propagateNodesKernel.setUniforms(new Uniform[] {
+        });
+
+        propagateNodesKernel.setSSBOs(new String[] {
+            "NODES_SSBO",
+            "WORK_QUEUE_SSBO"
+        });
+
+        propagateNodesKernel.setXWorkGroupsFunction(() -> {
+            int maxPossibleNodes = gpuSimulation.numBodies() - 1; // Internal nodes
+            int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+            return workGroups;
+        });
+        computeForceKernel = new ComputeShader("KERNEL_COMPUTE_FORCE", this);
+
+        computeForceKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+            thetaUniform,
+            dtUniform,
+            elasticityUniform,
+            densityUniform,
+        });
+
+        computeForceKernel.setSSBOs(new String[] {
+            "SWAPPING_BODIES_OUT_SSBO",
+            "NODES_SSBO",
+        });
+
+        computeForceKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        debugKernel = new ComputeShader("KERNEL_DEBUG", this);
+
+        debugKernel.setUniforms(new Uniform[] {
+            numBodiesUniform,
+        });
+
+        debugKernel.setSSBOs(new String[] {
+            "CURRENT_MORTON_IN_SSBO",
+            "CURRENT_INDEX_IN_SSBO",
+        });
+
+        debugKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+    }
+
+    /* --------- Barnes-Hut --------- */
+
+    private void computeAABB() {
+        long computeAABBStartTime = 0;
+        long collapseAABBStartTime = 0;
+
+        if (debug) {
+            computeAABBStartTime = System.nanoTime();
+        }
+
+        computeAABBKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) {
+            glFinish(); 
+            computeAABBTime = System.nanoTime() - computeAABBStartTime;
+            collapseAABBStartTime = System.nanoTime();
+        }
+
+        collapseAABBKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) {
+            glFinish();
+            collapseAABBTime = System.nanoTime() - collapseAABBStartTime;
+            aabbTime = computeAABBTime + collapseAABBTime;
+
+            glFinish();
+        }
+
+    }
+
+    private void generateMortonCodes() {
+        if (debug) {
+            mortonTime = System.nanoTime();
+        }
+
+        mortonKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) {
+            glFinish();
+            mortonTime = System.nanoTime() - mortonTime;
+        }
+
+    }
+
+    private void radixSort() {
+        int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
+        
+        // Current input/output morton and index buffers
+        CURRENT_MORTON_IN_SSBO.setBufferLocation(MORTON_IN_SSBO.getBufferLocation());
+        CURRENT_INDEX_IN_SSBO.setBufferLocation(INDEX_IN_SSBO.getBufferLocation());
+        CURRENT_MORTON_OUT_SSBO.setBufferLocation(MORTON_OUT_SSBO.getBufferLocation());
+        CURRENT_INDEX_OUT_SSBO.setBufferLocation(INDEX_OUT_SSBO.getBufferLocation());
+
+        radixSortHistogramTime = 0;
+        radixSortScanParallelTime = 0;
+        radixSortScanExclusiveTime = 0;
+        radixSortScatterTime = 0;
+
+        long radixSortHistogramStartTime = 0;
+        long radixSortScanParallelStartTime = 0;
+        long radixSortScanExclusiveStartTime = 0;
+        long radixSortScatterStartTime = 0;
+
+        passShift = 0;
+        
+        for (int pass = 0; pass < numPasses; pass++) {
+            
+            passShift = pass * 4; // 4 bits per pass
+
+            if (debug) {
+                radixSortHistogramStartTime = System.nanoTime();
+            }
+
+            // Phase 1: Histogram
+            radixSortHistogramKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            if (debug) {
+                glFinish();
+                radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
+                radixSortScanParallelStartTime = System.nanoTime();
+            }
+
+            // Phase 2: Scan
+            radixSortParallelScanKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            if (debug) {
+                glFinish();
+                radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
+                radixSortScanExclusiveStartTime = System.nanoTime();
+            }
+
+            radixSortExclusiveScanKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            if (debug) {
+                glFinish();
+                radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
+                radixSortScatterStartTime = System.nanoTime();
+            }
+
+            // Phase 3: Scatter
+            radixSortScatterKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            if (debug) {
+                glFinish();
+                radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
+            }
+            
+
+            // Swap input/output buffers for next pass
+            int tempMortonIn = CURRENT_MORTON_IN_SSBO.getBufferLocation();
+            int tempIndexIn = CURRENT_INDEX_IN_SSBO.getBufferLocation();
+            CURRENT_MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_OUT_SSBO.getBufferLocation());
+            CURRENT_INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_OUT_SSBO.getBufferLocation());
+            CURRENT_MORTON_OUT_SSBO.setBufferLocation(tempMortonIn);
+            CURRENT_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
+        }
+        // After final pass, sorted data is in currentMortonIn/currentIndexIn
+        // Update our "current" buffers to point to the final sorted data
+        MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_IN_SSBO.getBufferLocation());
+        INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_IN_SSBO.getBufferLocation());
+        if (debug) {
+            radixSortTime = radixSortHistogramTime + radixSortScanParallelTime + radixSortScanExclusiveTime + radixSortScatterTime;
+        }
+    }
+
+    private void buildBinaryRadixTree() {
+        if (debug) {
+            buildTreeTime = System.nanoTime();
+        }
+        buildBinaryRadixTreeKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) {
+            glFinish();
+            buildTreeTime = System.nanoTime() - buildTreeTime;
+        }
+    }
+    
+    private void computeCOMAndLocation() {
+        if (debug) {
+            initLeavesTime = System.nanoTime();
+        }
+        // Reset work queue head/tail to 0 before init
+        WORK_QUEUE_SSBO.bind();
+        ByteBuffer initQ = BufferUtils.createByteBuffer(2 * Integer.BYTES);
+        initQ.putInt(0).putInt(0).flip();
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, initQ);
+        SSBO.unBind();
+
+        initLeavesKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        if (debug) {
+            glFinish();
+            initLeavesTime = System.nanoTime() - initLeavesTime;
+            propagateNodesTime = System.nanoTime();
+        }
+
+        for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
+            propagateNodesKernel.run();
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+        if (debug) {
+            glFinish();
+            propagateNodesTime = System.nanoTime() - propagateNodesTime;
+            computeCOMAndLocationTime = initLeavesTime + propagateNodesTime;
+        }
+    }
+
+    private void computeForce() {
+        if (debug) {
+            computeForceTime = System.nanoTime();
+        }
+
+        computeForceKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        if (debug) {
+            glFinish();
+            computeForceTime = System.nanoTime() - computeForceTime;
+        }
+
+        // Swap source and destination buffers for next iteration
+        int tmpIn = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
+        SWAPPING_BODIES_IN_SSBO.setBufferLocation(SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
+        SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
+    }
+
+
+    public SSBO getOutputSSBO() {
+        return SWAPPING_BODIES_OUT_SSBO;
+    }
+
+
+    private int numGroups() {
+        return (gpuSimulation.numBodies() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+    }
+
+    
+    public FloatBuffer packPlanets(List<Planet> planets) {
+        // Packs planet data to float buffer: pos(x,y,z), mass, vel(x,y,z), pad, color(r,g,b,a)
+    int count = planets.size();
+    
+    FloatBuffer buf = BufferUtils.createFloatBuffer(count * 12);
+    for (int i = 0; i < count; i++) {
+        Planet p = planets.get(i);
+        buf.put((float)p.x).put((float)p.y).put((float)p.z).put((float)p.mass);
+        buf.put((float)p.xVelocity).put((float)p.yVelocity).put((float)p.zVelocity).put(0f);
+        java.awt.Color c = p.getColor();
+        float cr = c != null ? (c.getRed() / 255f) : 1.0f;
+        float cg = c != null ? (c.getGreen() / 255f) : 1.0f;
+        float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
+        buf.put(cr).put(cg).put(cb).put(1.0f);
+    }
+    buf.flip();
+    return buf;
+}
+
+public void uploadPlanetsData(List<Planet> newPlanets) {
+    // Assumes buffers are already correctly sized
+    FloatBuffer data = packPlanets(newPlanets);
+    glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_WRITE_ONLY);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
+    SSBO.unBind();
+}
+
+public void resizeBuffersAndUpload(List<Planet> newPlanets) {
+    // Resizes SSBOs to fit new count, then uploads
+
+
+    // Resize body buffers
+    FIXED_BODIES_IN_SSBO.createBuffer();
+    FIXED_BODIES_OUT_SSBO.createBuffer();
+    
+    // Resize Barnes-Hut auxiliary buffers
+    MORTON_IN_SSBO.createBuffer();
+    INDEX_IN_SSBO.createBuffer();
+    NODES_SSBO.createBuffer();
+    AABB_SSBO.createBuffer();
+    WG_HIST_SSBO.createBuffer();
+    WG_SCANNED_SSBO.createBuffer();
+    GLOBAL_BASE_SSBO.createBuffer();
+    MORTON_OUT_SSBO.createBuffer();
+    INDEX_OUT_SSBO.createBuffer();
+    WORK_QUEUE_SSBO.createBuffer();
+    MERGE_QUEUE_SSBO.createBuffer();
+
+    MERGE_QUEUE_SSBO.bind();
+
+    FloatBuffer data = packPlanets(newPlanets);
+    FIXED_BODIES_IN_SSBO.bind();
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
+    SSBO.unBind();
+
+    SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
+    SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
+    CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
+    CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
+    CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
+    CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
+}
+
+
+    /* --------- Cleanup --------- */
+
+    public void cleanup() {
+
+        if (computeAABBKernel != null) computeAABBKernel.delete();
+        if (mortonKernel != null) mortonKernel.delete();
+        if (radixSortHistogramKernel != null) radixSortHistogramKernel.delete();
+        if (radixSortParallelScanKernel != null) radixSortParallelScanKernel.delete();
+        if (radixSortExclusiveScanKernel != null) radixSortExclusiveScanKernel.delete();
+        if (radixSortScatterKernel != null) radixSortScatterKernel.delete();
+        if (buildBinaryRadixTreeKernel != null) buildBinaryRadixTreeKernel.delete();
+        if (initLeavesKernel != null) initLeavesKernel.delete();
+        if (propagateNodesKernel != null) propagateNodesKernel.delete();
+        if (computeForceKernel != null) computeForceKernel.delete();
+        
+        if (debugKernel != null) debugKernel.delete();
+        if (FIXED_BODIES_IN_SSBO != null) FIXED_BODIES_IN_SSBO.delete();
+        if (FIXED_BODIES_OUT_SSBO != null) FIXED_BODIES_OUT_SSBO.delete();
+        if (MORTON_IN_SSBO != null) MORTON_IN_SSBO.delete();
+        if (INDEX_IN_SSBO != null) INDEX_IN_SSBO.delete();
+        if (NODES_SSBO != null) NODES_SSBO.delete();
+        if (AABB_SSBO != null) AABB_SSBO.delete();
+        if (WG_HIST_SSBO != null) WG_HIST_SSBO.delete();
+        if (WG_SCANNED_SSBO != null) WG_SCANNED_SSBO.delete();
+        if (MORTON_OUT_SSBO != null) MORTON_OUT_SSBO.delete();
+        if (INDEX_OUT_SSBO != null) INDEX_OUT_SSBO.delete();
+        if (WORK_QUEUE_SSBO != null) WORK_QUEUE_SSBO.delete();
+        if (MERGE_QUEUE_SSBO != null) MERGE_QUEUE_SSBO.delete();
+
+    }
+
+
+    
+    /* --------- Debugging --------- */
+    private String printProfiling() {
+        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime;
+        long percentAABB = (aabbTime * 100) / totalTime;
+        long percentAABBCompute = (computeAABBTime * 100) / totalTime;
+        long percentCollapseAABB = (collapseAABBTime * 100) / totalTime;
+        long percentMorton = (mortonTime * 100) / totalTime;
+        long percentRadixSort = (radixSortTime * 100) / totalTime;
+        long percentRadixSortHistogram = (radixSortHistogramTime * 100) / totalTime;
+        long percentRadixSortParallelScan = (radixSortScanParallelTime * 100) / totalTime;
+        long percentRadixSortExclusiveScan = (radixSortScanExclusiveTime * 100) / totalTime;
+        long percentRadixSortScatter = (radixSortScatterTime * 100) / totalTime;
+        long percentBuildTree = (buildTreeTime * 100) / totalTime;
+        long percentComputeCOMAndLocation = (computeCOMAndLocationTime * 100) / totalTime;
+        long percentInitLeaves = (initLeavesTime * 100) / totalTime;
+        long percentPropagateNodes = (propagateNodesTime * 100) / totalTime;
+        long percentComputeForce = (computeForceTime * 100) / totalTime;
+
+        final long oneMillion = 1_000_000;
+        return aabbTime/oneMillion + " ms (" + percentAABB + "%)" +":AABB\n" + 
+               "\t" + computeAABBTime/oneMillion + " ms (" + percentAABBCompute + "%)" +":Compute\n" + 
+               "\t" + collapseAABBTime/oneMillion + " ms (" + percentCollapseAABB + "%)" +":Collapse\n" + 
+               mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +
+               radixSortTime/oneMillion + " ms (" + percentRadixSort + "%)" +":Radix Sort\n" +
+               "\t" + radixSortHistogramTime/oneMillion + " ms (" + percentRadixSortHistogram + "%)" +":Histogram\n" +
+               "\t" + radixSortScanParallelTime/oneMillion + " ms (" + percentRadixSortParallelScan + "%)" +":Parallel Scan\n" +
+               "\t" + radixSortScanExclusiveTime/oneMillion + " ms (" + percentRadixSortExclusiveScan + "%)" +":Exclusive Scan\n" +
+               "\t" + radixSortScatterTime/oneMillion + " ms (" + percentRadixSortScatter + "%)" +":Scatter\n" +
+               buildTreeTime/oneMillion + " ms (" + percentBuildTree + "%)" +":Build Tree\n" +
+               "\t" + initLeavesTime/oneMillion + " ms (" + percentInitLeaves + "%)" +":Init Leaves\n" +
+               "\t" + propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":Propagate Nodes\n" +
+               "\t" + computeCOMAndLocationTime/oneMillion + " ms (" + percentComputeCOMAndLocation + "%)" +":Compute COM and Location\n" +
+               propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":COM\n" +
+               computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
+               totalTime/oneMillion + " ms" +":Total\n";
+    }
+
+
+    
+    private void debugAABB() {
+        AABB_SSBO.bind();
+        ByteBuffer bb = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        FloatBuffer fb = bb.asFloatBuffer();
+
+        // 7) Print the first few AABBs
+        for (int i = 0; i < Math.min(8, gpuSimulation.numBodies()); ++i) {
+            float minx = fb.get(); float miny = fb.get(); float minz = fb.get(); float pad0 = fb.get();
+            float maxx = fb.get(); float maxy = fb.get(); float maxz = fb.get(); float pad1 = fb.get();
+            System.out.printf("DEBUG AABB %d: min=(%f,%f,%f) max=(%f,%f,%f) pad0=%f pad1=%f%n",
+                            i, minx, miny, minz, maxx, maxy, maxz, pad0, pad1);
+        }
+
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        SSBO.unBind();
+        
+        
+    }
+    
+    private float[][] oldComputeAABB() {
+        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+        
+        SWAPPING_BODIES_IN_SSBO.bind();
+        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        FloatBuffer bodyData = buffer.asFloatBuffer();
+        
+        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+            int offset = i * 12; // 12 floats per body (pos+mass, vel+pad, color)
+            float x = bodyData.get(offset + 0);
+            float y = bodyData.get(offset + 1);
+            float z = bodyData.get(offset + 2);
+            
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            minZ = Math.min(minZ, z);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+            maxZ = Math.max(maxZ, z);
+        }
+        
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        SSBO.unBind();
+        
+        float[][] raabb = new float[][] {
+            {minX, minY, minZ},
+            {maxX, maxY, maxZ}
+        };
+        return raabb;
+    }
+
+    private void debugMortonCodes() {
+        
+        // Read morton codes from GPU buffer
+        MORTON_IN_SSBO.bind();
+        ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        LongBuffer mortonData = mortonBuffer.asLongBuffer();
+        HashSet<Long> mortonSet = new HashSet<>();
+        
+        for (int i = 0; i < Math.min(10, mortonData.capacity()); i++) {
+            long morton = mortonData.get(i);   
+            System.out.printf("  [%d]: %d\n", i, morton);
+        }
+
+        for (int i = 0; i < mortonData.capacity(); i++) {
+            if (mortonSet.contains(mortonData.get(i))) {
+                System.out.println("Duplicate morton code: " + mortonData.get(i));
+            }
+            mortonSet.add(mortonData.get(i));
+        }
+
+        System.out.println("Non-unique morton codes: " + (mortonData.capacity() - mortonSet.size()));
+        
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        SSBO.unBind();
+    }
+    
+    private void debugRadixSort() {
+    MORTON_IN_SSBO.bind();
+    ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer mortonData = mortonBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    INDEX_IN_SSBO.bind();
+    ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer indexData = indexBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    WG_HIST_SSBO.bind();
+    ByteBuffer wgHistBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer wgHistData = wgHistBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    WG_SCANNED_SSBO.bind();
+    ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    GLOBAL_BASE_SSBO.bind();
+    ByteBuffer globalBaseBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer globalBaseData = globalBaseBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    BUCKET_TOTALS_SSBO.bind();
+    ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    MORTON_OUT_SSBO.bind();
+    ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    INDEX_OUT_SSBO.bind();
+    ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+    for (int i = 0; i < Math.min(10, gpuSimulation.numBodies()); i++) {
+        int morton = mortonData.capacity() > i ? mortonData.get(i) : -1;   
+        int index = indexData.capacity() > i ? indexData.get(i) : -1;
+        int wgHist = wgHistData.capacity() > i ? wgHistData.get(i) : -1;
+        int wgScanned = wgScannedData.capacity() > i ? wgScannedData.get(i) : -1;
+        int globalBase = globalBaseData.capacity() > i ? globalBaseData.get(i) : -1;
+        int bucketTotals = bucketTotalsData.capacity() > i ? bucketTotalsData.get(i) : -1;
+        int mortonOut = mortonOutData.capacity() > i ? mortonOutData.get(i) : -1;
+        int indexOut = indexOutData.capacity() > i ? indexOutData.get(i) : -1;
+        System.out.printf("  [%d]: morton=%d index=%d wgHist=%d wgScanned=%d globalBase=%d bucketTotals=%d mortonOut=%d indexOut=%d\n", i, morton, index, wgHist, wgScanned, globalBase, bucketTotals, mortonOut, indexOut);
+    }
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+}
+
+    private void debugSorting() {
+        System.out.println("=== RADIX SORT RESULTS ===");
+            // Read sorted Morton codes
+            MORTON_IN_SSBO.bind();
+            ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer mortonData = mortonBuffer.asIntBuffer();
+            System.out.println("Sorted Morton codes:");
+            for (int i = 0; i < Math.min(100, gpuSimulation.numBodies()); i++) {
+                int morton = mortonData.get(i);
+                System.out.printf("  [%d]: %d\n", i, morton);
+            }
+            Set<Integer> s = new HashSet<Integer>();
+            for (int i = 0; i < mortonData.capacity(); i++) {
+                s.add(mortonData.get(i));
+            }
+            System.out.println(mortonData.capacity() + " " + s.size());
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            
+            // Read sorted body indices
+            INDEX_OUT_SSBO.bind();
+            ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer indexData = indexBuffer.asIntBuffer();
+            System.out.println("Sorted body indices:");
+            for (int i = 0; i < Math.min(100, gpuSimulation.numBodies()); i++) {
+                int bodyIndex = indexData.get(i);
+                System.out.printf("  [%d]: %d\n", i, bodyIndex);
+            }
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            
+            SSBO.unBind();
+
+    }
+
+    private void debugTree() {
+        
+        // Debug: Output buffer data
+            System.out.println("=== FINAL TREE WITH COM DATA ===");
+            
+            // First check for stuck nodes with readyChildren < 2
+            System.out.println("=== STUCK NODE ANALYSIS ===");
+            NODES_SSBO.bind();
+            ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            IntBuffer nodeData = nodeBuffer.asIntBuffer();
+            
+            int numLeaves = gpuSimulation.numBodies();
+            int totalNodes = 2 * gpuSimulation.numBodies() - 1;
+            // boolean foundStuckNodes = false;
+            
+            // for (int i = numLeaves; i < totalNodes; i++) { // Check internal nodes only
+            //     int offset = i * Node.STRUCT_SIZE;
+            //     if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+            //         int readyChildren = nodeData.get(offset + Node.READY_CHILDREN_OFFSET);
+            //         if (readyChildren < 2) {
+            //             foundStuckNodes = true;
+            //             int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+            //             int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
+            //             int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
+            //             float mass = Float.intBitsToFloat(nodeData.get(offset + Node.COM_MASS_OFFSET));
+                        
+            //             // System.out.printf("STUCK Node[%d]: ready=%d childA=%d childB=%d parent=%d mass=%.3f\n", 
+            //             //     i, readyChildren, 
+            //             //     childA == 0xFFFFFFFF ? -1 : childA,
+            //             //     childB == 0xFFFFFFFF ? -1 : childB,
+            //             //     parentId == 0xFFFFFFFF ? -1 : parentId,
+            //             //     mass);
+                            
+            //             // Check children status
+            //             if (childA != 0xFFFFFFFF && childA < totalNodes) {
+            //                 int childAOffset = childA * Node.STRUCT_SIZE;
+            //                 if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+            //                     int childAReady = childA < numLeaves ? 1 : nodeData.get(childAOffset + Node.READY_CHILDREN_OFFSET); // Leaves are always ready
+            //                     float childAMass = Float.intBitsToFloat(nodeData.get(childAOffset + Node.COM_MASS_OFFSET));
+            //                     System.out.printf("  Child A[%d]: ready=%d mass=%.3f%s\n", 
+            //                         childA, childAReady, childAMass, childA < numLeaves ? " (leaf)" : "");
+            //                 }
+            //             }
+            //             if (childB != 0xFFFFFFFF && childB < totalNodes) {
+            //                 int childBOffset = childB * Node.STRUCT_SIZE;
+            //                 if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+            //                     int childBReady = childB < numLeaves ? 1 : nodeData.get(childBOffset + Node.READY_CHILDREN_OFFSET); // Leaves are always ready
+            //                     float childBMass = Float.intBitsToFloat(nodeData.get(childBOffset + Node.COM_MASS_OFFSET));
+            //                     System.out.printf("  Child B[%d]: ready=%d mass=%.3f%s\n", 
+            //                         childB, childBReady, childBMass, childB < numLeaves ? " (leaf)" : "");
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            
+            // if (!foundStuckNodes) {
+            //     System.out.println("No stuck nodes found - all internal nodes have readyChildren >= 2");
+            // }
+            
+            // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            
+            // System.out.println("Tree nodes:");
+            // // Read tree nodes
+            // glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
+        
+            // Read tree nodes
+            //ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+            //IntBuffer nodeData = nodeBuffer.asIntBuffer();
+            System.out.println("Tree nodes:");
+            
+            //int numLeaves = planets.size();
+            //int numInternalNodes = planets.size() - 1;
+            //int totalNodes = 2 * planets.size() - 1;
+            
+            // Show first few leaf nodes (indices 0 to numBodies-1)
+
+            System.out.println(Node.getNodes(nodeData, 0, Math.min(20, numLeaves)));
+            
+            // Show internal nodes from halfway point (indices numBodies to 2*numBodies-2)
+            System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 20, totalNodes)));
+
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            verifyTreeStructure(nodeData, numLeaves, totalNodes);
+    }
+
+    private void verifyTreeStructure(IntBuffer nodeData, int numLeaves, int totalNodes) {
+        System.out.println("\n=== TREE STRUCTURE VERIFICATION ===");
+        
+        boolean hasErrors = false;
+        int rootCount = 0;
+        int[] childCount = new int[totalNodes]; // How many children each node claims to have
+        boolean[] hasParent = new boolean[totalNodes]; // Which nodes have a parent pointing to them
+        
+        // Pass 1: Collect all parent-child relationships
+        for (int i = 0; i < totalNodes; i++) {
+            int offset = i * Node.STRUCT_SIZE;
+            if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
+            
+            int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
+            
+            // Check for root nodes
+            if (parentId == 0xFFFFFFFF) {
+                rootCount++;
+                if (i < numLeaves) {
+                    System.out.printf("ERROR: Leaf[%d] claims to be root!\n", i);
+                    hasErrors = true;
+                }
+            } else {
+                if (parentId >= totalNodes || parentId < 0) {
+                    System.out.printf("ERROR: Node[%d] has invalid parent %d (should be 0-%d)\n", 
+                        i, parentId, totalNodes-1);
+                    hasErrors = true;
+                } else {
+                    hasParent[i] = true;
+                }
+            }
+            
+            // For internal nodes, check children
+            if (i >= numLeaves) {
+                int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+                int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
+                
+                if (childA != 0xFFFFFFFF) {
+                    if (childA >= totalNodes || childA < 0) {
+                        System.out.printf("ERROR: Internal[%d] has invalid childA %d\n", i, childA);
+                        hasErrors = true;
+                    } else {
+                        childCount[i]++;
+                    }
+                }
+                
+                if (childB != 0xFFFFFFFF) {
+                    if (childB >= totalNodes || childB < 0) {
+                        System.out.printf("ERROR: Internal[%d] has invalid childB %d\n", i, childB);
+                        hasErrors = true;
+                    } else {
+                        childCount[i]++;
+                    }
+                }
+            }
+        }
+        
+        // Check root count
+        if (rootCount == 0) {
+            System.out.println("ERROR: No root node found!");
+            hasErrors = true;
+        } else if (rootCount > 1) {
+            System.out.printf("ERROR: Multiple root nodes found (%d)!\n", rootCount);
+            hasErrors = true;
+        }
+        
+        // Pass 2: Verify bidirectional parent-child relationships
+        for (int i = numLeaves; i < totalNodes; i++) {
+            int offset = i * Node.STRUCT_SIZE;
+            if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
+            
+            int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+            int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
+            
+            // Check childA relationship
+            if (childA != 0xFFFFFFFF && childA < totalNodes) {
+                int childAOffset = childA * Node.STRUCT_SIZE;
+                if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int childAParent = nodeData.get(childAOffset + Node.PARENT_ID_OFFSET);
+                    if (childAParent != i) {
+                        System.out.printf("ERROR: Internal[%d] claims childA=%d, but Node[%d] has parent=%d\n", 
+                            i, childA, childA, childAParent == 0xFFFFFFFF ? -1 : childAParent);
+                        hasErrors = true;
+                    }
+                }
+            }
+            
+            // Check childB relationship
+            if (childB != 0xFFFFFFFF && childB < totalNodes) {
+                int childBOffset = childB * Node.STRUCT_SIZE;
+                if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int childBParent = nodeData.get(childBOffset + Node.PARENT_ID_OFFSET);
+                    if (childBParent != i) {
+                        System.out.printf("ERROR: Internal[%d] claims childB=%d, but Node[%d] has parent=%d\n", 
+                            i, childB, childB, childBParent == 0xFFFFFFFF ? -1 : childBParent);
+                        hasErrors = true;
+                    }
+                }
+            }
+            
+            // Check that internal nodes have exactly 2 children
+            if (childCount[i] != 2) {
+                System.out.printf("ERROR: Internal[%d] has %d children (should be 2)\n", i, childCount[i]);
+                hasErrors = true;
+            }
+        }
+        
+        // Check for orphaned nodes (except root)
+        for (int i = 0; i < totalNodes; i++) {
+            if (!hasParent[i]) {
+                int offset = i * Node.STRUCT_SIZE;
+                if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
+                    int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
+                    if (parentId != 0xFFFFFFFF) {
+                        System.out.printf("ERROR: Node[%d] claims parent=%d but no node claims it as child\n", 
+                            i, parentId);
+                        hasErrors = true;
+                    }
+                }
+            }
+        }
+        
+        // Check for duplicate children
+        boolean[] usedAsChild = new boolean[totalNodes];
+        for (int i = numLeaves; i < totalNodes; i++) {
+            int offset = i * Node.STRUCT_SIZE;
+            if (offset + Node.STRUCT_SIZE - 1 >= nodeData.capacity()) continue;
+            
+            int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
+            int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
+            
+            if (childA != 0xFFFFFFFF && childA < totalNodes) {
+                if (usedAsChild[childA]) {
+                    System.out.printf("ERROR: Node[%d] is claimed as child by multiple parents!\n", childA);
+                    hasErrors = true;
+                } else {
+                    usedAsChild[childA] = true;
+                }
+            }
+            
+            if (childB != 0xFFFFFFFF && childB < totalNodes) {
+                if (usedAsChild[childB]) {
+                    System.out.printf("ERROR: Node[%d] is claimed as child by multiple parents!\n", childB);
+                    hasErrors = true;
+                } else {
+                    usedAsChild[childB] = true;
+                }
+            }
+            
+            // Check for self-reference
+            if (childA == i || childB == i) {
+                System.out.printf("ERROR: Internal[%d] has itself as a child!\n", i);
+                hasErrors = true;
+            }
+        }
+        
+        // Summary
+        if (hasErrors) {
+            System.out.println("❌ TREE STRUCTURE VERIFICATION FAILED - Errors found above");
+        } else {
+            System.out.println("✅ TREE STRUCTURE VERIFICATION PASSED - No structural errors found");
+        }
+        
+        System.out.printf("Root nodes: %d, Total nodes: %d (Leaves: %d, Internal: %d)\n", 
+            rootCount, totalNodes, numLeaves, totalNodes - numLeaves);
+        System.out.println("=== END VERIFICATION ===\n");
+    }
+    
+    
+}

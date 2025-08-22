@@ -159,7 +159,7 @@ public class OpenGLUI {
             }
         },false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.state == OpenGLWindow.State.FRAME_ADVANCE) openGlWindow.setFrameReady(true);},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.state == OpenGLWindow.State.FRAME_ADVANCE) openGlWindow.setAdvanceFrame(true);},false));
         
         
     }
@@ -449,7 +449,7 @@ public class OpenGLUI {
     }
     
     private void drawDebugInfo() {
-        String performanceText = openGlWindow.gpuSimulation.debugString;
+        String performanceText = openGlWindow.gpuSimulation.barnesHut.debugString;
         if (performanceText == null || performanceText.isEmpty()) return;
         
         // Save current OpenGL state
