@@ -126,6 +126,8 @@ public class BarnesHut {
 
         computeCOMAndLocation();
 
+        System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies() + 5));
+
         computeForce();
 
             if (debug) {
@@ -496,6 +498,7 @@ public class BarnesHut {
         computeAABBKernel.run();
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
+            checkGLError("computeAABB");
             glFinish(); 
             computeAABBTime = System.nanoTime() - computeAABBStartTime;
             collapseAABBStartTime = System.nanoTime();
@@ -504,6 +507,7 @@ public class BarnesHut {
         collapseAABBKernel.run();
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
+            checkGLError("collapseAABB");
             glFinish();
             collapseAABBTime = System.nanoTime() - collapseAABBStartTime;
             aabbTime = computeAABBTime + collapseAABBTime;
@@ -521,6 +525,7 @@ public class BarnesHut {
         mortonKernel.run();
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
+            checkGLError("generateMortonCodes");
             glFinish();
             mortonTime = System.nanoTime() - mortonTime;
         }
@@ -561,6 +566,7 @@ public class BarnesHut {
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             if (debug) {
+                checkGLError("radixSortHistogram");
                 glFinish();
                 radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
                 radixSortScanParallelStartTime = System.nanoTime();
@@ -570,6 +576,7 @@ public class BarnesHut {
             radixSortParallelScanKernel.run();
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             if (debug) {
+                checkGLError("radixSortParallelScan");
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
                 radixSortScanExclusiveStartTime = System.nanoTime();
@@ -579,6 +586,7 @@ public class BarnesHut {
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             if (debug) {
+                checkGLError("radixSortExclusiveScan");
                 glFinish();
                 radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
                 radixSortScatterStartTime = System.nanoTime();
@@ -588,6 +596,7 @@ public class BarnesHut {
             radixSortScatterKernel.run();
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             if (debug) {
+                checkGLError("radixSortScatter");
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
             }
@@ -617,6 +626,7 @@ public class BarnesHut {
         buildBinaryRadixTreeKernel.run();
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
+            checkGLError("buildBinaryRadixTree");
             glFinish();
             buildTreeTime = System.nanoTime() - buildTreeTime;
         }
@@ -637,6 +647,7 @@ public class BarnesHut {
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         if (debug) {
+            checkGLError("initLeaves");
             glFinish();
             initLeavesTime = System.nanoTime() - initLeavesTime;
             propagateNodesTime = System.nanoTime();
@@ -647,10 +658,13 @@ public class BarnesHut {
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
         if (debug) {
+            checkGLError("propagateNodes");
             glFinish();
             propagateNodesTime = System.nanoTime() - propagateNodesTime;
             computeCOMAndLocationTime = initLeavesTime + propagateNodesTime;
         }
+
+
     }
 
     private void computeForce() {
@@ -661,6 +675,7 @@ public class BarnesHut {
         computeForceKernel.run();
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
+            checkGLError("computeForce");
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
         }
@@ -780,6 +795,13 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
 
     
     /* --------- Debugging --------- */
+
+    private void checkGLError(String operation) {
+        int error = glGetError();
+        if (error != GL_NO_ERROR) {
+            System.err.println("OpenGL Error after " + operation + ": " + error);
+        }
+    }
     private String printProfiling() {
         long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime;
         long percentAABB = (aabbTime * 100) / totalTime;

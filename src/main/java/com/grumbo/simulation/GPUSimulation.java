@@ -1,20 +1,10 @@
 package com.grumbo.simulation;
 
-import org.lwjgl.*;
-import org.joml.Matrix4f;
-
-import com.grumbo.gpu.*;
 import java.nio.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Map;
-import java.util.HashMap;
+
 
 import static org.lwjgl.opengl.GL43C.*;
 
@@ -25,17 +15,14 @@ public class GPUSimulation {
     private Render render;
 
 
-    private Render.RenderMode renderMode;
+
     private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue;
 
     private ArrayList<Planet> planets;
 
-    private boolean debug;
     private OpenGLWindow openGlWindow;
     public GPUSimulation(OpenGLWindow openGlWindow, ArrayList<Planet> planets, Render.RenderMode renderMode, boolean debug) {
         this.planets = planets;
-        this.debug = debug;
-        this.renderMode = renderMode;
         this.commandQueue = new ConcurrentLinkedQueue<>();
         this.barnesHut = new BarnesHut(this,debug);
         this.render = new Render(this,renderMode,debug);
@@ -58,10 +45,12 @@ public class GPUSimulation {
             render.render(barnesHut.getOutputSSBO(), state);
         }
 
-        if (state == OpenGLWindow.State.FRAME_ADVANCE && openGlWindow.advanceFrame()) {
-            barnesHut.step();
+        if (state == OpenGLWindow.State.FRAME_ADVANCE) {
+            if (openGlWindow.advanceFrame()) {
+                barnesHut.step();
+                openGlWindow.setAdvanceFrame(false);
+            }
             render.render(barnesHut.getOutputSSBO(), state);
-            openGlWindow.setAdvanceFrame(false);
         }
     }
     
@@ -101,6 +90,10 @@ public class GPUSimulation {
     public void resizeBuffersAndUpload(List<Planet> planets) {
         barnesHut.resizeBuffersAndUpload(planets);
     }
+
+    public String getPerformanceText() {
+        return barnesHut.debugString;
+    }
     
 
 
@@ -119,12 +112,7 @@ public class GPUSimulation {
 
     
     
-    private void checkGLError(String operation) {
-        int error = glGetError();
-        if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error after " + operation + ": " + error);
-        }
-    }
+
 
 
     public ArrayList<Planet> getPlanets() {

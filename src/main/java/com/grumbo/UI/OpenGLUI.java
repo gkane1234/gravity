@@ -388,6 +388,10 @@ public class OpenGLUI {
         glMatrixMode(GL_MODELVIEW);
     }
 
+    public String getPerformanceText() {
+        return openGlWindow.getPerformanceText();
+    }
+
     private void drawFrameAdvanceIndicator() {
         if (font == null || !font.isLoaded()) {
             return;
@@ -449,7 +453,7 @@ public class OpenGLUI {
     }
     
     private void drawDebugInfo() {
-        String performanceText = openGlWindow.gpuSimulation.barnesHut.debugString;
+        String performanceText = openGlWindow.getPerformanceText();
         if (performanceText == null || performanceText.isEmpty()) return;
         
         // Save current OpenGL state

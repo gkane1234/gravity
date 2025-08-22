@@ -75,7 +75,7 @@ public class OpenGLWindow {
         float[] radius = {100, 1000};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNew(10_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNew(100_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(center);
         //planets.add(center2);
 
@@ -370,5 +370,9 @@ public class OpenGLWindow {
 
     public boolean advanceFrame() {
         return advanceFrame;
+    }
+
+    public String getPerformanceText() {
+        return gpuSimulation.getPerformanceText();
     }
 } 

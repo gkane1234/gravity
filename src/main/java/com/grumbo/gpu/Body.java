@@ -17,7 +17,10 @@ public class Body {
     private float[] velPad;
     private float[] color;
     
-    public static final VariableType[] bodyTypes = new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT };
+    public static final VariableType[] bodyTypes = new VariableType[] { 
+        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, 
+        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT,
+        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT };
 
 
     public Body(float[] posMass, float[] velPad, float[] color) {

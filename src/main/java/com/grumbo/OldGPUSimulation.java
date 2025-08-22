@@ -1,8 +1,12 @@
-package com.grumbo.simulation;
+package com.grumbo;
 
 import org.lwjgl.*;
 
 import com.grumbo.gpu.*;
+import com.grumbo.simulation.GPUCommands;
+import com.grumbo.simulation.Planet;
+import com.grumbo.simulation.Settings;
+import com.grumbo.simulation.GPUCommands.GPUCommand;
 
 import java.nio.*;
 import java.util.ArrayList;

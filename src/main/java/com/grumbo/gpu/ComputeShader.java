@@ -71,17 +71,17 @@ public class ComputeShader {
         glUseProgram(program);
         if (uniforms != null) {
             for (Uniform<?> uniform : uniforms) {
-                System.out.println("Uploading uniform: " + uniform.getName());
+               
                 uniform.uploadToShader(program);
             }
         }
         if (ssboNames != null) {
             for (String ssboName : ssboNames) {
-                System.out.println("Binding SSBO: " + ssboName);
+
                 barnesHut.ssbos.get(ssboName).bind();
             }
         }
-        //System.out.println("Dispatching compute shader: "  +program+ " with " + xWorkGroupsFunction.getXWorkGroups() + " work groups");
+        
         glDispatchCompute(xWorkGroupsFunction.getXWorkGroups(), 1, 1);
 
     }

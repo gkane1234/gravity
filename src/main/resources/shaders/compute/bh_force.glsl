@@ -60,7 +60,7 @@ void computeForce()
             //     }
             // }
         }
-        else if (acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
+        else if (acceptanceCriterion(longestSide/2, oneOverDist, 0.5)) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
         }
         else {

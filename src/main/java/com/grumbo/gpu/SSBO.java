@@ -3,6 +3,8 @@ package com.grumbo.gpu;
 import static org.lwjgl.opengl.GL43C.*;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+
 
 public class SSBO {
 
@@ -94,60 +96,92 @@ public class SSBO {
     }
 
     public String getData(int startIndex, int endIndex) {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        int start = startIndex*STRUCT_SIZE;
-        int end = Math.min(endIndex*STRUCT_SIZE, buffer.capacity());
-        byte[] data = new byte[end - start];
-        buffer.get(data, start, end - start);
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        String result = "";
 
+        if (buffer == null) {
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            return "Error: Could not map buffer";
+        }
+        
+        buffer.order(java.nio.ByteOrder.nativeOrder());
+        String result = name+"\n";
+        
+
+        //Assume it is integers
         if (STRUCT_SIZE == -1) {
+            int[] data = new int[buffer.capacity()/4];
+            IntBuffer intBuffer = buffer.asIntBuffer();
+            intBuffer.get(data);
             for (int i = 0; i < data.length; i++) {
                 result += String.format("%d", data[i]);
                 if (i < data.length - 1) {
-                    result += ", ";
+                    result += "\n";
                 }
             }
-            return result;
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
+            return result+"\n";
         }
 
+        // Calculate total struct size in bytes
+        int structSizeInBytes = 0;
+        for (int i = 0; i < types.length; i++) {
+            structSizeInBytes += VariableType.getSize(types[i]);
+        }
 
+        // Start reading from the correct byte offset
+        int startByteOffset = startIndex * structSizeInBytes;
+        
+        // Iterate through each struct
+        for (int structIndex = startIndex; structIndex < endIndex; structIndex++) {
+            result += String.format("Index: %d\t (", structIndex);
+            
+            // Current byte position within the buffer
+            int currentByteOffset = startByteOffset + (structIndex - startIndex) * structSizeInBytes;
+            
+            // Read each field in the struct
+            for (int fieldIndex = 0; fieldIndex < types.length; fieldIndex++) {
+                VariableType type = types[fieldIndex];
 
-        for (int i = start; i < end; i+=STRUCT_SIZE) {
-            result += String.format("Index: %d\t (", i/STRUCT_SIZE);
-            int loc = 0;
-            for (int j = 0; j < STRUCT_SIZE; j++) {
-                int index = i + j;
-                VariableType type = types[loc];
-                result += String.format("%d:", index);
-                if (types != null) {
-                    if (type == VariableType.FLOAT) {
-                        result += String.format("%.2f", Float.intBitsToFloat(data[index]));
-                    } else if (type == VariableType.INT) {
-                        result += String.format("%d", data[index]);
-                    } else if (type == VariableType.UINT) {
-                        result += String.format("%d", data[index]);
-                    } else if (type == VariableType.BOOL) {
-                        result += String.format(data[index] == 1 ? "T" : "F");
-                    } else if (type == VariableType.UINT64) {
-                        result += String.format("%d", (long)data[index] << 32l | (long)data[index+1]);
-                        j++;
-                        loc--;
-                    } else if (type == VariableType.PADDING) {
-                        result += "PADDING";
-                    }
-                    loc++;
-                } else {
-                    result += String.format("%d", data[index]);
+                //System.out.println(buffer.get(currentByteOffset)+" "+Float.intBitsToFloat(buffer.getInt(currentByteOffset)));
+                
+                result += String.format("%d:", fieldIndex);
+                
+                if (type == VariableType.FLOAT) {
+                    int intValue = buffer.getInt(currentByteOffset);
+                    result += String.format("%.2f", Float.intBitsToFloat(intValue));
+                    currentByteOffset += VariableType.getSize(type);    
+                } else if (type == VariableType.INT) {
+                    result += String.valueOf(buffer.getInt(currentByteOffset));
+                    currentByteOffset += VariableType.getSize(type);
+                } else if (type == VariableType.UINT) {
+                    // For unsigned int, we need to handle it properly
+                    int value = buffer.getInt(currentByteOffset);
+                    result += String.valueOf(value);
+                    currentByteOffset += VariableType.getSize(type);
+                } else if (type == VariableType.BOOL) {
+                    result += String.format(buffer.get(currentByteOffset) == 1 ? "T" : "F");
+                    currentByteOffset += VariableType.getSize(type);
+                } else if (type == VariableType.UINT64) {
+                    result += String.format("%d", buffer.getLong(currentByteOffset));
+                    currentByteOffset += VariableType.getSize(type);
+                } else if (type == VariableType.PADDING) {
+                    result += "PADDING";
+                    currentByteOffset += VariableType.getSize(type);
                 }
-                if (j < STRUCT_SIZE - 1) {
+                
+                if (fieldIndex < types.length - 1) {
                     result += ", ";
                 }
             }
             result += ")";
             result += "\n";
         }
+        
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
         return result;
     }
 
