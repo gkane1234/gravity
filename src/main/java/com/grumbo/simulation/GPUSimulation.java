@@ -106,12 +106,27 @@ public class GPUSimulation {
     private long mortonTime = 0;
     private long radixSortTime = 0;
     private long radixSortHistogramTime = 0;
-    private long radixSortScanTime = 0;
+    private long radixSortScanParallelTime = 0;
+    private long radixSortScanExclusiveTime = 0;
     private long radixSortScatterTime = 0;
     private long propagateNodesTime = 0;
     private long buildTreeTime = 0;
     private long computeForceTime = 0;
     public String debugString = "";
+
+    public Map<String, Uniform<?>> uniforms;
+    private Uniform<Integer> numWorkGroupsUniform;
+    private Uniform<Float> softeningUniform;
+    private Uniform<Float> thetaUniform;
+    private Uniform<Float> dtUniform;
+    private Uniform<Integer> numBodiesUniform;
+    private Uniform<Float> elasticityUniform;
+    private Uniform<Float> densityUniform;
+    private Uniform<Float> restitutionUniform;
+    private Uniform<Boolean> collisionUniform;
+    private Uniform<Integer> mergeQueueTailUniform;
+    private Uniform<Integer> passShiftUniform;
+
 
 
 
@@ -154,6 +169,29 @@ public class GPUSimulation {
     public GPUSimulation(ArrayList<Planet> planets) {
         this.planets = planets;
         ssbos = new HashMap<String, SSBO>();
+        uniforms = new HashMap<String, Uniform<?>>();
+        numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> numGroups());
+        softeningUniform = new Uniform<Float>("softening", () -> Settings.getInstance().getSoftening());
+        thetaUniform = new Uniform<Float>("theta", () -> Settings.getInstance().getTheta());
+        dtUniform = new Uniform<Float>("dt", () -> Settings.getInstance().getDt());
+        numBodiesUniform = new Uniform<Integer>("numBodies", () -> planets.size());
+        elasticityUniform = new Uniform<Float>("elasticity", () -> (float)Settings.getInstance().getElasticity());
+        densityUniform = new Uniform<Float>("density", () -> (float)Settings.getInstance().getDensity());
+        restitutionUniform = new Uniform<Float>("restitution", () -> 0.2f);
+        mergeQueueTailUniform = new Uniform<Integer>("mergeQueueTail", () -> 0);
+        passShiftUniform = new Uniform<Integer>("passShift", () -> 0);
+
+        uniforms.put("numWorkGroups", numWorkGroupsUniform);
+        uniforms.put("softening", softeningUniform);
+        uniforms.put("theta", thetaUniform);
+        uniforms.put("dt", dtUniform);
+        uniforms.put("numBodies", numBodiesUniform);
+        uniforms.put("elasticity", elasticityUniform);
+        uniforms.put("density", densityUniform);
+        uniforms.put("restitution", restitutionUniform);
+        uniforms.put("collision", collisionUniform);
+        uniforms.put("mergeQueueTail", mergeQueueTailUniform);
+        uniforms.put("passShift", passShiftUniform);
     }
 
     private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue = new ConcurrentLinkedQueue<>();
@@ -292,6 +330,7 @@ public class GPUSimulation {
         uFarDistLocSphere = glGetUniformLocation(sphereProgram, "uFarDist");
 
         // Create SSBOs
+        // Note: The size of the SSBO's is defined as a function in these definitions.
         FIXED_BODIES_IN_SSBO = new SSBO(BODIES_IN_SSBO_BINDING, () -> {
             return packPlanets(planets);
         }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes);
@@ -364,8 +403,8 @@ public class GPUSimulation {
 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
+        // Create the buffers
         FIXED_BODIES_IN_SSBO.createBuffer();
-
         FIXED_BODIES_OUT_SSBO.createBuffer();
         MORTON_IN_SSBO.createBuffer();
         INDEX_IN_SSBO.createBuffer();
@@ -568,44 +607,21 @@ public class GPUSimulation {
     // Resizes SSBOs to fit new count, then uploads
     public void resizeBuffersAndUpload(List<Planet> newPlanets) {
         this.planets = new ArrayList<>(newPlanets);
-        int bytes = this.planets.size() * 12 * Float.BYTES;
-        int numBodies = this.planets.size();
-        int numWorkGroups = numGroups();
-        int NUM_BUCKETS = 16;
-
-        // Resize body buffers
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, bytes, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_OUT_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, bytes, GL_DYNAMIC_COPY);
+        FIXED_BODIES_IN_SSBO.createBuffer();
+        FIXED_BODIES_OUT_SSBO.createBuffer();
+        MORTON_IN_SSBO.createBuffer();
+        INDEX_IN_SSBO.createBuffer();
+        NODES_SSBO.createBuffer();
+        AABB_SSBO.createBuffer();
+        WG_HIST_SSBO.createBuffer();
+        WG_SCANNED_SSBO.createBuffer();
+        GLOBAL_BASE_SSBO.createBuffer();
+        BUCKET_TOTALS_SSBO.createBuffer();
+        MORTON_OUT_SSBO.createBuffer();
+        INDEX_OUT_SSBO.createBuffer();
+        WORK_QUEUE_SSBO.createBuffer();
+        MERGE_QUEUE_SSBO.createBuffer();
         
-        // Resize Barnes-Hut auxiliary buffers
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 * numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABB_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * 2 * 4 * Float.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numWorkGroups * NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, NUM_BUCKETS * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Long.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, numBodies * Integer.BYTES, GL_DYNAMIC_COPY);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO.getBufferLocation());
-        glBufferData(GL_SHADER_STORAGE_BUFFER, (2 + numBodies) * Integer.BYTES, GL_DYNAMIC_COPY);
-
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-        FloatBuffer data = packPlanets(this.planets);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, FIXED_BODIES_IN_SSBO.getBufferLocation());
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
         SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
@@ -614,137 +630,21 @@ public class GPUSimulation {
     private int numGroups() {
         return (planets.size() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
     }
-
     private void stepBarnesHut() {
-        long aabbStartTime = 0;
-        long mortonStartTime = 0;
-        long radixSortStartTime = 0;
-        long buildBinaryRadixTreeStartTime = 0;
-        long computeCOMAndLocationStartTime = 0;
-        long computeForceStartTime = 0;
 
-        int numGroups = numGroups();
-        if (DEBUG_BARNES_HUT) {
-            aabbTime = 0;
-            computeAABBTime = 0;
-            collapseAABBTime = 0;
-            mortonTime = 0;
-            radixSortTime = 0;
-            radixSortHistogramTime = 0;
-            radixSortScanTime = 0;
-            radixSortScatterTime = 0;
-            buildTreeTime = 0;
-            propagateNodesTime = 0;
-            computeForceTime = 0;
+        computeAABB();
 
-        }
+        generateMortonCodes();
 
-        //Compute AABB
-        if (DEBUG_BARNES_HUT) {
-            //System.out.println("0. Computing AABB...");
-            aabbStartTime = System.nanoTime();
-        }
-        computeAABB(numGroups, DEBUG_BARNES_HUT);
+        radixSort();
+
+        buildBinaryRadixTree();
+
+        computeCOMAndLocation();
+
+        computeForce();
 
         if (DEBUG_BARNES_HUT) {
-            glFinish();
-            long aabbEndTime = System.nanoTime();
-            long aabbDuration = (aabbEndTime - aabbStartTime);
-            aabbTime += aabbDuration;
-            //System.out.println("AABB took " + aabbDuration + " nanoseconds");
-            
-        }
-        //Generate Morton Codes
-
-        if (DEBUG_BARNES_HUT) {
-            //System.out.println("1. Generating Morton codes...");
-            mortonStartTime = System.nanoTime();
-        }
-
-        generateMortonCodes(numGroups, DEBUG_BARNES_HUT);
-
-
-        if (DEBUG_BARNES_HUT) {
-            glFinish();
-            long mortonEndTime = System.nanoTime();
-            long mortonDuration = (mortonEndTime - mortonStartTime);
-            mortonTime += mortonDuration;
-            //System.out.println("Morton codes took " + mortonDuration + " nanoseconds");
-        }
-
-        //Radix Sort
-        if (DEBUG_BARNES_HUT) {
-            //System.out.println("2. Radix sorting...");
-            radixSortStartTime = System.nanoTime();
-        }
-
-        radixSort(numGroups, DEBUG_BARNES_HUT);
-
-        if (DEBUG_BARNES_HUT) {
-            glFinish();
-            long radixSortEndTime = System.nanoTime();
-            long radixSortDuration = (radixSortEndTime - radixSortStartTime);
-            radixSortTime += radixSortDuration;
-            //System.out.println("Radix sort took " + radixSortDuration + " nanoseconds");
-        }
-
-        //Generate Binary Radix Tree
-        if (DEBUG_BARNES_HUT) {
-            //System.out.println("3. Building binary radix tree...");
-            buildBinaryRadixTreeStartTime = System.nanoTime();
-        }
-
-        buildBinaryRadixTree(numGroups, DEBUG_BARNES_HUT);
-
-        if (DEBUG_BARNES_HUT) {
-            glFinish();
-            long buildBinaryRadixTreeEndTime = System.nanoTime();
-            long buildBinaryRadixTreeDuration = (buildBinaryRadixTreeEndTime - buildBinaryRadixTreeStartTime);
-            buildTreeTime += buildBinaryRadixTreeDuration;
-           // System.out.println("Build binary radix tree took " + buildBinaryRadixTreeDuration + " nanoseconds");
-        }
-
-        //Compute COM and Location
-        if (DEBUG_BARNES_HUT) {
-            //System.out.println("4. Computing center-of-mass...");
-            computeCOMAndLocationStartTime = System.nanoTime();
-        }
-
-        computeCOMAndLocation(numGroups, DEBUG_BARNES_HUT);
-
-        if (DEBUG_BARNES_HUT) {
-            glFinish();
-            long computeCOMAndLocationEndTime = System.nanoTime();
-            long computeCOMAndLocationDuration = (computeCOMAndLocationEndTime - computeCOMAndLocationStartTime);
-            propagateNodesTime += computeCOMAndLocationDuration;
-            //System.out.println("Compute center-of-mass took " + computeCOMAndLocationDuration + " nanoseconds");
-        }
-
-        //Compute Force
-        if (DEBUG_BARNES_HUT) {
-            //System.out.println("5. Computing forces...");
-            computeForceStartTime = System.nanoTime();
-        }
-
-        computeForce(numGroups, DEBUG_BARNES_HUT);
-
-        if (DEBUG_BARNES_HUT) {
-            glFinish();
-            long computeForceEndTime = System.nanoTime();
-            long computeForceDuration = (computeForceEndTime - computeForceStartTime);
-            computeForceTime += computeForceDuration;
-            //System.out.println("Compute forces took " + computeForceDuration + " nanoseconds");
-        }
-
-        // if (DEBUG_BARNES_HUT) {
-        //     System.out.println("=== Barnes-Hut Complete ===\n");
-        //     long endTime = System.nanoTime();
-        //     long duration = (endTime - startTime);
-        //     //System.out.println("Barnes-Hut took " + duration + " nanoseconds");
-        // }
-
-        if (DEBUG_BARNES_HUT) {
-            glFinish();
             debugString = printProfiling();
         }
     }
@@ -757,7 +657,8 @@ public class GPUSimulation {
         long percentMorton = (mortonTime * 100) / totalTime;
         long percentRadixSort = (radixSortTime * 100) / totalTime;
         long percentRadixSortHistogram = (radixSortHistogramTime * 100) / totalTime;
-        long percentRadixSortScan = (radixSortScanTime * 100) / totalTime;
+        long percentRadixSortScanParallel = (radixSortScanParallelTime * 100) / totalTime;
+        long percentRadixSortScanExclusive = (radixSortScanExclusiveTime * 100) / totalTime;
         long percentRadixSortScatter = (radixSortScatterTime * 100) / totalTime;
         long percentBuildTree = (buildTreeTime * 100) / totalTime;
         long percentPropagateNodes = (propagateNodesTime * 100) / totalTime;
@@ -770,7 +671,8 @@ public class GPUSimulation {
                mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +
                radixSortTime/oneMillion + " ms (" + percentRadixSort + "%)" +":Radix Sort\n" +
                "\t" + radixSortHistogramTime/oneMillion + " ms (" + percentRadixSortHistogram + "%)" +":Histogram\n" +
-               "\t" + radixSortScanTime/oneMillion + " ms (" + percentRadixSortScan + "%)" +":Scan\n" +
+               "\t" + radixSortScanParallelTime/oneMillion + " ms (" + percentRadixSortScanParallel + "%)" +":Scan Parallel\n" +
+               "\t" + radixSortScanExclusiveTime/oneMillion + " ms (" + percentRadixSortScanExclusive + "%)" +":Scan Exclusive\n" +
                "\t" + radixSortScatterTime/oneMillion + " ms (" + percentRadixSortScatter + "%)" +":Scatter\n" +
                buildTreeTime/oneMillion + " ms (" + percentBuildTree + "%)" +":Build Tree\n" +
                propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":COM\n" +
@@ -835,25 +737,25 @@ public class GPUSimulation {
         return raabb;
     }
 
-    private void computeAABB(int numGroupsBodies, boolean debug) {
+    private void computeAABB() {
         long aabbComputeStartTime = 0;
         long collapseAABBStartTime = 0;
 
-        if (debug) {
+        if (DEBUG_BARNES_HUT) {
              aabbComputeStartTime = System.nanoTime();
         }
 
 
         // Pass 1: bodies -> aabbOut (one AABB per workgroup)
         glUseProgram(computeAABBKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO.getBufferLocation());
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());
+        SWAPPING_BODIES_IN_SSBO.bind();
+        AABB_SSBO.bind();
         glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numBodies"), planets.size());
         glUniform1ui(glGetUniformLocation(computeAABBKernelProgram, "numWorkGroups"), numGroups());
         glDispatchCompute(numGroups(), 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        if (debug) {
+        if (DEBUG_BARNES_HUT) {
             glFinish(); 
             computeAABBTime += System.nanoTime() - aabbComputeStartTime;
              collapseAABBStartTime = System.nanoTime();
@@ -861,12 +763,12 @@ public class GPUSimulation {
 
  
         glUseProgram(collapseAABBKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());
+        AABB_SSBO.bind();
         glUniform1ui(glGetUniformLocation(collapseAABBKernelProgram, "numWorkGroups"), numGroups());
         glDispatchCompute(1, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        if (debug) {
+        if (DEBUG_BARNES_HUT) {
             glFinish();
             collapseAABBTime += System.nanoTime() - collapseAABBStartTime;
         }
@@ -892,20 +794,30 @@ public class GPUSimulation {
         
     }
 
-    private void generateMortonCodes(int numGroups, boolean debug) {
+    private void generateMortonCodes() {
+
+        if (DEBUG_BARNES_HUT) {
+            mortonTime = System.nanoTime();
+        }
+
         glUseProgram(mortonKernelProgram);
         
         // Bind bodies (input) and morton/index (output)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO.getBufferLocation());      // bodies input
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, MORTON_IN_SSBO.getBufferLocation());   // morton keys output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, INDEX_IN_SSBO.getBufferLocation());    // indices output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, AABB_SSBO_BINDING, AABB_SSBO.getBufferLocation());   // AABB input (from computeAABB)
+        SWAPPING_BODIES_IN_SSBO.bind();
+        MORTON_IN_SSBO.bind();
+        INDEX_IN_SSBO.bind();
+        AABB_SSBO.bind();
         
         // Set uniforms
         glUniform1ui(glGetUniformLocation(mortonKernelProgram, "numBodies"), planets.size());
         
-        glDispatchCompute(numGroups, 1, 1);
+        glDispatchCompute(numGroups(), 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            mortonTime = System.nanoTime() - mortonTime;
+        }
 
     }
 
@@ -982,24 +894,23 @@ public class GPUSimulation {
 
     }
 
-    private void radixSort(int numGroups, boolean debug) {
-
-
-
+    private void radixSort() {
         int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
         
         // Current input/output morton and index buffers
-        int currentMortonIn = MORTON_IN_SSBO.getBufferLocation();
-        int currentIndexIn = INDEX_IN_SSBO.getBufferLocation();
-        int currentMortonOut = MORTON_OUT_SSBO.getBufferLocation();
-        int currentIndexOut = INDEX_OUT_SSBO.getBufferLocation();
+        CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
+        CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
+        CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
+        CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
 
         radixSortHistogramTime = 0;
-        radixSortScanTime = 0;
+        radixSortScanParallelTime = 0;
+        radixSortScanExclusiveTime = 0;
         radixSortScatterTime = 0;
 
         long radixSortHistogramStartTime = 0;
-        long radixSortScanStartTime = 0;
+        long radixSortScanParallelStartTime = 0;
+        long radixSortScanExclusiveStartTime = 0;
         long radixSortScatterStartTime = 0;
         
         for (int pass = 0; pass < numPasses; pass++) {
@@ -1012,23 +923,23 @@ public class GPUSimulation {
 
             // Phase 1: Histogram
             glUseProgram(radixSortHistogramKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, currentMortonIn);    // morton input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, currentIndexIn);     // index input
+            CURRENT_MORTON_IN_SSBO.bind();
+            CURRENT_INDEX_IN_SSBO.bind();
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO.getBufferLocation());         // workgroup histograms
             
             glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "numBodies"), planets.size());
             glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "passShift"), passShift);
-            glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "numWorkGroups"), numGroups);
+            glUniform1ui(glGetUniformLocation(radixSortHistogramKernelProgram, "numWorkGroups"), numGroups());
             
-            glDispatchCompute(numGroups, 1, 1);
+            glDispatchCompute(numGroups(), 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             
 
-            if (debug) {
+            if (DEBUG_BARNES_HUT) {
                 glFinish();
                 radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
-                radixSortScanStartTime = System.nanoTime();
+                radixSortScanParallelStartTime = System.nanoTime();
             }
 
             
@@ -1039,12 +950,12 @@ public class GPUSimulation {
 
             // Phase 2: Scan
             glUseProgram(radixSortParallelScanKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_HIST_SSBO_BINDING, WG_HIST_SSBO.getBufferLocation());         // workgroup histograms input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO.getBufferLocation());      // scanned per-wg bases output
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO.getBufferLocation());     // global bucket bases output
+            WG_HIST_SSBO.bind();
+            WG_SCANNED_SSBO.bind();
+            GLOBAL_BASE_SSBO.bind();
             
             glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numBodies"), planets.size());
-            glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numWorkGroups"), numGroups);
+            glUniform1ui(glGetUniformLocation(radixSortParallelScanKernelProgram, "numWorkGroups"), numGroups());
             
             glDispatchCompute(NUM_RADIX_BUCKETS, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -1053,20 +964,20 @@ public class GPUSimulation {
            // debugRadixSort();
 
             glUseProgram(radixSortExclusiveScanKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BUCKET_TOTALS_SSBO_BINDING, BUCKET_TOTALS_SSBO.getBufferLocation());
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO.getBufferLocation());
+            BUCKET_TOTALS_SSBO.bind();
+            GLOBAL_BASE_SSBO.bind();
 
             glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numBodies"), planets.size());
-            glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numWorkGroups"), numGroups);
+            glUniform1ui(glGetUniformLocation(radixSortExclusiveScanKernelProgram, "numWorkGroups"), numGroups());
 
             glDispatchCompute(1, 1, 1);
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-            if (debug) {
+            if (DEBUG_BARNES_HUT) {
                 glFinish();
-                radixSortScanTime += System.nanoTime() - radixSortScanStartTime;
-                radixSortScatterStartTime = System.nanoTime();
+                radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
+                radixSortScanExclusiveStartTime = System.nanoTime();
             }
 
             //System.out.println("Radix sort exclusive scan");
@@ -1075,21 +986,21 @@ public class GPUSimulation {
 
             // Phase 3: Scatter
             glUseProgram(radixSortScatterKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, currentMortonIn);    // morton input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, currentIndexIn);     // index input
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WG_SCANNED_SSBO_BINDING, WG_SCANNED_SSBO.getBufferLocation());      // scanned bases
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, GLOBAL_BASE_SSBO_BINDING, GLOBAL_BASE_SSBO.getBufferLocation());     // global bases
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_OUT_SSBO_BINDING, currentMortonOut);   // morton output
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_OUT_SSBO_BINDING, currentIndexOut);    // index output
+            CURRENT_MORTON_IN_SSBO.bind();
+            CURRENT_INDEX_IN_SSBO.bind();
+            WG_SCANNED_SSBO.bind();
+            GLOBAL_BASE_SSBO.bind();
+            CURRENT_MORTON_OUT_SSBO.bind();
+            CURRENT_INDEX_OUT_SSBO.bind();
             
             glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "numBodies"), planets.size());
             glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "passShift"), passShift);
-            glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "numWorkGroups"), numGroups);
+            glUniform1ui(glGetUniformLocation(radixSortScatterKernelProgram, "numWorkGroups"), numGroups());
             
-            glDispatchCompute(numGroups, 1, 1);
+            glDispatchCompute(numGroups(), 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-            if (debug) {
+            if (DEBUG_BARNES_HUT) {
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
             }
@@ -1098,12 +1009,12 @@ public class GPUSimulation {
             //debugRadixSort();
 
             // Swap input/output buffers for next pass
-            int tempMorton = currentMortonIn;
-            int tempIndex = currentIndexIn;
-            currentMortonIn = currentMortonOut;
-            currentIndexIn = currentIndexOut;
-            currentMortonOut = tempMorton;
-            currentIndexOut = tempIndex;
+            int tempMorton = CURRENT_MORTON_IN_SSBO.getBufferLocation();
+            int tempIndex = CURRENT_INDEX_IN_SSBO.getBufferLocation();
+            CURRENT_MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_OUT_SSBO.getBufferLocation());
+            CURRENT_INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_OUT_SSBO.getBufferLocation());
+            CURRENT_MORTON_OUT_SSBO.setBufferLocation(tempMorton);
+            CURRENT_INDEX_OUT_SSBO.setBufferLocation(tempIndex);
         }
 
 
@@ -1113,16 +1024,21 @@ public class GPUSimulation {
         
         // After final pass, sorted data is in currentMortonIn/currentIndexIn
         // Update our "current" buffers to point to the final sorted data
-        MORTON_IN_SSBO.setBufferLocation(currentMortonIn);
-        INDEX_IN_SSBO.setBufferLocation(currentIndexIn);
+        CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
+        CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
 
     }
 
-    private void buildBinaryRadixTree(int numGroups, boolean debug) {
+    private void buildBinaryRadixTree() {
+
+        if (DEBUG_BARNES_HUT) {
+            buildTreeTime = System.nanoTime();
+        }
+
         glUseProgram(buildBinaryRadixTreeKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, MORTON_IN_SSBO.getBufferLocation());   // morton keys (sorted)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, INDEX_IN_SSBO.getBufferLocation());    // body indices (sorted)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());    // tree nodes output
+        CURRENT_MORTON_IN_SSBO.bind();
+        CURRENT_INDEX_IN_SSBO.bind();
+        NODES_SSBO.bind();
         
         glUniform1ui(glGetUniformLocation(buildBinaryRadixTreeKernelProgram, "numBodies"), planets.size());
         
@@ -1134,18 +1050,23 @@ public class GPUSimulation {
         glDispatchCompute(internalNodeGroups, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
+        if (DEBUG_BARNES_HUT) {
+            glFinish();
+            buildTreeTime = System.nanoTime() - buildTreeTime;
+        }
+
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 
     }
     
-    private void computeCOMAndLocation(int numGroups, boolean debug) {
+    private void computeCOMAndLocation() {
         glUseProgram(initLeavesKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_IN_SSBO_BINDING, SWAPPING_BODIES_IN_SSBO.getBufferLocation());      // bodies input  
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, MORTON_IN_SSBO_BINDING, MORTON_IN_SSBO.getBufferLocation());   // morton keys (for reference)
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INDEX_IN_SSBO_BINDING, INDEX_IN_SSBO.getBufferLocation());    // sorted body indices
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());    // nodes to initialize
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO.getBufferLocation()); // work queue buffer
+        SWAPPING_BODIES_IN_SSBO.bind();
+        MORTON_IN_SSBO.bind();
+        INDEX_IN_SSBO.bind();
+        NODES_SSBO.bind();
+        WORK_QUEUE_SSBO.bind();
         
         // Reset work queue head/tail to 0 before init
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO.getBufferLocation());
@@ -1155,7 +1076,7 @@ public class GPUSimulation {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
         glUniform1ui(glGetUniformLocation(initLeavesKernelProgram, "numBodies"), planets.size());
-        glDispatchCompute(numGroups, 1, 1); // One thread per body (leaf node)
+        glDispatchCompute(numGroups(), 1, 1); // One thread per body (leaf node)
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         //debugTree();
@@ -1163,8 +1084,8 @@ public class GPUSimulation {
 
         for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
             glUseProgram(propagateNodesKernelProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, WORK_QUEUE_SSBO_BINDING, WORK_QUEUE_SSBO.getBufferLocation());
+            NODES_SSBO.bind();
+            WORK_QUEUE_SSBO.bind();
             
             // Dispatch with enough threads to process all potential work items efficiently
             // Each thread will process multiple items in round-robin fashion
@@ -1175,14 +1096,10 @@ public class GPUSimulation {
         }
     }
 
-    private void computeForce(int numGroups, boolean debug) {
-        checkGLError("Before compute force");
+        private void computeForce() {
         glUseProgram(computeForceKernelProgram);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BODIES_OUT_SSBO_BINDING, SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
-        checkGLError("Bodies out SSBO bind");      // bodies output
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, NODES_SSBO_BINDING, NODES_SSBO.getBufferLocation());
-        checkGLError("Nodes SSBO bind");    // tree nodes
-        
+        SWAPPING_BODIES_OUT_SSBO.bind();
+        NODES_SSBO.bind();
         
         // Set uniforms
         float theta = (float)Settings.getInstance().getTheta();
@@ -1193,15 +1110,19 @@ public class GPUSimulation {
         glUniform1f(glGetUniformLocation(computeForceKernelProgram, "elasticity"), (float)Settings.getInstance().getElasticity());
         glUniform1f(glGetUniformLocation(computeForceKernelProgram, "density"), (float)Settings.getInstance().getDensity());
 
-        glDispatchCompute(numGroups, 1, 1); // One thread per body
+        glDispatchCompute(numGroups(), 1, 1); // One thread per body
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         
         // Swap source and destination buffers for next iteration
-        int tmp = SWAPPING_BODIES_IN_SSBO.getBufferLocation()           ;
+        int tmp = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
         SWAPPING_BODIES_IN_SSBO.setBufferLocation(SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmp);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+
     }
     
 
