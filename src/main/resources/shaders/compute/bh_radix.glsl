@@ -9,7 +9,7 @@ void radixHistogramKernel()
     if (lid < NUM_BUCKETS) hist[lid] = 0u;
     barrier();
 
-    if (gid < numBodies) {
+    if (gid < srcB.numBodies) {
         uint64_t key = morton[gid];
         uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
         atomicAdd(hist[digit], 1u);
@@ -63,7 +63,7 @@ void radixScatterKernel()
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
-    bool isActive = (gid < numBodies);
+    bool isActive = (gid < srcB.numBodies);
 
     uint64_t key = isActive ? morton[gid] : 0ul;
     uint dig = uint((key >> passShift) & (NUM_BUCKETS - 1u));

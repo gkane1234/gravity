@@ -11,6 +11,7 @@ import org.lwjgl.BufferUtils;
 import java.nio.FloatBuffer;
 
 import com.grumbo.gpu.SSBO;
+import com.grumbo.gpu.Body;
 
 import static org.lwjgl.opengl.GL43C.*;
 
@@ -138,12 +139,21 @@ public class Render {
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
             }
         }
+
+        private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
+            int RENDERING_SSBO_OFFSET = 16;
+            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+            SSBO.BODIES_IN_SSBO_BINDING,
+            bodiesOutSSBO.getBufferLocation(),
+            RENDERING_SSBO_OFFSET,
+            (long)gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES);
+        }
     
         public void renderPoints(SSBO bodiesOutSSBO     ) {
             // Do not clear or swap; caller owns window
             glUseProgram(renderProgram);
             // MVP will be sent by caller before rendering
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.BODIES_IN_SSBO_BINDING, bodiesOutSSBO.getBufferLocation());
+            bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(vao);
             glDrawArrays(GL_POINTS, 0, gpuSimulation.numBodies());
             glUseProgram(0);
@@ -152,7 +162,7 @@ public class Render {
         public void renderImpostorSpheres(SSBO bodiesOutSSBO) {
             glUseProgram(impostorProgram);
             glUniform1f(uImpostorPointScaleLoc, impostorPointScale);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.BODIES_IN_SSBO_BINDING, bodiesOutSSBO.getBufferLocation());
+            bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(vao);
             glDrawArrays(GL_POINTS, 0, gpuSimulation.numBodies());
             glUseProgram(0);
@@ -161,7 +171,7 @@ public class Render {
         public void renderMeshSpheres(SSBO bodiesOutSSBO) {
             if (sphereVao == 0 || sphereIndexCount == 0) return;
             glUseProgram(sphereProgram);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.BODIES_IN_SSBO_BINDING, bodiesOutSSBO.getBufferLocation());
+            bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(sphereVao);
             glUniform1f(uSphereRadiusScaleLoc, sphereRadiusScale);
             // Distance/color uniforms

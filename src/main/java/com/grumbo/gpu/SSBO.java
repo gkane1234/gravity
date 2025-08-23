@@ -8,6 +8,9 @@ import java.nio.IntBuffer;
 
 public class SSBO {
 
+
+    private static final int PRECISION = 2; 
+
         // SSBO Bindings
     public static final int BODIES_IN_SSBO_BINDING = 0;
     public static final int BODIES_OUT_SSBO_BINDING = 1;
@@ -23,6 +26,7 @@ public class SSBO {
     public static final int INDEX_OUT_SSBO_BINDING = 11;
     public static final int WORK_QUEUE_SSBO_BINDING = 12;
     public static final int MERGE_QUEUE_SSBO_BINDING = 13;
+    public static final int DEBUG_SSBO_BINDING = 14;
 
     private int bufferLocation;
     private final int bufferBinding;
@@ -35,7 +39,7 @@ public class SSBO {
         int getSize();
     }
     public interface dataFunction {
-        FloatBuffer setData();
+        ByteBuffer setData();
     }
 
     public static void unBind() {
@@ -95,6 +99,15 @@ public class SSBO {
         unbind();
     }
 
+    public ByteBuffer getBuffer() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
+        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        buffer.order(java.nio.ByteOrder.nativeOrder());
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
+        return buffer;
+    }
+
     public String getData(int startIndex, int endIndex) {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
@@ -151,7 +164,7 @@ public class SSBO {
                 
                 if (type == VariableType.FLOAT) {
                     int intValue = buffer.getInt(currentByteOffset);
-                    result += String.format("%.2f", Float.intBitsToFloat(intValue));
+                    result += String.format("%."+PRECISION+"f", Float.intBitsToFloat(intValue));
                     currentByteOffset += VariableType.getSize(type);    
                 } else if (type == VariableType.INT) {
                     result += String.valueOf(buffer.getInt(currentByteOffset));

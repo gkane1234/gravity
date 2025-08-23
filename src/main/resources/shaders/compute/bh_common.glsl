@@ -6,7 +6,6 @@ layout(local_size_x = 128) in;
 uniform float softening;
 uniform float theta;
 uniform float dt;
-uniform uint numBodies;
 uniform float elasticity;
 uniform float density;
 uniform float restitution;
@@ -38,8 +37,10 @@ struct Node {
     uint parentId;
 };
 
-layout(std430, binding = 0) readonly buffer BodiesIn  { Body bodies[]; } srcB;
-layout(std430, binding = 1) writeonly buffer BodiesOut { Body bodies[]; } dstB;
+layout(std430, binding = 0) readonly buffer BodiesIn  { uint numBodies; Body bodies[]; } srcB;
+
+layout(std430, binding = 1) writeonly buffer BodiesOut { uint numBodies; Body bodies[]; } dstB;
+
 layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
@@ -53,6 +54,7 @@ layout(std430, binding = 10) buffer MortonOut   { uint64_t mortonOut[];   };
 layout(std430, binding = 11) buffer IndicesOut  { uint indexOut[];    };
 layout(std430, binding = 12) buffer WorkQueue { uint head; uint tail; uint items[]; };
 layout(std430, binding = 13) buffer MergeQueue { uint mergeQueueTail; uvec2 mergeQueue[];};
+layout(std430, binding = 14) buffer Debug { uint debug[]; };
 
 shared uint hist[WG_SIZE];
 shared uint digits[WG_SIZE];

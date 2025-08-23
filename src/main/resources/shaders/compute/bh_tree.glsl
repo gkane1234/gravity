@@ -15,7 +15,7 @@ uint longestCommonPrefix(uint64_t a, uint64_t b)
 
 int safeLCP(int i, int j)
 {
-    if (i < 0 || j < 0 || i >= int(numBodies) || j >= int(numBodies)) return -1;
+    if (i < 0 || j < 0 || i >= int(srcB.numBodies) || j >= int(srcB.numBodies)) return -1;
     uint64_t mortonI = morton[i];
     uint64_t mortonJ = morton[j];
 
@@ -34,7 +34,7 @@ int safeLCP(int i, int j)
 void buildBinaryRadixTreeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= numBodies - 1u) return;
+    if (gid >= srcB.numBodies - 1u) return;
     const int i = int(gid);
 
     int lcpRight = safeLCP(i, i + 1);
@@ -72,15 +72,15 @@ void buildBinaryRadixTreeKernel()
     if (min(i,j)==gamma) {
         leftChild = uint(gamma);
     } else {
-        leftChild = uint(gamma) + numBodies;
+        leftChild = uint(gamma) + srcB.numBodies;
     }
     if (max(i,j)==gamma+1) {
         rightChild = uint(gamma+1);
     } else {
-        rightChild = uint(gamma+1) + numBodies;
+        rightChild = uint(gamma+1) + srcB.numBodies;
     }
 
-    uint internalIdx = uint(i) + numBodies;
+    uint internalIdx = uint(i) + srcB.numBodies;
     nodes[internalIdx].childA = leftChild;
     nodes[internalIdx].childB = rightChild;
     nodes[internalIdx].readyChildren = 0u;

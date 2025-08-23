@@ -9,6 +9,7 @@
 #include "bh_reduce.glsl"
 #include "bh_force.glsl"
 #include "bh_debug.glsl"
+#include "bh_merge.glsl"
 
 void main()
 {
@@ -34,6 +35,8 @@ void main()
     propagateNodesKernel();
 #elif defined(KERNEL_COMPUTE_FORCE)
     computeForce();
+#elif defined(KERNEL_MERGE)
+    mergeBodiesKernel();
 #elif defined(KERNEL_DEBUG)
     debugKernel();
 #else
