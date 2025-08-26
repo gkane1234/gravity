@@ -30,7 +30,8 @@ int safeLCP(int i, int j)
     }
     return int(longestCommonPrefix(mortonI, mortonJ));
 }
-
+//Builds the binary radix tree by creating internal nodes
+//Also assigns parents to leaves
 void buildBinaryRadixTreeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
@@ -84,6 +85,8 @@ void buildBinaryRadixTreeKernel()
     nodes[internalIdx].childA = leftChild;
     nodes[internalIdx].childB = rightChild;
     nodes[internalIdx].readyChildren = 0u;
+    nodes[internalIdx].comMass = vec4(0.0);
+    nodes[internalIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
     nodes[leftChild].parentId = internalIdx;
     nodes[rightChild].parentId = internalIdx;
     nodes[internalIdx].firstBody = uint(min(i, j));

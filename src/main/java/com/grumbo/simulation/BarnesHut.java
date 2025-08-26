@@ -28,7 +28,7 @@ public class BarnesHut {
 
 
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 30;
+    private static final int PROPAGATE_NODES_ITERATIONS = 64;
     private boolean debug;
 
 
@@ -44,7 +44,6 @@ public class BarnesHut {
     private Uniform<Float> densityUniform;
     private Uniform<Float> restitutionUniform;
     private Uniform<Boolean> collisionUniform;
-    private Uniform<Integer> mergeQueueTailUniform;
     private Uniform<Integer> passShiftUniform;
 
     // Uniform local variables
@@ -60,6 +59,7 @@ public class BarnesHut {
     private ComputeShader radixSortScatterKernel;
     private ComputeShader buildBinaryRadixTreeKernel;
     private ComputeShader initLeavesKernel;
+    private ComputeShader resetKernel;
     private ComputeShader propagateNodesKernel;
     private ComputeShader computeForceKernel;
     private ComputeShader mergeBodiesKernel;
@@ -87,7 +87,8 @@ public class BarnesHut {
     private SSBO INDEX_OUT_SSBO;
     private SSBO WORK_QUEUE_SSBO;
     private SSBO MERGE_QUEUE_SSBO;
-    private SSBO DEBUG_SSBO;
+    private SSBO UINT_DEBUG_SSBO;
+    private SSBO FLOAT_DEBUG_SSBO;
     
 
     //Debug variables
@@ -115,6 +116,7 @@ public class BarnesHut {
 
     
     public void step() {
+        resetQueues();
 
         computeAABB();
 
@@ -125,26 +127,45 @@ public class BarnesHut {
         buildBinaryRadixTree();
 
         computeCOMAndLocation();
+        debugTree();
+
+        System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies()+1));
+        System.out.println(UINT_DEBUG_SSBO.getData(0, 1));
+        Node n = Node.fromBuffer(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), gpuSimulation.numBodies()+1)[0];
+        System.out.println("Context Volume: " + Node.volume(n));
 
         //System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies() + 5));
 
         computeForce();
-        int total = 0;
 
-        IntBuffer debugBuffer = DEBUG_SSBO.getBuffer().asIntBuffer();
-        int[] debugArray = new int[gpuSimulation.numBodies()];
-        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-            debugArray[i] = debugBuffer.get(i);
-            total += debugArray[i];
-        }
-        Arrays.sort(debugArray);
-        System.out.println("Max stack size: " + debugArray[debugArray.length - 1]);
-        System.out.println("Average stack size: " + total / gpuSimulation.numBodies());
+        mergeBodies();
+
+        System.out.println(MERGE_QUEUE_SSBO.getData(0, 2));
+        System.out.println(UINT_DEBUG_SSBO.getData(0, 10));
+        System.out.println(FLOAT_DEBUG_SSBO.getData(0, 10));
+        System.out.println(SWAPPING_BODIES_OUT_SSBO.getData(0, 2,16));
+        float total = 0;
+
+        // FloatBuffer debugBuffer = DEBUG_SSBO.getBuffer().asFloatBuffer();
+        // float[] debugArray = new float[gpuSimulation.numBodies()];
+        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+        //     debugArray[i] = debugBuffer.get(i);
+        //     total += debugArray[i];
+        // }
+        // Arrays.sort(debugArray);
 
 
             if (debug) {
             debugString = printProfiling();
         }
+
+        
+        
+        //System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), 2));
+
+        //System.out.println("Max stack size: " + debugArray[debugArray.length - 1]);
+        //System.out.println("Average stack size: " + total / gpuSimulation.numBodies());
+
     }
 
     /* --------- Initialization --------- */
@@ -224,19 +245,24 @@ public class BarnesHut {
         ssbos.put(INDEX_OUT_SSBO.getName(), INDEX_OUT_SSBO);
 
         WORK_QUEUE_SSBO = new SSBO(SSBO.WORK_QUEUE_SSBO_BINDING, () -> {
-            return (2 + gpuSimulation.numBodies()) * Integer.BYTES;
+            return (4 + gpuSimulation.numBodies()) * Integer.BYTES;
         }, "WORK_QUEUE_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(WORK_QUEUE_SSBO.getName(), WORK_QUEUE_SSBO);
 
         MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
-            return gpuSimulation.numBodies() * Integer.BYTES;
+            return Math.max(2*Integer.BYTES, gpuSimulation.numBodies() * 2 * Integer.BYTES);
         }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT });
         ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
 
-        DEBUG_SSBO = new SSBO(SSBO.DEBUG_SSBO_BINDING, () -> {
-            return gpuSimulation.numBodies() * Integer.BYTES;
-        }, "DEBUG_SSBO", 1, new VariableType[] { VariableType.UINT });
-        ssbos.put(DEBUG_SSBO.getName(), DEBUG_SSBO);
+        UINT_DEBUG_SSBO = new SSBO(SSBO.UINT_DEBUG_SSBO_BINDING, () -> {
+            return 100 * Integer.BYTES;
+        }, "UINT_DEBUG_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(UINT_DEBUG_SSBO.getName(), UINT_DEBUG_SSBO);
+
+        FLOAT_DEBUG_SSBO = new SSBO(SSBO.FLOAT_DEBUG_SSBO_BINDING, () -> {
+            return 100 * Float.BYTES;
+        }, "FLOAT_DEBUG_SSBO", 1, new VariableType[] { VariableType.FLOAT });
+        ssbos.put(FLOAT_DEBUG_SSBO.getName(), FLOAT_DEBUG_SSBO);
 
 
         for (SSBO ssbo : ssbos.values()) {
@@ -274,7 +300,6 @@ public class BarnesHut {
         uniforms.put("density", densityUniform);
         uniforms.put("restitution", restitutionUniform);
         uniforms.put("collision", collisionUniform);
-        uniforms.put("mergeQueueTail", mergeQueueTailUniform);
         uniforms.put("passShift", passShiftUniform);
         numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
@@ -300,6 +325,9 @@ public class BarnesHut {
         passShiftUniform = new Uniform<Integer>("passShift", () -> {
             return passShift;
         }, true);
+        collisionUniform = new Uniform<Boolean>("collision", () -> {
+            return false;
+        });
 
     }
 
@@ -449,6 +477,21 @@ public class BarnesHut {
             return numGroups();
         });
 
+        resetKernel = new ComputeShader("KERNEL_RESET", this);
+
+        resetKernel.setUniforms(new Uniform[] {
+
+        });
+
+        resetKernel.setSSBOs(new String[] {
+            "WORK_QUEUE_SSBO",
+            "MERGE_QUEUE_SSBO",
+        });
+
+        resetKernel.setXWorkGroupsFunction(() -> {
+            return 1;
+        });
+
         propagateNodesKernel = new ComputeShader("KERNEL_PROPAGATE_NODES", this);
 
         propagateNodesKernel.setUniforms(new Uniform[] {
@@ -457,7 +500,8 @@ public class BarnesHut {
         propagateNodesKernel.setSSBOs(new String[] {
             "NODES_SSBO",
             "WORK_QUEUE_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
+            "SWAPPING_BODIES_IN_SSBO",
+            "UINT_DEBUG_SSBO"
         });
 
         propagateNodesKernel.setXWorkGroupsFunction(() -> {
@@ -477,11 +521,27 @@ public class BarnesHut {
         computeForceKernel.setSSBOs(new String[] {
             "SWAPPING_BODIES_OUT_SSBO",
             "NODES_SSBO",
-            "DEBUG_SSBO"
+            "UINT_DEBUG_SSBO",
+            "FLOAT_DEBUG_SSBO"
         });
 
         computeForceKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
+        });
+
+        mergeBodiesKernel = new ComputeShader("KERNEL_MERGE", this);
+        mergeBodiesKernel.setUniforms(new Uniform[] {
+            
+        });
+        mergeBodiesKernel.setSSBOs(new String[] {
+            "SWAPPING_BODIES_IN_SSBO",
+            "SWAPPING_BODIES_OUT_SSBO",
+            "MERGE_QUEUE_SSBO",
+            "UINT_DEBUG_SSBO",
+            "FLOAT_DEBUG_SSBO"
+        });
+        mergeBodiesKernel.setXWorkGroupsFunction(() -> {
+            return 1;
         });
 
         debugKernel = new ComputeShader("KERNEL_DEBUG", this);
@@ -494,7 +554,8 @@ public class BarnesHut {
             "CURRENT_MORTON_IN_SSBO",
             "CURRENT_INDEX_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "DEBUG_SSBO"
+            "UINT_DEBUG_SSBO",
+            "FLOAT_DEBUG_SSBO"
         });
 
         debugKernel.setXWorkGroupsFunction(() -> {
@@ -504,6 +565,11 @@ public class BarnesHut {
     }
 
     /* --------- Barnes-Hut --------- */
+
+    private void resetQueues() {
+        resetKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
 
     private void computeAABB() {
         long computeAABBStartTime = 0;
@@ -654,15 +720,25 @@ public class BarnesHut {
         if (debug) {
             initLeavesTime = System.nanoTime();
         }
+
+
         // Reset work queue head/tail to 0 before init
-        WORK_QUEUE_SSBO.bind();
-        ByteBuffer initQ = BufferUtils.createByteBuffer(2 * Integer.BYTES);
-        initQ.putInt(0).putInt(0).flip();
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, initQ);
-        SSBO.unBind();
+        // WORK_QUEUE_SSBO.bind();
+        // ByteBuffer initQ = BufferUtils.createByteBuffer(2 * Integer.BYTES);
+        // initQ.putInt(0).putInt(0).flip();
+        // glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, initQ);
+        // SSBO.unBind();
+        
+
+
+
+        //System.out.println(WORK_QUEUE_SSBO.getData(0, 24));
+
 
         initLeavesKernel.run();
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        //System.out.println(WORK_QUEUE_SSBO.getData(0, 24));
 
         if (debug) {
             checkGLError("initLeaves");
@@ -673,8 +749,11 @@ public class BarnesHut {
 
         for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
             propagateNodesKernel.run();
+
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
+        
+
         if (debug) {
             checkGLError("propagateNodes");
             glFinish();
@@ -704,6 +783,10 @@ public class BarnesHut {
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
     }
 
+    private void mergeBodies() {
+        mergeBodiesKernel.run();
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
 
     public SSBO getOutputSSBO() {
         return SWAPPING_BODIES_OUT_SSBO;
@@ -852,10 +935,9 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
                "\t" + radixSortScanExclusiveTime/oneMillion + " ms (" + percentRadixSortExclusiveScan + "%)" +":Exclusive Scan\n" +
                "\t" + radixSortScatterTime/oneMillion + " ms (" + percentRadixSortScatter + "%)" +":Scatter\n" +
                buildTreeTime/oneMillion + " ms (" + percentBuildTree + "%)" +":Build Tree\n" +
+               computeCOMAndLocationTime/oneMillion + " ms (" + percentComputeCOMAndLocation + "%)" +":Fill Tree\n" +
                "\t" + initLeavesTime/oneMillion + " ms (" + percentInitLeaves + "%)" +":Init Leaves\n" +
                "\t" + propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":Propagate Nodes\n" +
-               "\t" + computeCOMAndLocationTime/oneMillion + " ms (" + percentComputeCOMAndLocation + "%)" +":Compute COM and Location\n" +
-               propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":COM\n" +
                computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
                totalTime/oneMillion + " ms" +":Total\n";
     }

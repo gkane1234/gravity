@@ -21,7 +21,7 @@
     "z" : -1.0,
     "finite" : true
   },
-  "density" : 0.5,
+  "density" : 1.0,
   "zoom" : 0.01,
   "follow" : false,
   "yaw" : -90.0,

@@ -55,8 +55,8 @@ public class OpenGLWindow {
 
     private boolean debug = true;
     public OpenGLWindow() {
-        planets = createBoxSimulation();
-        
+        //planets = createBoxSimulation();
+        planets = collisionTest();
         //planets = Planet.mergeOverlappingPlanets(planets);
         //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
 
@@ -75,11 +75,20 @@ public class OpenGLWindow {
         float[] radius = {100, 1000};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNew(100_000_00, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNew(100_000_0, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(center);
         //planets.add(center2);
 
         return planets;
+    }
+
+    public ArrayList<Planet> collisionTest() {
+        ArrayList<Planet> newPlanets = new ArrayList<>();
+        Planet p1 = new Planet(0, 0, 0, 0, 0, 0, 100);
+        Planet p2 = new Planet(10, 0, 0, 0, 0, 0, 100);
+        newPlanets.add(p1);
+        newPlanets.add(p2);
+        return newPlanets;
     }
 
     public void run() {

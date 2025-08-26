@@ -6,13 +6,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.util.ArrayList;
 import org.joml.Vector3f;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.Files;
+
+import com.grumbo.UI.*;
+import com.grumbo.gpu.*;
 
 
 public class Settings {
@@ -70,7 +72,7 @@ public class Settings {
 		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false, true));
 
 		// Planet density
-		{ Property<Float> p = Property.createFloatProperty("density", 0.5f, 0.5f); p.setEditable(true); properties.put("density", p); }
+		{ Property<Float> p = Property.createFloatProperty("density", 1f, 1f); p.setEditable(true); properties.put("density", p); }
 
 		// Collision elasticity
 		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));
@@ -124,7 +126,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
 
 		// Barnes-Hut acceptance criterion
-		{ Property<Float> p = Property.createFloatProperty("theta",0.5f, 0.5f); p.setEditable(true); properties.put("theta", p); }
+		{ Property<Float> p = Property.createFloatProperty("theta", 0.5f, 0.5f); p.setEditable(true); properties.put("theta", p); }
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====

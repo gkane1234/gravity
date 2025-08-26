@@ -1,11 +1,11 @@
 // Bottom-up reduction for COM and AABB
 
-// Sets the proper values for the leaf nodes
-// Enqueues internal nodes that have two leaves as children
 void initLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= srcB.numBodies) return;
+
+    
 
     uint bodyIdx = index[gid];
     Body body = srcB.bodies[bodyIdx];
@@ -14,50 +14,57 @@ void initLeafNodesKernel()
     nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
-    nodes[gid].readyChildren = 3u;
+    //nodes[gid].readyChildren = 0u;
 
     uint parentIdx = nodes[gid].parentId;
-    uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
-    if (prev == 1u) {
+    uint previousValue = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+    if (previousValue == 1u) {
         uint idx = atomicAdd(tail, 1u);
         items[idx] = parentIdx;
     }
 }
-// Each pass of this kernel propagates COM and AABB one level up the tree
-void propagateNodesKernel()
-{
-    uint threadId = gl_GlobalInvocationID.x;
-    uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
-    if (gl_GlobalInvocationID.x == 0) {
-        if (nodes[srcB.numBodies].readyChildren != 3u) {
-            atomicAdd(uintDebug[0], 1u);
+
+void resetQueueKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid == 0) {
+        head = 0u;
+        activeThreads = 0u;
+        tail = 0u;
+    }
+}
+bool tryPopQueue(out uint poppedIndex) {
+    for (;;) {
+        uint headSnapshot = atomicAdd(head, 0u);
+        uint tailSnapshot = atomicAdd(tail, 0u);
+        if (headSnapshot >= tailSnapshot) {
+            return false;
+        }
+        if (atomicCompSwap(head, headSnapshot, headSnapshot+1u) == headSnapshot) {
+            poppedIndex = headSnapshot;
+            return true;
         }
     }
-
-
-    uint workIdx = threadId;
-    while (workIdx < tail) {
-        uint nodeIdx = items[workIdx];
-        if (nodes[nodeIdx].readyChildren >= 3u) {
-            workIdx += totalThreads;
+}
+void propagateNodesKernel()
+{
+    for (;;) {
+        //get next node in queue
+        uint poppedIndex;
+        if (!tryPopQueue(poppedIndex)) {
+            //go back one
+            if (atomicAdd(activeThreads, 0u) == 0u) break;
             continue;
         }
 
-
+        uint nodeIdx = items[poppedIndex];
+        if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+            // Someone else has this node
+            continue;
+        }
+        atomicAdd(activeThreads, 1u);
         uint leftChild = nodes[nodeIdx].childA;
         uint rightChild = nodes[nodeIdx].childB;
-        if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
-            workIdx += totalThreads;
-
-            continue;
-
-            
-        }
-        if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
-            workIdx += totalThreads;
-            continue;
-        }
         vec4 leftCOM = nodes[leftChild].comMass;
         vec4 rightCOM = nodes[rightChild].comMass;
         float totalMass = leftCOM.w + rightCOM.w;
@@ -72,14 +79,21 @@ void propagateNodesKernel()
         AABB newAABB = updateAABB(leftAABB, rightAABB);
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
         nodes[nodeIdx].aabb = newAABB;
+
+        memoryBarrierBuffer();
+        //update the node
         nodes[nodeIdx].readyChildren = 3u;
         uint parentIdx = nodes[nodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
             if (prev == 1u) {
-                items[workIdx] = parentIdx;
+                uint nextOnQueue = atomicAdd(tail, 1u);
+                items[nextOnQueue] = parentIdx;
             }
         }
-        workIdx += totalThreads;
+        atomicAdd(activeThreads, 0xFFFFFFFFu);
     }
+
 }
+
+

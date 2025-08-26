@@ -26,7 +26,8 @@ public class SSBO {
     public static final int INDEX_OUT_SSBO_BINDING = 11;
     public static final int WORK_QUEUE_SSBO_BINDING = 12;
     public static final int MERGE_QUEUE_SSBO_BINDING = 13;
-    public static final int DEBUG_SSBO_BINDING = 14;
+    public static final int UINT_DEBUG_SSBO_BINDING = 14;
+    public static final int FLOAT_DEBUG_SSBO_BINDING = 15;
 
     private int bufferLocation;
     private final int bufferBinding;
@@ -109,6 +110,10 @@ public class SSBO {
     }
 
     public String getData(int startIndex, int endIndex) {
+        return getData(startIndex, endIndex, 0);
+    }
+
+    public String getData(int startIndex, int endIndex, int offset) {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
 
@@ -124,7 +129,7 @@ public class SSBO {
 
         //Assume it is integers
         if (STRUCT_SIZE == -1) {
-            int[] data = new int[buffer.capacity()/4];
+            int[] data = new int[(buffer.capacity()/4)-offset];
             IntBuffer intBuffer = buffer.asIntBuffer();
             intBuffer.get(data);
             for (int i = 0; i < data.length; i++) {
@@ -145,7 +150,7 @@ public class SSBO {
         }
 
         // Start reading from the correct byte offset
-        int startByteOffset = startIndex * structSizeInBytes;
+        int startByteOffset = startIndex * structSizeInBytes + offset;
         
         // Iterate through each struct
         for (int structIndex = startIndex; structIndex < endIndex; structIndex++) {

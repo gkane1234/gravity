@@ -64,7 +64,7 @@ public class SettingsGenerator {
     
     private static String generateClassHeader() {
         return """            
-            package com.grumbo;
+            package com.grumbo.simulation;
 
             import java.awt.Color;
             import java.io.File;
@@ -78,6 +78,9 @@ public class SettingsGenerator {
             import java.nio.file.Path;
             import java.nio.file.Paths;
             import java.nio.file.Files;
+
+            import com.grumbo.UI.*;
+            import com.grumbo.gpu.*;
             
 
             public class Settings {

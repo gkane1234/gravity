@@ -10,6 +10,7 @@
 #include "bh_force.glsl"
 #include "bh_debug.glsl"
 #include "bh_merge.glsl"
+#include "bh_reset.glsl"
 
 void main()
 {
@@ -31,6 +32,8 @@ void main()
     buildBinaryRadixTreeKernel();
 #elif defined(KERNEL_INIT_LEAVES)
     initLeafNodesKernel();
+#elif defined(KERNEL_RESET)
+    resetKernel();
 #elif defined(KERNEL_PROPAGATE_NODES)
     propagateNodesKernel();
 #elif defined(KERNEL_COMPUTE_FORCE)

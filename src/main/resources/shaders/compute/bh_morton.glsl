@@ -30,6 +30,12 @@ void encodeMortonKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= srcB.numBodies) return;
+    //If the body is empty, set code to the dead value
+    if (isEmpty(srcB.bodies[gid])) {
+        morton[gid] = 0xFFFFFFFFu;
+        index[gid] = gid;
+        return;
+    }
 
     AABB scene = aabb[0];
     vec3 pos = srcB.bodies[gid].posMass.xyz;

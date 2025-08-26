@@ -2,6 +2,7 @@ package com.grumbo.gpu;
 
 import java.util.Arrays;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
 
 public class Node {
 
@@ -35,16 +36,16 @@ public class Node {
         VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, 
         VariableType.UINT, VariableType.UINT, VariableType.PADDING, VariableType.PADDING }; 
 
-    private float[] comMass;
-    private float[] aabbMin;
-    private float[] aabbMax;
-    private int childA;
-    private int childB;
-    private int firstBody;
-    private int bodyCount;
-    private int readyChildren;
-    private int parentId;
-    private boolean isLeaf;
+    public float[] comMass;
+    public float[] aabbMin;
+    public float[] aabbMax;
+    public int childA;
+    public int childB;
+    public int firstBody;
+    public int bodyCount;
+    public int readyChildren;
+    public int parentId;
+    public boolean isLeaf;
 
     public Node(float[] comMass, float[] aabbMin, float[] aabbMax, int childA, int childB, int firstBody, int bodyCount, int readyChildren, int parentId, boolean isLeaf) {
         this.comMass = comMass;
@@ -137,5 +138,60 @@ public class Node {
                 ", readyChildren=" + readyChildren +
                 ", parentId=" + parentId +
                 '}' + marker;
+    }
+
+    private static ArrayList<Node> getChildren(IntBuffer buffer, ArrayList<Node> nodes) {
+        ArrayList<Node> children = new ArrayList<Node>();
+        for (Node node : nodes) {
+            if (node.childA == 0xFFFFFFFF) {
+                //children.add(null);
+            } else {
+                children.add(new Node(buffer, node.childA));
+            }
+            if (node.childB == 0xFFFFFFFF) {
+                //children.add(null);
+            } else {
+                children.add(new Node(buffer, node.childB));
+            }
+        }
+        return children;
+    }
+
+    public static float volume(Node node) {
+        return (node.aabbMax[0] - node.aabbMin[0]) * (node.aabbMax[1] - node.aabbMin[1]) * (node.aabbMax[2] - node.aabbMin[2]);
+    }
+
+    public static String getTree(IntBuffer buffer, int rootIndex, int layers) {
+        int layerCount = 0;
+        StringBuilder sb = new StringBuilder();
+        Node root = new Node(buffer, rootIndex);
+
+        ArrayList<ArrayList<Node>> nodes = new ArrayList<ArrayList<Node>>();
+
+        sb.append("Layer 0:\n");
+        sb.append(String.format("%.2f", volume(root)) + " " + root.toString());
+        sb.append("\n");
+
+        nodes.add(new ArrayList<Node>(Arrays.asList(root)));
+
+
+
+        while (layerCount < layers) {
+
+            nodes.add(getChildren(buffer,nodes.getLast()));
+            sb.append("Layer " + (layerCount+1) + ":\n");
+            for (Node node : nodes.getLast()) {
+                if (node != null) {
+                    sb.append(String.format("%.2f", volume(node)) + " " + node.toString()).append("\n");
+                }
+            }
+            sb.append("\n");
+
+            layerCount++;
+        }
+
+
+        return sb.toString();
+
     }
 }
