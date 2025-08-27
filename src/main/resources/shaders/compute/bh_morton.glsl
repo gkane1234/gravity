@@ -26,13 +26,15 @@ uint64_t mortonEncode3D(vec3 pNorm)
     uint zi = uint(floor(fz));
     return morton3D64(xi, yi, zi);
 }
+
+const uint64_t DEAD_VALUE = 0xFFFFFFFFFFFFFFFFul;
 void encodeMortonKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies) return;
+    if (gid >= srcB.initialNumBodies) return;
     //If the body is empty, set code to the dead value
     if (isEmpty(srcB.bodies[gid])) {
-        morton[gid] = 0xFFFFFFFFu;
+        morton[gid] = DEAD_VALUE; //-1
         index[gid] = gid;
         return;
     }

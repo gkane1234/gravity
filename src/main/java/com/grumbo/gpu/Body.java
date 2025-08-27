@@ -12,6 +12,9 @@ public class Body {
     public static final int COLOR_OFFSET = 8;
 
     public static final int STRUCT_SIZE = 12;
+    public static final int HEADER_SIZE = 16;
+    public static final VariableType[] headerTypes = new VariableType[] { 
+        VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT };
 
     private float[] posMass;
     private float[] velPad;

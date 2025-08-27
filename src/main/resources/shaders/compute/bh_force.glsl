@@ -62,8 +62,6 @@ void computeForce()
                     uintDebug[1] = 2;
                     mergeQueue[mergeQueueTail++] = uvec2(gid, index[nodeIdx]);
                     mergeQueueTail = atomicAdd(mergeQueueTail, 1u);
-                } else {
-                    accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
                 }
             }
         }
@@ -75,6 +73,7 @@ void computeForce()
             stack[stackSize++] = node.childB;
         }
     }
+
 
     vec3 newVel = body.velPad.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;

@@ -3,9 +3,9 @@ void computeNewAABBKernel() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
 
-    if (2*gid >= srcB.numBodies || (isEmpty(srcB.bodies[2*gid]) && isEmpty(srcB.bodies[2*gid+1]))) {
+    if (2*gid >= srcB.initialNumBodies || (isEmpty(srcB.bodies[2*gid]) && isEmpty(srcB.bodies[2*gid+1]))) {
         sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
-    } else if (2*gid+1 >= srcB.numBodies || isEmpty(srcB.bodies[2*gid+1])) {
+    } else if (2*gid+1 >= srcB.initialNumBodies || isEmpty(srcB.bodies[2*gid+1])) {
         vec3 pos = srcB.bodies[2*gid].posMass.xyz;
         sharedAABB[lid] = AABB(pos, pos);
     } else if (isEmpty(srcB.bodies[2*gid])) {

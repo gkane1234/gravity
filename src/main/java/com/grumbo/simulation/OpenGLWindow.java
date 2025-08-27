@@ -65,9 +65,9 @@ public class OpenGLWindow {
 
     public ArrayList<Planet> createBoxSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
-        float[] xRange = {-40000, 40000};
-        float[] yRange = {-40000, 40000};
-        float[] zRange = {-40000, 40000};
+        float[] xRange = {-400, 400};
+        float[] yRange = {-400, 400};
+        float[] zRange = {-400, 400};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};
@@ -75,7 +75,7 @@ public class OpenGLWindow {
         float[] radius = {100, 1000};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNew(100_000_0, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNew(99, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(center);
         //planets.add(center2);
 
@@ -86,8 +86,10 @@ public class OpenGLWindow {
         ArrayList<Planet> newPlanets = new ArrayList<>();
         Planet p1 = new Planet(0, 0, 0, 0, 0, 0, 100);
         Planet p2 = new Planet(10, 0, 0, 0, 0, 0, 100);
+        Planet p3 = new Planet(-20, 0, 0, 0, 0, 0, 100);
         newPlanets.add(p1);
         newPlanets.add(p2);
+        newPlanets.add(p3);
         return newPlanets;
     }
 

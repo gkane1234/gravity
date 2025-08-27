@@ -16,6 +16,7 @@ uint longestCommonPrefix(uint64_t a, uint64_t b)
 int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(srcB.numBodies) || j >= int(srcB.numBodies)) return -1;
+    
     uint64_t mortonI = morton[i];
     uint64_t mortonJ = morton[j];
 
@@ -73,15 +74,15 @@ void buildBinaryRadixTreeKernel()
     if (min(i,j)==gamma) {
         leftChild = uint(gamma);
     } else {
-        leftChild = uint(gamma) + srcB.numBodies;
+        leftChild = uint(gamma) + srcB.initialNumBodies;
     }
     if (max(i,j)==gamma+1) {
         rightChild = uint(gamma+1);
     } else {
-        rightChild = uint(gamma+1) + srcB.numBodies;
+        rightChild = uint(gamma+1) + srcB.initialNumBodies;
     }
 
-    uint internalIdx = uint(i) + srcB.numBodies;
+    uint internalIdx = uint(i) + srcB.initialNumBodies;
     nodes[internalIdx].childA = leftChild;
     nodes[internalIdx].childB = rightChild;
     nodes[internalIdx].readyChildren = 0u;

@@ -28,10 +28,10 @@ void mergeBodiesKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid > 0) return;
     for (uint i = 0; i < mergeQueueTail; i++) {
-        ;
+        
         uvec2 bodies = mergeQueue[i];
-        Body body1 = srcB.bodies[bodies.x];
-        Body body2 = srcB.bodies[bodies.y];
+        Body body1 = dstB.bodies[bodies.x];
+        Body body2 = dstB.bodies[bodies.y];
         //debug[0]=bodies.x;
         //debug[1]=bodies.y;
         Body mergedBody = mergeBodies(body1, body2);
