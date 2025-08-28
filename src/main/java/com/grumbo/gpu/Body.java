@@ -32,6 +32,10 @@ public class Body {
         this.color = color;
     }
 
+    public static Body deadBody() {
+        return new Body(new float[4], new float[4], new float[4]);
+    }
+
     public static Body fromBuffer(IntBuffer buffer, int index) {
         float[] posMass = new float[4];
         float[] velPad = new float[4];

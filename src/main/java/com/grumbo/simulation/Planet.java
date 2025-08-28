@@ -55,6 +55,10 @@ public class Planet {
 		this(x, y, 0f, xVelocity, yVelocity, 0f, mass);
 	}
 
+	public static Planet deadBody() {
+		return new Planet(0, 0, 0, 0, 0, 0, 0);
+	}
+
 	
 	//public double[] getCoordinates(double zFactor, double theta, double phi) {
 		//sqrt(((cos(theta)sin(phi))^2*X)^2+(sin(phi)^2)*z)^2))

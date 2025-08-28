@@ -11,6 +11,7 @@
 #include "bh_debug.glsl"
 #include "bh_merge.glsl"
 #include "bh_reset.glsl"
+#include "bh_dead.glsl"
 
 void main()
 {
@@ -20,6 +21,12 @@ void main()
     collapseAABBKernel();
 #elif defined(KERNEL_MORTON)
     encodeMortonKernel();
+#elif defined(KERNEL_DEAD_COUNT)
+    deadCountKernel();
+#elif defined(KERNEL_DEAD_EXCLUSIVE_SCAN)
+    deadExclusiveScanKernel();
+#elif defined(KERNEL_DEAD_SCATTER)
+    deadScatterKernel();
 #elif defined(KERNEL_RADIX_HIST)
     radixHistogramKernel();
 #elif defined(KERNEL_RADIX_PARALLEL_SCAN)

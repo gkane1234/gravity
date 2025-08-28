@@ -24,7 +24,7 @@ void computeForce()
 
     uint stack[64];
     uint stackSize = 0;
-    stack[stackSize++] = srcB.numBodies;
+    stack[stackSize++] = srcB.initialNumBodies;
 
 
     while (stackSize > 0) {
@@ -60,8 +60,8 @@ void computeForce()
                 // } else 
                 if (dist < bodyRadius + otherRadius && gid < index[nodeIdx]) {
                     uintDebug[1] = 2;
-                    mergeQueue[mergeQueueTail++] = uvec2(gid, index[nodeIdx]);
-                    mergeQueueTail = atomicAdd(mergeQueueTail, 1u);
+                    uint slot = atomicAdd(mergeQueueTail, 1u);
+                    mergeQueue[slot] = uvec2(gid, index[nodeIdx]);
                 }
             }
         }

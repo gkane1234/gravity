@@ -22,8 +22,16 @@ float cbrt(float x)
     return pow(x, 1.0/3.0);
 }
 
+bool isEmptyBody(float mass) { return mass <= 0.0; }
+
 // We use gl_InstanceID to fetch per-planet data
 void main() {
+  if (isEmptyBody(srcB.bodies[gl_InstanceID].posMass.w)) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
+    gl_PointSize = 0.0;
+    vColor = vec4(0.0);
+    return;
+  }
   vec3 center = srcB.bodies[gl_InstanceID].posMass.xyz;
   float mass = srcB.bodies[gl_InstanceID].posMass.w;
   float radius = cbrt(max(mass, 0.0)) * uRadiusScale;

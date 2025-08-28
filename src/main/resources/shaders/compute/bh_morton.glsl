@@ -27,7 +27,7 @@ uint64_t mortonEncode3D(vec3 pNorm)
     return morton3D64(xi, yi, zi);
 }
 
-const uint64_t DEAD_VALUE = 0xFFFFFFFFFFFFFFFFul;
+
 void encodeMortonKernel()
 {
     uint gid = gl_GlobalInvocationID.x;

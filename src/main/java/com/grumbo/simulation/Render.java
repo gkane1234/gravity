@@ -143,10 +143,10 @@ public class Render {
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
             int RENDERING_SSBO_OFFSET = 16;
             glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-            SSBO.BODIES_IN_SSBO_BINDING,
-            bodiesOutSSBO.getBufferLocation(),
-            RENDERING_SSBO_OFFSET,
-            (long)gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES);
+                SSBO.BODIES_IN_SSBO_BINDING,
+                bodiesOutSSBO.getBufferLocation(),
+                RENDERING_SSBO_OFFSET,
+                (long)gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES);
         }
     
         public void renderPoints(SSBO bodiesOutSSBO     ) {

@@ -53,6 +53,9 @@ public class BarnesHut {
     private ComputeShader computeAABBKernel;
     private ComputeShader collapseAABBKernel;
     private ComputeShader mortonKernel;
+    private ComputeShader deadCountKernel;
+    private ComputeShader deadExclusiveScanKernel;
+    private ComputeShader deadScatterKernel;
     private ComputeShader radixSortHistogramKernel;
     private ComputeShader radixSortParallelScanKernel;
     private ComputeShader radixSortExclusiveScanKernel;
@@ -96,6 +99,10 @@ public class BarnesHut {
     private long computeAABBTime;
     private long collapseAABBTime;
     private long mortonTime;
+    private long deadTime;
+    private long deadCountTime;
+    private long deadExclusiveScanTime;
+    private long deadScatterTime;
     private long radixSortTime;
     private long radixSortHistogramTime;
     private long radixSortScanParallelTime;
@@ -122,21 +129,39 @@ public class BarnesHut {
 
         generateMortonCodes();
 
+        // System.out.println("Morton Codes:");
+        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+        //     System.out.println("Morton Code: " + i + " " + MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
+        //     //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
+        // }
+
+        partitionDeadBodies();
+        swapMortonBuffers();
+
+        // System.out.println("Morton Codes:");
+        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+        //     System.out.println("Morton Code: " + i + " " + CURRENT_MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
+        //     //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
+        // }
+
+
         radixSort();
-        for (int i = 0; i < 2; i++) {
-            System.out.println(MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
-            //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
-        }
+
+        // System.out.println("Morton Codes:");
+        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+        //     System.out.println("Morton Code: " + i + " " + CURRENT_MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
+        //     //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
+        // }
 
         buildBinaryRadixTree();
 
         computeCOMAndLocation();
         //debugTree();
 
-        System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies()+1));
-        System.out.println(DEBUG_SSBO.getData(0, 1));
-        Node n = Node.fromBuffer(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), gpuSimulation.numBodies()+1)[0];
-        System.out.println("Context Volume: " + Node.volume(n));
+        // System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies()+1));
+        // System.out.println(DEBUG_SSBO.getData(0, 1));
+        // Node n = Node.fromBuffer(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), gpuSimulation.numBodies()+1)[0];
+        // System.out.println("Context Volume: " + Node.volume(n));
 
         //System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies() + 5));
 
@@ -144,15 +169,15 @@ public class BarnesHut {
 
         mergeBodies();
 
-        swapBuffers();
+        swapBodyBuffers();
 
-        System.out.println(MERGE_QUEUE_SSBO.getData(0, 1));
-        System.out.println(DEBUG_SSBO.getData(0, 10));
-        System.out.println(SWAPPING_BODIES_OUT_SSBO.getData(0, 2));
-        System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 2));
-        System.out.println(SWAPPING_BODIES_OUT_SSBO.getHeader());
-        System.out.println(SWAPPING_BODIES_IN_SSBO.getHeader());
-        float total = 0;
+        // System.out.println(MERGE_QUEUE_SSBO.getData(0, 1));
+        // System.out.println(DEBUG_SSBO.getData(0, 10));
+        // System.out.println(SWAPPING_BODIES_OUT_SSBO.getData(0, 2));
+        // System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 2));
+        // System.out.println(SWAPPING_BODIES_OUT_SSBO.getHeader());
+        // System.out.println(SWAPPING_BODIES_IN_SSBO.getHeader());
+        // float total = 0;
 
         // FloatBuffer debugBuffer = DEBUG_SSBO.getBuffer().asFloatBuffer();
         // float[] debugArray = new float[gpuSimulation.numBodies()];
@@ -368,6 +393,43 @@ public class BarnesHut {
 
         });
         mortonKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        deadCountKernel = new ComputeShader("KERNEL_DEAD_COUNT", this);
+        deadCountKernel.setUniforms(new Uniform[] {
+            numWorkGroupsUniform
+        });
+        deadCountKernel.setSSBOs(new String[] {
+            "WG_HIST_SSBO",
+            "SWAPPING_BODIES_IN_SSBO"
+        });
+        deadCountKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+
+        deadExclusiveScanKernel = new ComputeShader("KERNEL_DEAD_EXCLUSIVE_SCAN", this);
+        deadExclusiveScanKernel.setUniforms(new Uniform[] {
+            numWorkGroupsUniform
+        });
+        deadExclusiveScanKernel.setSSBOs(new String[] {
+            "WG_HIST_SSBO",
+            "WG_SCANNED_SSBO",
+            "SWAPPING_BODIES_IN_SSBO"
+        });
+        deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
+            return 1;
+        });
+
+        deadScatterKernel = new ComputeShader("KERNEL_DEAD_SCATTER", this);
+        deadScatterKernel.setUniforms(new Uniform[] {
+            numWorkGroupsUniform
+        });
+        deadScatterKernel.setSSBOs(new String[] {
+            "WG_SCANNED_SSBO",
+            "SWAPPING_BODIES_IN_SSBO"
+        });
+        deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
 
@@ -590,7 +652,38 @@ public class BarnesHut {
 
     private void resetQueues() {
         resetKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+
+    private void partitionDeadBodies() {
+        long deadCountStartTime = 0;
+        long deadExclusiveScanStartTime = 0;
+        long deadScatterStartTime = 0;
+
+        if (debug) {
+            deadCountStartTime = System.nanoTime();
+        }
+        deadCountKernel.run();
+        if (debug) {
+            checkGLError("deadCount");
+            glFinish();
+            deadCountTime = System.nanoTime() - deadCountStartTime;
+            deadExclusiveScanStartTime = System.nanoTime();
+        }
+        deadExclusiveScanKernel.run();
+        if (debug) {
+            checkGLError("deadExclusiveScan");
+            glFinish();
+            deadExclusiveScanTime = System.nanoTime() - deadExclusiveScanStartTime;
+            deadScatterStartTime = System.nanoTime();
+        }
+        deadScatterKernel.run();
+        if (debug) {
+            checkGLError("deadScatter");
+            glFinish();
+            deadScatterTime = System.nanoTime() - deadScatterStartTime;
+            deadTime = deadCountTime + deadExclusiveScanTime + deadScatterTime;
+        }
+
     }
 
     private void computeAABB() {
@@ -602,7 +695,6 @@ public class BarnesHut {
         }
 
         computeAABBKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
             checkGLError("computeAABB");
             glFinish(); 
@@ -611,7 +703,6 @@ public class BarnesHut {
         }
 
         collapseAABBKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
             checkGLError("collapseAABB");
             glFinish();
@@ -629,7 +720,6 @@ public class BarnesHut {
         }
 
         mortonKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
             checkGLError("generateMortonCodes");
             glFinish();
@@ -669,7 +759,6 @@ public class BarnesHut {
 
             // Phase 1: Histogram
             radixSortHistogramKernel.run();
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             if (debug) {
                 checkGLError("radixSortHistogram");
@@ -680,7 +769,6 @@ public class BarnesHut {
 
             // Phase 2: Scan
             radixSortParallelScanKernel.run();
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             if (debug) {
                 checkGLError("radixSortParallelScan");
                 glFinish();
@@ -689,7 +777,6 @@ public class BarnesHut {
             }
 
             radixSortExclusiveScanKernel.run();
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             if (debug) {
                 checkGLError("radixSortExclusiveScan");
@@ -700,7 +787,6 @@ public class BarnesHut {
 
             // Phase 3: Scatter
             radixSortScatterKernel.run();
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             if (debug) {
                 checkGLError("radixSortScatter");
                 glFinish();
@@ -708,13 +794,7 @@ public class BarnesHut {
             }
             
 
-            // Swap input/output buffers for next pass
-            int tempMortonIn = CURRENT_MORTON_IN_SSBO.getBufferLocation();
-            int tempIndexIn = CURRENT_INDEX_IN_SSBO.getBufferLocation();
-            CURRENT_MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_OUT_SSBO.getBufferLocation());
-            CURRENT_INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_OUT_SSBO.getBufferLocation());
-            CURRENT_MORTON_OUT_SSBO.setBufferLocation(tempMortonIn);
-            CURRENT_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
+            swapMortonBuffers();
         }
         // After final pass, sorted data is in currentMortonIn/currentIndexIn
         // Update our "current" buffers to point to the final sorted data
@@ -730,7 +810,6 @@ public class BarnesHut {
             buildTreeTime = System.nanoTime();
         }
         buildBinaryRadixTreeKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
             checkGLError("buildBinaryRadixTree");
             glFinish();
@@ -758,7 +837,6 @@ public class BarnesHut {
 
 
         initLeavesKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         //System.out.println(WORK_QUEUE_SSBO.getData(0, 24));
 
@@ -772,7 +850,6 @@ public class BarnesHut {
         for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
             propagateNodesKernel.run();
 
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
         
 
@@ -792,7 +869,6 @@ public class BarnesHut {
         }
 
         computeForceKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         if (debug) {
             checkGLError("computeForce");
             glFinish();
@@ -804,14 +880,23 @@ public class BarnesHut {
 
     private void mergeBodies() {
         mergeBodiesKernel.run();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
 
-    private void swapBuffers() {
+    private void swapBodyBuffers() {
         // Swap source and destination buffers for next iteration
         int tmpIn = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
         SWAPPING_BODIES_IN_SSBO.setBufferLocation(SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
+    }
+
+    private void swapMortonBuffers() {
+        // Swap input/output buffers for next pass
+        int tempMortonIn = CURRENT_MORTON_IN_SSBO.getBufferLocation();
+        int tempIndexIn = CURRENT_INDEX_IN_SSBO.getBufferLocation();
+        CURRENT_MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_OUT_SSBO.getBufferLocation());
+        CURRENT_INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_OUT_SSBO.getBufferLocation());
+        CURRENT_MORTON_OUT_SSBO.setBufferLocation(tempMortonIn);
+        CURRENT_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
     }
 
     public SSBO getOutputSSBO() {
@@ -916,11 +1001,15 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
         }
     }
     private String printProfiling() {
-        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime;
+        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime;
         long percentAABB = (aabbTime * 100) / totalTime;
         long percentAABBCompute = (computeAABBTime * 100) / totalTime;
         long percentCollapseAABB = (collapseAABBTime * 100) / totalTime;
         long percentMorton = (mortonTime * 100) / totalTime;
+        long percentDead = (deadTime * 100) / totalTime;
+        long percentDeadCount = (deadCountTime * 100) / totalTime;
+        long percentDeadExclusiveScan = (deadExclusiveScanTime * 100) / totalTime;
+        long percentDeadScatter = (deadScatterTime * 100) / totalTime;
         long percentRadixSort = (radixSortTime * 100) / totalTime;
         long percentRadixSortHistogram = (radixSortHistogramTime * 100) / totalTime;
         long percentRadixSortParallelScan = (radixSortScanParallelTime * 100) / totalTime;
@@ -937,6 +1026,10 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
                "\t" + computeAABBTime/oneMillion + " ms (" + percentAABBCompute + "%)" +":Compute\n" + 
                "\t" + collapseAABBTime/oneMillion + " ms (" + percentCollapseAABB + "%)" +":Collapse\n" + 
                mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +
+               deadTime/oneMillion + " ms (" + percentDead + "%)" +":Dead\n" +
+               "\t" + deadCountTime/oneMillion + " ms (" + percentDeadCount + "%)" +":Count\n" +
+               "\t" + deadExclusiveScanTime/oneMillion + " ms (" + percentDeadExclusiveScan + "%)" +":Exclusive Scan\n" +
+               "\t" + deadScatterTime/oneMillion + " ms (" + percentDeadScatter + "%)" +":Scatter\n" +
                radixSortTime/oneMillion + " ms (" + percentRadixSort + "%)" +":Radix Sort\n" +
                "\t" + radixSortHistogramTime/oneMillion + " ms (" + percentRadixSortHistogram + "%)" +":Histogram\n" +
                "\t" + radixSortScanParallelTime/oneMillion + " ms (" + percentRadixSortParallelScan + "%)" +":Parallel Scan\n" +

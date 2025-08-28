@@ -40,7 +40,7 @@ struct Node {
     uint parentId;
 };
 
-layout(std430, binding = 0) readonly buffer BodiesIn  { uint numBodies; uint initialNumBodies; Body bodies[]; } srcB;
+layout(std430, binding = 0) readonly buffer  BodiesIn  { uint numBodies; uint initialNumBodies; Body bodies[]; } srcB;
 
 layout(std430, binding = 1) buffer BodiesOut { uint numBodies; uint initialNumBodies; Body bodies[]; } dstB;
 
@@ -63,7 +63,7 @@ layout(std430, binding = 13) buffer Debug { uint uintDebug[100]; float floatDebu
 shared AABB sharedAABB[WG_SIZE];
 
 
-
+const uint64_t DEAD_VALUE = 0xFFFFFFFFFFFFFFFFul;
 
 AABB updateAABB(AABB a, AABB b) {
     AABB result;

@@ -1,14 +1,10 @@
-// Radix sort kernels
+//Alive - Dead partitioning kernels
 //Sorts the morton codes of the alive bodies
 //Dead bodies will be sorted to the end of the array
 //Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
 
-uint aliveHistSize()    { return numWorkGroups * NUM_BUCKETS; }
-uint aliveScannedSize() { return numWorkGroups * NUM_BUCKETS; }
-uint deadHistOffset()   { return aliveHistSize(); }
-uint deadScannedOffset(){ return aliveScannedSize(); }
-shared uint hist[WG_SIZE];
-
+shared uint hist[NUM_BUCKETS];
+//Radix sort kernels
 void radixHistogramKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
@@ -19,24 +15,17 @@ void radixHistogramKernel()
 
     if (lid < NUM_BUCKETS) hist[lid] = 0u; 
 
-    //reset the dead body count for this workgroup
-    if (lid == 0u) wgHist[wgId+ deadHistOffset()] = 0u;
     barrier();
 
-    bool inRange = gid < srcB.initialNumBodies;
-    bool alive = inRange && !isEmpty(srcB.bodies[gid]);
+    bool inRange = gid < srcB.numBodies;
 
     //if the body is alive, add it to the histogram
-    if (alive) {
+    if (inRange) {
         uint64_t key = morton[gid];
         uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
         atomicAdd(hist[digit], 1u);
     }
-
-    //if the body is not alive, add it to the dead body count
-    if (inRange && !alive) {
-        atomicAdd(wgHist[wgId+ deadHistOffset()], 1u);
-    }
+    
     barrier();
     //publish the histogram for this workgroup
     if (lid < NUM_BUCKETS) {
@@ -90,26 +79,8 @@ void radixExclusiveScanKernel()
         globalBase[lid] = exclusive;
     }
 
-    //calculate the total number of alive bodies. 
-    //This is used to determine the number of dead bodies.
-    if (lid == NUM_BUCKETS-1u) {
-        totalAlive = globalBase[lid]+bucketTotals[lid];
-    }
 }
-//Dispached with (1,0,0)
-// Uniforms: numWorkGroups
-// SSBOs: DeadWG, DeadWGScanned
-//Calculates the total number of dead bodies per workgroup
-void deadExclusiveScanKernel() {
-    if (gl_LocalInvocationID.x == 0u) {
-        uint sum = 0u;
-        for (uint wg = 0u; wg < numWorkGroups; ++wg) {
-            uint v = wgHist[wg+ deadHistOffset()];
-            wgScanned[wg+ deadScannedOffset()] = sum;
-            sum += v;
-        }
-    }
-}
+
 //Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
 shared uint digits[WG_SIZE];
 void radixScatterKernel()
@@ -118,7 +89,7 @@ void radixScatterKernel()
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
     //check if body exists and is alive
-    bool isActive = (gid < srcB.initialNumBodies && !isEmpty(srcB.bodies[gid]));
+    bool isActive = (gid < srcB.numBodies);
     //get the morton code for the body
     uint64_t key = isActive ? morton[gid] : 0ul;
     //get the digits for the body
@@ -140,30 +111,6 @@ void radixScatterKernel()
         indexOut[dstIndex]  = index[gid];
     }
 }
-shared uint deadFlags[WG_SIZE];
-//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
-// Uniforms: numWorkGroups
-// SSBOs: DeadWGScanned, BodiesIn, MortonOut, IndicesOut
-void deadScatterKernel() {
-    uint lid = gl_LocalInvocationID.x;
-    uint wgId = gl_WorkGroupID.x;
-    uint gid = gl_GlobalInvocationID.x;
-    bool inRange = (gid < srcB.initialNumBodies);
-    bool isDead  = inRange && isEmpty(srcB.bodies[gid]);
 
-    deadFlags[lid] = isDead ? 1u : 0u;
-    barrier();
-
-    uint localDeadRank = 0u;
-    for (uint i = 0u; i < lid; ++i) {
-        if (deadFlags[i] == 1u) localDeadRank++;
-    }
-
-    if (isDead) {
-        uint dstIndex = totalAlive+ wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
-        mortonOut[dstIndex] = 0xFFFFFFFFFFFFFFFFul;
-        indexOut[dstIndex]  = index[gid];
-    }
-}
 
 

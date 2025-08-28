@@ -137,18 +137,18 @@ public class SSBO {
         return result;
     }
 
-
-    public String getData(int startIndex, int endIndex) {
+    public ByteBuffer getRawData() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-
-        if (buffer == null) {
-            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-            return "Error: Could not map buffer";
-        }
-        
         buffer.order(java.nio.ByteOrder.nativeOrder());
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        return buffer;
+    }
+
+
+    public String getData(int startIndex, int endIndex) {
+        ByteBuffer buffer = getRawData();
         String result = name+"\n";
         
 

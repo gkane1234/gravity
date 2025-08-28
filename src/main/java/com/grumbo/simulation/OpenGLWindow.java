@@ -10,6 +10,7 @@ import org.joml.*;
 
 import java.nio.*;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -84,12 +85,12 @@ public class OpenGLWindow {
 
     public ArrayList<Planet> collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        Planet p1 = new Planet(0, 0, 0, 0, 0, 0, 100);
-        Planet p2 = new Planet(10, 0, 0, 0, 0, 0, 100);
-        Planet p3 = new Planet(-20, 0, 0, 0, 0, 0, 100);
-        newPlanets.add(p1);
-        newPlanets.add(p2);
-        newPlanets.add(p3);
+        int numAlive = 300000;
+        for (int i = 0; i < numAlive; i++) {
+            newPlanets.add(new Planet((float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), 0, 0, 0, 100));
+        }
+
+        Collections.shuffle(newPlanets);
         return newPlanets;
     }
 

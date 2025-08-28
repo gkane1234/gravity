@@ -30,7 +30,7 @@ void propagateNodesKernel()
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0) {
-        if (nodes[srcB.numBodies].readyChildren != 3u) {
+        if (nodes[srcB.initialNumBodies].readyChildren != 3u) {
             atomicAdd(uintDebug[0], 1u);
         }
     }
