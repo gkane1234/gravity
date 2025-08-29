@@ -5,5 +5,7 @@ void resetKernel() {
         activeThreads = 0u;
         tail = 0u;
         mergeQueueTail = 0u;
+        //mergeQueueHead = 0u;
+        dstB.numBodies = srcB.numBodies;
     }
 }

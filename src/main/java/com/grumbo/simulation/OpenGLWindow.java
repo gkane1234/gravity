@@ -56,19 +56,35 @@ public class OpenGLWindow {
 
     private boolean debug = true;
     public OpenGLWindow() {
-        //planets = createBoxSimulation();
-        planets = collisionTest();
+        planets = createDiskSimulation();
+        //planets = collisionTest();
+        //planets = twoPlanets();
+
         //planets = Planet.mergeOverlappingPlanets(planets);
         //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
 
 
     }
 
+    public ArrayList<Planet> createDiskSimulation() {
+        ArrayList<Planet> planets = new ArrayList<>();
+        float[] radius = {100, 100000};
+        float[] mRange = {10, 10000};
+        Planet center = new Planet(1,0,0,0,0,0,100000);
+        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
+        planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0), false, true, 100000));
+        planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0.1), false, true, 100000));
+        //planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0.2), false, true, 100000));
+        planets.add(center);
+
+        return planets;
+    }
+
     public ArrayList<Planet> createBoxSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
-        float[] xRange = {-400, 400};
-        float[] yRange = {-400, 400};
-        float[] zRange = {-400, 400};
+        float[] xRange = {-4000, 4000};
+        float[] yRange = {-4000, 4000};
+        float[] zRange = {-4000, 4000};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};
@@ -76,7 +92,7 @@ public class OpenGLWindow {
         float[] radius = {100, 1000};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNew(99, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
+        planets = Planet.makeNewRandomBox(1_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange);
         planets.add(center);
         //planets.add(center2);
 
@@ -85,12 +101,20 @@ public class OpenGLWindow {
 
     public ArrayList<Planet> collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 300000;
+        int numAlive = 1000;
         for (int i = 0; i < numAlive; i++) {
             newPlanets.add(new Planet((float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), 0, 0, 0, 100));
         }
 
         Collections.shuffle(newPlanets);
+        return newPlanets;
+    }
+
+    public ArrayList<Planet> twoPlanets() {
+        ArrayList<Planet> newPlanets = new ArrayList<>();
+        newPlanets.add(new Planet(0, 0, 0, 0, 0, 0, 100));
+        newPlanets.add(new Planet(20, 0, 0, 0, 0, 0, 100));
+        newPlanets.add(new Planet(-20, 0, 0, 0, 0, 0, 100));
         return newPlanets;
     }
 

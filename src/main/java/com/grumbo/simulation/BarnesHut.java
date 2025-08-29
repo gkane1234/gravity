@@ -28,7 +28,7 @@ public class BarnesHut {
 
 
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 64;
+    private static final int PROPAGATE_NODES_ITERATIONS = 128;
     private boolean debug;
 
 
@@ -120,84 +120,88 @@ public class BarnesHut {
         this.gpuSimulation = gpuSimulation;
         this.debug = debug;
     }
+    
+    private void checkMortonCodes(SSBO mortonBuffer, boolean print) {
+        boolean correctPartitioning = true;
+        boolean correctSorting = true;
+        long[] mortonCodes = new long[gpuSimulation.numBodies()];
+        LongBuffer mortonBufferLong = mortonBuffer.getBuffer().asLongBuffer();
+        long[] sortedMortonCodes = new long[gpuSimulation.numBodies()];
+        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+            mortonCodes[i] = mortonBufferLong.get(i);
+            sortedMortonCodes[i] = mortonCodes[i];
+            if (print) {
+                System.out.println("Morton Code: " + i + " " + mortonCodes[i]);
+            }
+        }
+        Arrays.sort(sortedMortonCodes);
+        int deadIndex = 0;
+        while (deadIndex < gpuSimulation.numBodies() && sortedMortonCodes[deadIndex] == -1) {
+            deadIndex++;
+        }
+        for (int i = 0; i < mortonCodes.length-deadIndex; i++) {
+            if (mortonCodes[i] != sortedMortonCodes[i+deadIndex]) {
+                correctSorting = false;
+            }
+            if (mortonCodes[i] == -1) {
+                correctPartitioning = false;
+            }
+        }
 
+        System.out.println("Morton Codes are correctly partitioned: " + correctPartitioning);
+        System.out.println("Morton Codes are correctly sorted: " + correctSorting);
+    }
     
     public void step() {
         resetQueues();
 
+
+
         computeAABB();
+
 
         generateMortonCodes();
 
-        // System.out.println("Morton Codes:");
-        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-        //     System.out.println("Morton Code: " + i + " " + MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
-        //     //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
-        // }
+
+        initializeSwappingMortonBuffers();
 
         partitionDeadBodies();
         swapMortonBuffers();
 
-        // System.out.println("Morton Codes:");
-        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-        //     System.out.println("Morton Code: " + i + " " + CURRENT_MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
-        //     //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
-        // }
-
-
         radixSort();
 
-        // System.out.println("Morton Codes:");
-        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-        //     System.out.println("Morton Code: " + i + " " + CURRENT_MORTON_IN_SSBO.getBuffer().asLongBuffer().get(i));
-        //     //System.out.println(MORTON_OUT_SSBO.getBuffer().asLongBuffer().get(i));
-        // }
+        //checkMortonCodes(CURRENT_MORTON_IN_SSBO, false);
 
         buildBinaryRadixTree();
 
-        computeCOMAndLocation();
         //debugTree();
 
-        // System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies()+1));
-        // System.out.println(DEBUG_SSBO.getData(0, 1));
-        // Node n = Node.fromBuffer(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), gpuSimulation.numBodies()+1)[0];
-        // System.out.println("Context Volume: " + Node.volume(n));
 
-        //System.out.println(NODES_SSBO.getData(gpuSimulation.numBodies(), gpuSimulation.numBodies() + 5));
+
+        computeCOMAndLocation();
+
 
         computeForce();
 
+
+
         mergeBodies();
 
-        swapBodyBuffers();
 
-        // System.out.println(MERGE_QUEUE_SSBO.getData(0, 1));
-        // System.out.println(DEBUG_SSBO.getData(0, 10));
-        // System.out.println(SWAPPING_BODIES_OUT_SSBO.getData(0, 2));
-        // System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 2));
+        // System.out.println("After Merge:");
         // System.out.println(SWAPPING_BODIES_OUT_SSBO.getHeader());
         // System.out.println(SWAPPING_BODIES_IN_SSBO.getHeader());
-        // float total = 0;
+        // System.out.println(MERGE_QUEUE_SSBO.getHeader());
 
-        // FloatBuffer debugBuffer = DEBUG_SSBO.getBuffer().asFloatBuffer();
-        // float[] debugArray = new float[gpuSimulation.numBodies()];
-        // for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-        //     debugArray[i] = debugBuffer.get(i);
-        //     total += debugArray[i];
-        // }
-        // Arrays.sort(debugArray);
+
+        swapBodyBuffers();
 
 
             if (debug) {
             debugString = printProfiling();
         }
 
-        
-        
-        //System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), 2));
 
-        //System.out.println("Max stack size: " + debugArray[debugArray.length - 1]);
-        //System.out.println("Average stack size: " + total / gpuSimulation.numBodies());
 
     }
 
@@ -278,8 +282,8 @@ public class BarnesHut {
         ssbos.put(WORK_QUEUE_SSBO.getName(), WORK_QUEUE_SSBO);
 
         MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
-            return Math.max(2*Integer.BYTES, gpuSimulation.numBodies() * 2 * Integer.BYTES);
-        }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT }, 4, new VariableType[] {VariableType.UINT});
+            return Math.max(2*Integer.BYTES, 8+gpuSimulation.numBodies() * 2 * Integer.BYTES);
+        }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT }, 8, new VariableType[] {VariableType.UINT});
         ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
 
         DEBUG_SSBO = new SSBO(SSBO.DEBUG_SSBO_BINDING, () -> {
@@ -402,7 +406,8 @@ public class BarnesHut {
         });
         deadCountKernel.setSSBOs(new String[] {
             "WG_HIST_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
+            "SWAPPING_BODIES_IN_SSBO",
+            "SWAPPING_BODIES_OUT_SSBO"
         });
         deadCountKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -415,7 +420,8 @@ public class BarnesHut {
         deadExclusiveScanKernel.setSSBOs(new String[] {
             "WG_HIST_SSBO",
             "WG_SCANNED_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
+            "SWAPPING_BODIES_IN_SSBO",
+            "DEBUG_SSBO"
         });
         deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return 1;
@@ -427,7 +433,11 @@ public class BarnesHut {
         });
         deadScatterKernel.setSSBOs(new String[] {
             "WG_SCANNED_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
+            "SWAPPING_BODIES_IN_SSBO",
+            "CURRENT_MORTON_IN_SSBO",
+            "CURRENT_INDEX_IN_SSBO",
+            "CURRENT_MORTON_OUT_SSBO",
+            "CURRENT_INDEX_OUT_SSBO"
         });
         deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -555,8 +565,8 @@ public class BarnesHut {
         initLeavesKernel.setSSBOs(new String[] {
             "SWAPPING_BODIES_IN_SSBO",
             "NODES_SSBO",
-            "MORTON_IN_SSBO",
-            "INDEX_IN_SSBO",
+            "CURRENT_MORTON_IN_SSBO",
+            "CURRENT_INDEX_IN_SSBO",
             "WORK_QUEUE_SSBO",
         });
 
@@ -573,6 +583,8 @@ public class BarnesHut {
         resetKernel.setSSBOs(new String[] {
             "WORK_QUEUE_SSBO",
             "MERGE_QUEUE_SSBO",
+            "SWAPPING_BODIES_IN_SSBO",
+            "SWAPPING_BODIES_OUT_SSBO"
         });
 
         resetKernel.setXWorkGroupsFunction(() -> {
@@ -606,9 +618,12 @@ public class BarnesHut {
         });
 
         computeForceKernel.setSSBOs(new String[] {
+            "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
             "NODES_SSBO",
             "DEBUG_SSBO",
+            "INDEX_IN_SSBO",
+            "MERGE_QUEUE_SSBO",
         });
 
         computeForceKernel.setXWorkGroupsFunction(() -> {
@@ -731,12 +746,6 @@ public class BarnesHut {
     private void radixSort() {
         int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
         
-        // Current input/output morton and index buffers
-        CURRENT_MORTON_IN_SSBO.setBufferLocation(MORTON_IN_SSBO.getBufferLocation());
-        CURRENT_INDEX_IN_SSBO.setBufferLocation(INDEX_IN_SSBO.getBufferLocation());
-        CURRENT_MORTON_OUT_SSBO.setBufferLocation(MORTON_OUT_SSBO.getBufferLocation());
-        CURRENT_INDEX_OUT_SSBO.setBufferLocation(INDEX_OUT_SSBO.getBufferLocation());
-
         radixSortHistogramTime = 0;
         radixSortScanParallelTime = 0;
         radixSortScanExclusiveTime = 0;
@@ -887,6 +896,14 @@ public class BarnesHut {
         int tmpIn = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
         SWAPPING_BODIES_IN_SSBO.setBufferLocation(SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
+    }
+
+    private void initializeSwappingMortonBuffers() {
+        // Current input/output morton and index buffers
+        CURRENT_MORTON_IN_SSBO.setBufferLocation(MORTON_IN_SSBO.getBufferLocation());
+        CURRENT_INDEX_IN_SSBO.setBufferLocation(INDEX_IN_SSBO.getBufferLocation());
+        CURRENT_MORTON_OUT_SSBO.setBufferLocation(MORTON_OUT_SSBO.getBufferLocation());
+        CURRENT_INDEX_OUT_SSBO.setBufferLocation(INDEX_OUT_SSBO.getBufferLocation());
     }
 
     private void swapMortonBuffers() {
@@ -1204,13 +1221,13 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
             System.out.println("=== FINAL TREE WITH COM DATA ===");
             
             // First check for stuck nodes with readyChildren < 2
-            System.out.println("=== STUCK NODE ANALYSIS ===");
             NODES_SSBO.bind();
             ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer nodeData = nodeBuffer.asIntBuffer();
             
             int numLeaves = gpuSimulation.numBodies();
             int totalNodes = 2 * gpuSimulation.numBodies() - 1;
+
             // boolean foundStuckNodes = false;
             
             // for (int i = numLeaves; i < totalNodes; i++) { // Check internal nodes only
@@ -1267,7 +1284,7 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
             // Read tree nodes
             //ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             //IntBuffer nodeData = nodeBuffer.asIntBuffer();
-            System.out.println("Tree nodes:");
+            //System.out.println("Tree nodes:");
             
             //int numLeaves = planets.size();
             //int numInternalNodes = planets.size() - 1;
@@ -1275,13 +1292,14 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
             
             // Show first few leaf nodes (indices 0 to numBodies-1)
 
-            System.out.println(Node.getNodes(nodeData, 0, Math.min(20, numLeaves)));
+            //System.out.println(Node.getNodes(nodeData, 0, Math.min(20, numLeaves)));
             
             // Show internal nodes from halfway point (indices numBodies to 2*numBodies-2)
-            System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 20, totalNodes)));
+            //System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 20, totalNodes)));
 
-            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            //glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             verifyTreeStructure(nodeData, numLeaves, totalNodes);
+            NODES_SSBO.unbind();
     }
 
     private void verifyTreeStructure(IntBuffer nodeData, int numLeaves, int totalNodes) {

@@ -18,7 +18,7 @@ void computeForce()
 {
     vec3 accel = vec3(0.0);
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies || isEmpty(srcB.bodies[gid])) return;
+    if (gid >= srcB.initialNumBodies) return;
 
     Body body = srcB.bodies[gid];
 
@@ -28,7 +28,6 @@ void computeForce()
 
 
     while (stackSize > 0) {
-        
         uint nodeIdx = stack[--stackSize];
         Node node = nodes[nodeIdx];
         vec3 r = node.comMass.xyz - body.posMass.xyz;
@@ -36,7 +35,6 @@ void computeForce()
         vec3 extent = node.aabb.max - node.aabb.min;
         float longestSide = max(extent.x, max(extent.y, extent.z));
         if (node.childA == 0xFFFFFFFFu) {
-            uintDebug[1] = 1;
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
             if (index[nodeIdx] != gid) {
                 Body other = srcB.bodies[index[nodeIdx]];
@@ -58,10 +56,9 @@ void computeForce()
                 //         body.posMass.xyz -= correction;
                 //     }
                 // } else 
-                if (dist < bodyRadius + otherRadius && gid < index[nodeIdx]) {
-                    uintDebug[1] = 2;
+                if ((dist < bodyRadius + otherRadius) && (gid < index[nodeIdx])) {
                     uint slot = atomicAdd(mergeQueueTail, 1u);
-                    mergeQueue[slot] = uvec2(gid, index[nodeIdx]);
+                    mergeQueue[slot] = uvec2(gid , index[nodeIdx]);
                 }
             }
         }
@@ -81,6 +78,6 @@ void computeForce()
     dstB.bodies[gid].posMass.xyz = newPos;
     dstB.bodies[gid].posMass.w = body.posMass.w;
     dstB.bodies[gid].color = body.color;
-    dstB.numBodies = srcB.numBodies;
+
 }
 

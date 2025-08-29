@@ -36,7 +36,25 @@ int safeLCP(int i, int j)
 void buildBinaryRadixTreeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies - 1u) return;
+    if (gid >= srcB.numBodies - 1u) {
+        // For when there is only one body
+        if (gid == 0) {
+            uint headIdx = srcB.initialNumBodies;
+            nodes[headIdx].parentId = 0xFFFFFFFFu;
+            nodes[headIdx].childA = 1;
+            nodes[headIdx].childB = 0xFFFFFFFFu;
+            nodes[headIdx].readyChildren = 1u;
+            nodes[headIdx].comMass = vec4(0.0);
+            nodes[headIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
+            nodes[headIdx].firstBody = 0u;
+            nodes[headIdx].bodyCount = 0u;
+            nodes[0].parentId = srcB.initialNumBodies;
+
+        }
+        return;
+    }
+
+
     const int i = int(gid);
 
     int lcpRight = safeLCP(i, i + 1);

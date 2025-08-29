@@ -13,7 +13,7 @@
   "pitch" : 0.0,
   "mouseRotationSensitivity" : 0.2,
   "defaultPlanetColor" : -9585169,
-  "WASDSensitivity" : 10.0,
+  "WASDSensitivity" : 1000.0,
   "height" : 1000,
   "cameraFront" : {
     "x" : 0.0,

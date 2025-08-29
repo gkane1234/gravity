@@ -85,10 +85,67 @@ public class Planet {
 		return color;
 	}
 
-	public static ArrayList<Planet> makeNew(int num, float[] x, float[] y, float[] z, float[] xV, float[] yV, float[] zV, float[] m) {
+	public static ArrayList<Planet> makeNewRandomBox(int num, float[] x, float[] y, float[] z, float[] xV, float[] yV, float[] zV, float[] m) {
 		ArrayList<Planet> ret = new ArrayList<>();
 		for (int i=0;i<num;i++) {
 			ret.add(new Planet(randomInRange(x), randomInRange(y), randomInRange(z), randomInRange(xV), randomInRange(yV), randomInRange(zV), randomInRange(m)));			
+		}
+		return ret;
+	}
+	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] m, float phi, boolean ccw, boolean giveOrbitalVelocity, float mass) {
+		ArrayList<Planet> ret = new ArrayList<>();
+	
+		// Disk normal tilted from +z by phi around the x-axis
+		final float nx = 0f;
+		final float ny = (float)Math.sin(phi);
+		final float nz = (float)Math.cos(phi);
+	
+		// Build an orthonormal basis (u, v) in the plane perpendicular to n
+		// Choose a helper axis not colinear with n
+		float ax, ay, az;
+		if (Math.abs(nx) < 0.9f) { ax = 1f; ay = 0f; az = 0f; } else { ax = 0f; ay = 1f; az = 0f; }
+	
+		// u = normalize(n x a)
+		float ux = ny*az - nz*ay;
+		float uy = nz*ax - nx*az;
+		float uz = nx*ay - ny*ax;
+		float uLen = (float)Math.sqrt(ux*ux + uy*uy + uz*uz);
+		ux /= uLen; uy /= uLen; uz /= uLen;
+	
+		// v = n x u  (already normalized)
+		float vx = ny*uz - nz*uy;
+		float vy = nz*ux - nx*uz;
+		float vz = nx*uy - ny*ux;
+	
+		for (int i=0;i<num;i++) {
+			float r = randomInRange(radius);
+			float theta = (float)(Math.random()*2*Math.PI);
+			float cosT = (float)Math.cos(theta);
+			float sinT = (float)Math.sin(theta);
+	
+			// Position in the inclined disk plane
+			float x = r*(ux*cosT + vx*sinT);
+			float y = r*(uy*cosT + vy*sinT);
+			float z = r*(uz*cosT + vz*sinT);
+	
+			float xV = 0f, yV = 0f, zV = 0f;
+			if (giveOrbitalVelocity) {
+				int dir = ccw ? 1 : -1;
+				float orbitalSpeed = (float)(11*Math.sqrt(mass/r));
+	
+				// Tangent direction: t̂ = normalize(n × r̂)
+				float tx = ny*z - nz*y;
+				float ty = nz*x - nx*z;
+				float tz = nx*y - ny*x;
+				float tLen = (float)Math.sqrt(tx*tx + ty*ty + tz*tz);
+				if (tLen > 0f) { tx /= tLen; ty /= tLen; tz /= tLen; }
+	
+				xV = dir * orbitalSpeed * tx;
+				yV = dir * orbitalSpeed * ty;
+				zV = dir * orbitalSpeed * tz;
+			}
+	
+			ret.add(new Planet(x, y, z, xV, yV, zV, randomInRange(m)));
 		}
 		return ret;
 	}

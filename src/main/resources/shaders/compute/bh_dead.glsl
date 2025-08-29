@@ -12,10 +12,15 @@ void deadCountKernel() {
 
     bool inRange = gid < srcB.initialNumBodies;
     bool alive = inRange && !isEmpty(srcB.bodies[gid]);
+    bool dead = inRange && isEmpty(srcB.bodies[gid]);
     if (lid == 0u) {
         wgHist[wgId + deadHistOffset()] = 0u;
     }
-    deadFlags[lid] = alive ? 0u : 1u;
+    deadFlags[lid] = dead ? 1u : 0u;
+    // this makes sure that the body is set to empty correctly on the old buffer
+    if (dead) {
+        dstB.bodies[gid] = EMPTY_BODY;
+    }
     barrier();
 
     if (lid == 0u) {
@@ -41,6 +46,8 @@ void deadExclusiveScanKernel() {
             wgScanned[wg+ deadScannedOffset()] = sum;
             sum += v;
         }
+
+        uintDebug[0] = sum;
     }
 }
 
@@ -56,19 +63,27 @@ void deadScatterKernel() {
     bool isDead  = inRange && isEmpty(srcB.bodies[gid]);
     bool isAlive = inRange && !isEmpty(srcB.bodies[gid]);
 
-    deadFlags[lid] = isDead ? 1u : 0u;
-    barrier();
+    if (isDead) {
+        deadFlags[lid] = 1u;
+    }
+    else {
+        deadFlags[lid] = 0u;
+    }
+    
 
+    barrier();
     uint localDeadRank = 0u;
     for (uint i = 0u; i < lid; ++i) {
-        if (deadFlags[i] == 1u) localDeadRank++;
+        if (deadFlags[i] == 1u) {
+            localDeadRank++;
+        }
     }
 
     uint localAliveRank = lid - localDeadRank;
 
 
     if (isDead) {
-        uint dstIndex = totalAlive+ wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
+        uint dstIndex = srcB.numBodies+ wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
         mortonOut[dstIndex] = 0xFFFFFFFFFFFFFFFFul;
         indexOut[dstIndex]  = index[gid];
     }

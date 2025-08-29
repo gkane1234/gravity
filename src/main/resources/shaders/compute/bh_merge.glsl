@@ -32,11 +32,19 @@ void mergeBodiesKernel() {
         uvec2 bodies = mergeQueue[i];
         Body body1 = dstB.bodies[bodies.x];
         Body body2 = dstB.bodies[bodies.y];
-        //debug[0]=bodies.x;
-        //debug[1]=bodies.y;
+
+        floatDebug[0]=body1.posMass.w;
+        floatDebug[1]=body2.posMass.w;
         Body mergedBody = mergeBodies(body1, body2);
         dstB.bodies[bodies.x] = mergedBody;
-        dstB.bodies[bodies.y] = EMPTY_BODY;
+        // when this happens, the body is set to empty on the swapped buffer
+        // BUT it is still alive on the source buffer
+        // After swapping, we need to make sure that at some point we set it to empty.
+        dstB.bodies[bodies.y] = EMPTY_BODY; 
+
+        if (isEmpty(body1) || isEmpty(body2)) {
+            continue;
+        }
         dstB.numBodies--;
     }
 }

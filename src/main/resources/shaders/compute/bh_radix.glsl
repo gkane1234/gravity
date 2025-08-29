@@ -50,6 +50,7 @@ void radixParallelScanKernel()
         bucketTotals[b] = sum;
     }
 }
+//Fix this to make it better
 //Dispached with (1,0,0)
 shared uint temp[WG_SIZE];
 void radixExclusiveScanKernel()

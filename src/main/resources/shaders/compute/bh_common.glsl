@@ -40,9 +40,9 @@ struct Node {
     uint parentId;
 };
 
-layout(std430, binding = 0) readonly buffer  BodiesIn  { uint numBodies; uint initialNumBodies; Body bodies[]; } srcB;
+layout(std430, binding = 0) readonly buffer  BodiesIn  { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; Body bodies[]; } srcB;
 
-layout(std430, binding = 1) buffer BodiesOut { uint numBodies; uint initialNumBodies; Body bodies[]; } dstB;
+layout(std430, binding = 1) buffer BodiesOut { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; Body bodies[]; } dstB;
 
 layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
