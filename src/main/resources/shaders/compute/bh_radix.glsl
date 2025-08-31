@@ -32,25 +32,59 @@ void radixHistogramKernel()
         wgHist[wgId * NUM_BUCKETS + lid] = hist[lid];
     }
 }
-//Dispached with (NUM_RADIX_BUCKETS,0,0) with NUM_RADIX_BUCKETS = 2^RADIX_BITS where RADIX_BITS=4
+//Dispached with (ceil(NUM_RADIX_BUCKETS*NUM_WORK_GROUPS/WORK_GROUP_SIZE),0,0) with NUM_RADIX_BUCKETS = 2^RADIX_BITS where RADIX_BITS=4
+//Histogram is of size NUM_RADIX_BUCKETS * NUM_WORK_GROUPS
+//Want to dispach that many threads to do inclusive sum
+shared uint threadSums[WG_SIZE];
 void radixParallelScanKernel()
 {
-    uint b = gl_WorkGroupID.x;
+
+    uint lid = gl_LocalInvocationID.x;
+    uint wgid = gl_WorkGroupID.x;
+    uint regionSize = (numWorkGroups + WG_SIZE -1 ) / WG_SIZE;
+
+    uint regionStart = lid*regionSize;
+    uint bucket = wgid;
 
 
-    //calculate the total number of bodies in this bucket across all workgroups
-    //Calculate as an inclusive sum
-    if (gl_LocalInvocationID.x == 0u) {
-        uint sum = 0u;
-        for (uint wg = 0u; wg < numWorkGroups; ++wg) {
-            uint v = wgHist[wg * NUM_BUCKETS + b];
-            wgScanned[wg * NUM_BUCKETS + b] = sum;
-            sum += v;
+    threadSums[lid]=0;
+
+
+    //inclusive sum of contiguous regions of size ceil(numworkgroups/wgsize)
+    uint regionSum = 0u;   
+    for (uint i=0; i<regionSize; i++) {
+        uint nextIndex = bucket+NUM_BUCKETS*(regionStart+i);
+        regionSum+= (nextIndex<NUM_BUCKETS*numWorkGroups) ? wgHist[nextIndex] : 0u;
+    }
+    threadSums[lid]=regionSum;
+    barrier();
+
+
+    //Kogge-Stone inclusive sum of the threadSums
+
+    for (uint offset = 1u; offset < WG_SIZE; offset <<= 1u) {
+        uint add = (lid >= offset) ? threadSums[lid-offset] : 0u;
+        barrier();
+        threadSums[lid]+=add;
+        barrier();
+    }
+
+    uint base = threadSums[lid]-regionSum;
+
+    //Propagate the threadSums to each region and repeat inclusive contiguous sum
+    uint runningTotal = base;
+    for (uint i=0; i<regionSize; i++) {
+        uint nextIndex = bucket+NUM_BUCKETS*(regionStart+i);
+        if (nextIndex < NUM_BUCKETS*numWorkGroups) {
+            wgScanned[nextIndex] = runningTotal;
+            runningTotal+=wgHist[nextIndex];
         }
-        bucketTotals[b] = sum;
+    }
+
+    if (lid == WG_SIZE-1) {
+        bucketTotals[bucket] = threadSums[WG_SIZE-1u];
     }
 }
-//Fix this to make it better
 //Dispached with (1,0,0)
 shared uint temp[WG_SIZE];
 void radixExclusiveScanKernel()
@@ -61,7 +95,7 @@ void radixExclusiveScanKernel()
     temp[lid] = val;
     barrier();
  
-    //add bucket totals to find the global base using the inclusive sum algorithm
+    //add bucket totals to find the global base using the Kogge-Stone inclusive sum algorithm
     //adds the one the came before it, then the one two before it, then 4 before it, etc.
     //done in parallel with the other threads to get inclusive sum
     for (uint offset = 1u; offset < WG_SIZE; offset <<= 1u) {

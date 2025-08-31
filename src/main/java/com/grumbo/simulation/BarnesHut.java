@@ -22,13 +22,13 @@ public class BarnesHut {
 
     // Simulation params
     //To change these, you need to also change their definitions in the compute shader
-    private static final int WORK_GROUP_SIZE = 128;
+    private static final int WORK_GROUP_SIZE = 256;
     private static final int NUM_RADIX_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
 
 
 
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 128;
+    private static final int PROPAGATE_NODES_ITERATIONS = 64;
     private boolean debug;
 
 

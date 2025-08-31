@@ -9,7 +9,7 @@
 // -------------------------------------------------------------
 // 1) Constants and configuration
 // - Define workgroup size, softening, Barnes–Hut theta, etc.
-layout(local_size_x = 128) in;
+layout(local_size_x = 256) in;
 const float SOFTENING = 0.1;
 uniform float theta;
 uniform float dt;
@@ -22,7 +22,7 @@ uniform uint numWorkGroups; // number of workgroups dispatched for histogram/sca
 // Radix parameters
 const uint RADIX_BITS = 4u;                 // 4 bits per pass
 const uint NUM_BUCKETS = 1u << RADIX_BITS;  // 16 buckets
-const uint WG_SIZE = 128u;                  // must match layout(local_size_x)
+const uint WG_SIZE = 256u;                  // must match layout(local_size_x)
 // -------------------------------------------------------------
 
 // -------------------------------------------------------------

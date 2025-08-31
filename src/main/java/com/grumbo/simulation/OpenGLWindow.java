@@ -72,7 +72,7 @@ public class OpenGLWindow {
         float[] mRange = {10, 10000};
         Planet center = new Planet(1,0,0,0,0,0,100000);
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
-        planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0), false, true, 100000));
+        //planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0), false, true, 100000));
         planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0.1), false, true, 100000));
         //planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0.2), false, true, 100000));
         planets.add(center);

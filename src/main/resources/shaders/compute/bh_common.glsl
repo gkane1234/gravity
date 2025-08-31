@@ -2,7 +2,7 @@
 // Common definitions, structs, buffers, and helpers for BH
 // =============================================================
 
-layout(local_size_x = 128) in;
+layout(local_size_x = 256) in;
 uniform float softening;
 uniform float theta;
 uniform float dt;
@@ -15,7 +15,7 @@ uniform uint passShift;
 
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
-const uint WG_SIZE = 128u;
+const uint WG_SIZE = 256u;
 //Softening values can cause slowdowns
 const float SOFTENING = 0.1;
 
@@ -51,7 +51,7 @@ layout(std430, binding = 5) buffer AABBBuffer { AABB aabb[]; };
 // first half is for alive values second for dead values
 layout(std430, binding = 6) buffer WGHist      { uint wgHist[];      };
 // first half is for alive values second for dead values
-layout(std430, binding = 7) buffer WGScanned   { uint totalAlive; uint wgScanned[];   };
+layout(std430, binding = 7) buffer WGScanned   { uint wgScanned[];   };
 layout(std430, binding = 8) buffer BucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];  };
 layout(std430, binding = 9) buffer MortonOut   { uint64_t mortonOut[];   };
 layout(std430, binding = 10) buffer IndicesOut  { uint indexOut[];    };
