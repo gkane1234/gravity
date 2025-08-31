@@ -74,6 +74,18 @@ public class GPUSimulation {
         return planets.size();
     }
 
+
+
+    public int currentBodies() {
+        return 0;
+        /*
+        if (barnesHut == null || barnesHut.getOutputSSBO() == null) {
+            return 0;
+        }
+        return barnesHut.getOutputSSBO().getHeaderAsInts()[0];
+        */
+    }
+
     public void setMvp(FloatBuffer mvp) {
         render.setMvp(mvp);
     }

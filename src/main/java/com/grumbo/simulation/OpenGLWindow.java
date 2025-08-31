@@ -52,9 +52,10 @@ public class OpenGLWindow {
 
     private boolean advanceFrame = false;
     // FPS limiting using GPU swap interval
-    private int maxFPS = 60; // Default max FPS
+    private int maxFPS = -1; // Default max FPS
 
     private boolean debug = true;
+    private Render.RenderMode renderMode = Render.RenderMode.MESH_SPHERES;
     public OpenGLWindow() {
         planets = createDiskSimulation();
         //planets = collisionTest();
@@ -69,13 +70,14 @@ public class OpenGLWindow {
     public ArrayList<Planet> createDiskSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
         float[] radius = {100, 100000};
-        float[] mRange = {10, 10000};
-        Planet center = new Planet(1,0,0,0,0,0,100000);
+        float[] mRange = {1000, 100000};
+        //Planet center = new Planet(1,0,0,0,0,0,100000);
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
-        //planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0), false, true, 100000));
-        planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0.1), false, true, 100000));
-        //planets.addAll(Planet.makeNewRandomDisk(10_000_000, radius, mRange, (float)(0.2), false, true, 100000));
-        planets.add(center);
+        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0), false, true, 100000));
+        planets.addAll(Planet.makeNewRandomDisk(100_000, radius, mRange, new float[] {0,300000,0}, new float[] {0,0,0},0, false, true, 1000000000));
+        planets.addAll(Planet.makeNewRandomDisk(100_000, radius, mRange, new float[] {0,0,0}, new float[] {0,0,0}, (float)(java.lang.Math.PI/2), true, true, 10000000));
+        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0.2), false, true, 100000));
+        //planets.add(center);
 
         return planets;
     }
@@ -168,7 +170,7 @@ public class OpenGLWindow {
         System.out.println(getStartupInfo());
         
         // Initialize GPU simulation
-        gpuSimulation = new GPUSimulation(this, planets, Render.RenderMode.MESH_SPHERES, debug);
+        gpuSimulation = new GPUSimulation(this, planets, renderMode, debug);
         gpuSimulation.init();
         
 

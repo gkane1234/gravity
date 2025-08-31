@@ -1,4 +1,4 @@
-
+shared AABB sharedAABB[WG_SIZE];
 void computeNewAABBKernel() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
@@ -17,6 +17,7 @@ void computeNewAABBKernel() {
         sharedAABB[lid] = AABB(min(pos0, pos1), max(pos0, pos1));
     }
     barrier();
+
 
     uint activePairs = WG_SIZE;
     while (activePairs > 1u) {

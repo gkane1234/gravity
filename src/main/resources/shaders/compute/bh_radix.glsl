@@ -123,7 +123,7 @@ void radixScatterKernel()
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
-    //check if body exists and is alive
+    //check if body exists
     bool isActive = (gid < srcB.numBodies);
     //get the morton code for the body
     uint64_t key = isActive ? morton[gid] : 0ul;

@@ -32,7 +32,7 @@ void computeForce()
         Node node = nodes[nodeIdx];
         vec3 r = node.comMass.xyz - body.posMass.xyz;
         float oneOverDist = invDist(r, SOFTENING);
-        vec3 extent = node.aabb.max - node.aabb.min;
+        vec3 extent = node.aabb.maxCorner - node.aabb.minCorner;
         float longestSide = max(extent.x, max(extent.y, extent.z));
         if (node.childA == 0xFFFFFFFFu) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;

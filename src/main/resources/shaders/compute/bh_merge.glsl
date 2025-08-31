@@ -9,18 +9,7 @@ Body mergeBodies(Body body1, Body body2) {
     mergedBody.posMass.w = newMass;
     mergedBody.velPad.xyz = (body1.velPad.xyz * body1.posMass.w + body2.velPad.xyz * body2.posMass.w) / newMass;
     mergedBody.velPad.w = 0;
-    mergedBody.color = vec4(1.0, 1.0, 1.0, 1.0);
-    floatDebug[0]=newMass;
-    floatDebug[1]=mergedBody.velPad.xyz.x;
-    floatDebug[2]=mergedBody.velPad.xyz.y;
-    floatDebug[3]=mergedBody.velPad.xyz.z;
-    floatDebug[4]=newPos.x;
-    floatDebug[5]=newPos.y;
-    floatDebug[6]=newPos.z;
-    floatDebug[7]=mergedBody.color.x;
-    floatDebug[8]=mergedBody.color.y;
-    floatDebug[9]=mergedBody.color.z;
-    //floatDebug[10]=mergedBody.color.w;
+    mergedBody.color = (body1.color*body1.posMass.w+body2.color*body2.posMass.w)/newMass;
     return mergedBody;
 }
 

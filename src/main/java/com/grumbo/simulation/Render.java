@@ -46,7 +46,7 @@ public class Render {
     private int sphereIbo = 0;
     private int sphereIndexCount = 0;
     private int sphereStacks = 8;
-    private int sphereSlices = 16;
+    private int sphereSlices = 8;
 
     // Impostor config
     private float impostorPointScale = 2.0f; // mass to pixel size scale

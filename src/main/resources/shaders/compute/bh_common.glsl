@@ -25,8 +25,8 @@ struct Body { vec4 posMass; vec4 velPad; vec4 color; };
 
 const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0), vec4(0.0));
 struct AABB {
-    vec3 min;
-    vec3 max;
+    vec3 minCorner;
+    vec3 maxCorner;
 };
 
 struct Node {
@@ -60,15 +60,15 @@ layout(std430, binding = 12) buffer MergeQueue { uint mergeQueueTail; uvec2 merg
 layout(std430, binding = 13) buffer Debug { uint uintDebug[100]; float floatDebug[100]; };
 
 
-shared AABB sharedAABB[WG_SIZE];
+
 
 
 const uint64_t DEAD_VALUE = 0xFFFFFFFFFFFFFFFFul;
 
 AABB updateAABB(AABB a, AABB b) {
     AABB result;
-    result.min = min(a.min, b.min);
-    result.max = max(a.max, b.max);
+    result.minCorner = min(a.minCorner, b.minCorner);
+    result.maxCorner = max(a.maxCorner, b.maxCorner);
     return result;
 }
 

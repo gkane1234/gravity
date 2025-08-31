@@ -137,6 +137,18 @@ public class SSBO {
         return result;
     }
 
+    public int[] getHeaderAsInts() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
+        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        buffer.order(java.nio.ByteOrder.nativeOrder());
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
+        int[] data = new int[(buffer.capacity()/4)-headerSize];
+        IntBuffer intBuffer = buffer.asIntBuffer();
+        intBuffer.get(data);
+        return data;
+    }
+
     public ByteBuffer getRawData() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);

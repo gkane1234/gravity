@@ -95,6 +95,8 @@ public class BarnesHut {
     
 
     //Debug variables
+    private long renderingTime;
+    private long resetTime;
     private long aabbTime;
     private long computeAABBTime;
     private long collapseAABBTime;
@@ -153,56 +155,23 @@ public class BarnesHut {
     }
     
     public void step() {
+        renderingCheck();
         resetQueues();
-
-
-
         computeAABB();
-
-
         generateMortonCodes();
-
-
         initializeSwappingMortonBuffers();
-
         partitionDeadBodies();
         swapMortonBuffers();
-
         radixSort();
-
-        //checkMortonCodes(CURRENT_MORTON_IN_SSBO, false);
-
         buildBinaryRadixTree();
-
-        //debugTree();
-
-
-
         computeCOMAndLocation();
-
-
         computeForce();
-
-
-
         mergeBodies();
-
-
-        // System.out.println("After Merge:");
-        // System.out.println(SWAPPING_BODIES_OUT_SSBO.getHeader());
-        // System.out.println(SWAPPING_BODIES_IN_SSBO.getHeader());
-        // System.out.println(MERGE_QUEUE_SSBO.getHeader());
-
-
         swapBodyBuffers();
-
 
             if (debug) {
             debugString = printProfiling();
         }
-
-
-
     }
 
     /* --------- Initialization --------- */
@@ -665,8 +634,26 @@ public class BarnesHut {
 
     /* --------- Barnes-Hut --------- */
 
+    private void renderingCheck() {
+        if (debug) {
+            renderingTime = System.nanoTime();
+            checkGLError("rendering");
+            glFinish();
+            renderingTime = System.nanoTime() - renderingTime;
+        }
+    }
+
     private void resetQueues() {
+        long resetStartTime = 0;
+        if (debug) {
+            resetStartTime = System.nanoTime();
+        }
         resetKernel.run();
+        if (debug) {
+            checkGLError("resetQueues");
+            glFinish();
+            resetTime = System.nanoTime() - resetStartTime;
+        }
     }
 
     private void partitionDeadBodies() {
@@ -1018,7 +1005,9 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
         }
     }
     private String printProfiling() {
-        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime;
+        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime;
+        long percentRendering = (renderingTime * 100) / totalTime;
+        long percentReset = (resetTime * 100) / totalTime;
         long percentAABB = (aabbTime * 100) / totalTime;
         long percentAABBCompute = (computeAABBTime * 100) / totalTime;
         long percentCollapseAABB = (collapseAABBTime * 100) / totalTime;
@@ -1039,7 +1028,9 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
         long percentComputeForce = (computeForceTime * 100) / totalTime;
 
         final long oneMillion = 1_000_000;
-        return aabbTime/oneMillion + " ms (" + percentAABB + "%)" +":AABB\n" + 
+        return renderingTime/oneMillion + " ms (" + percentRendering + "%)" +":Rendering\n" + 
+               resetTime/oneMillion + " ms (" + percentReset + "%)" +":Reset\n" + 
+               aabbTime/oneMillion + " ms (" + percentAABB + "%)" +":AABB\n" + 
                "\t" + computeAABBTime/oneMillion + " ms (" + percentAABBCompute + "%)" +":Compute\n" + 
                "\t" + collapseAABBTime/oneMillion + " ms (" + percentCollapseAABB + "%)" +":Collapse\n" + 
                mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +

@@ -34,7 +34,7 @@ void main() {
   }
   vec3 center = srcB.bodies[gl_InstanceID].posMass.xyz;
   float mass = srcB.bodies[gl_InstanceID].posMass.w;
-  float radius = cbrt(max(mass, 0.0)) * uRadiusScale;
+  float radius = max(10,10*cbrt(max(mass, 0.0)) * uRadiusScale);
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;
   vColor = srcB.bodies[gl_InstanceID].color;

@@ -92,11 +92,11 @@ public class Planet {
 		}
 		return ret;
 	}
-	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] m, float phi, boolean ccw, boolean giveOrbitalVelocity, float mass) {
+	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] m, float[] center, float[] relativeVelocity, float phi, boolean ccw, boolean giveOrbitalVelocity, float mass) {
 		ArrayList<Planet> ret = new ArrayList<>();
 	
 		// Disk normal tilted from +z by phi around the x-axis
-		final float nx = 0f;
+		final float nx = 0;
 		final float ny = (float)Math.sin(phi);
 		final float nz = (float)Math.cos(phi);
 	
@@ -122,6 +122,8 @@ public class Planet {
 			float theta = (float)(Math.random()*2*Math.PI);
 			float cosT = (float)Math.cos(theta);
 			float sinT = (float)Math.sin(theta);
+
+			float approxMassWithinRadius = (m[1]+m[0])/2 * num * (float)Math.pow(r/radius[1], 2);
 	
 			// Position in the inclined disk plane
 			float x = r*(ux*cosT + vx*sinT);
@@ -131,7 +133,7 @@ public class Planet {
 			float xV = 0f, yV = 0f, zV = 0f;
 			if (giveOrbitalVelocity) {
 				int dir = ccw ? 1 : -1;
-				float orbitalSpeed = (float)(11*Math.sqrt(mass/r));
+				float orbitalSpeed = (float)(Math.sqrt(approxMassWithinRadius/r));
 	
 				// Tangent direction: t̂ = normalize(n × r̂)
 				float tx = ny*z - nz*y;
@@ -145,8 +147,11 @@ public class Planet {
 				zV = dir * orbitalSpeed * tz;
 			}
 	
-			ret.add(new Planet(x, y, z, xV, yV, zV, randomInRange(m)));
+			ret.add(new Planet(x+center[0], y+center[1], z+center[2], xV+relativeVelocity[0], yV+relativeVelocity[1], zV+relativeVelocity[2], randomInRange(m)));
 		}
+
+		Planet centerPlanet = new Planet(center[0], center[1], center[2], relativeVelocity[0], relativeVelocity[1], relativeVelocity[2], mass);
+		ret.add(centerPlanet);
 		return ret;
 	}
 

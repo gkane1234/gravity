@@ -377,6 +377,7 @@ public class OpenGLUI {
         // Draw text in white
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
         font.drawText(fpsText, x, y);
+        font.drawText("Bodies: " + openGlWindow.gpuSimulation.currentBodies(), x, y + textHeight);
         
         // Re-enable depth testing
         glEnable(GL_DEPTH_TEST);
@@ -386,6 +387,8 @@ public class OpenGLUI {
         glMatrixMode(GL_PROJECTION);
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
+
+
     }
 
     public String getPerformanceText() {
