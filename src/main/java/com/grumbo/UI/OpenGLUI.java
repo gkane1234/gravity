@@ -37,7 +37,7 @@ public class OpenGLUI {
         public boolean repeatable;
         private boolean repeat;
 
-        private static final long REPEAT_DELAY = 10; // 200ms
+        private static final long REPEAT_DELAY = 30; // 200ms
         private long lastRepeatTime = 0;
 
         public KeyEvent(int key, Runnable pressAction, Runnable releaseAction, boolean repeatable) {
@@ -329,6 +329,7 @@ public class OpenGLUI {
         // Apply movement to camera position
         if (moveDirection.length() > 0) {
             Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
+            //System.out.println("Camera pos: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z);
             
         }
     }
@@ -377,7 +378,7 @@ public class OpenGLUI {
         // Draw text in white
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
         font.drawText(fpsText, x, y);
-        font.drawText("Bodies: " + openGlWindow.gpuSimulation.currentBodies(), x, y + textHeight);
+        //font.drawText("Bodies: " + openGlWindow.gpuSimulation.currentBodies(), x, y + textHeight);
         
         // Re-enable depth testing
         glEnable(GL_DEPTH_TEST);
@@ -420,12 +421,12 @@ public class OpenGLUI {
         String indicatorText = "FRAME ADVANCE MODE";
         String instructionText = "Press ENTER to advance";
         
-        int x = Settings.getInstance().getWidth() - 200;
+        int x = Settings.getInstance().getWidth() - (int)font.getTextWidth(instructionText) - 20;
         int y = 20;
         int padding = 4;
         
         // Get text dimensions
-        float textWidth = font.getTextWidth(indicatorText);
+        float textWidth = font.getTextWidth(instructionText);
         float textHeight = font.getCharHeight();
         
         // Draw background rectangle

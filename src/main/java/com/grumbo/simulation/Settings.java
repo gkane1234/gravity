@@ -96,7 +96,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
-		{ Property<Float> p = Property.createFloatProperty("farPlane", 1000000.0f, 1000000.0f); p.setEditable(true); properties.put("farPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("farPlane", 100000000.0f, 100000000.0f); p.setEditable(true); properties.put("farPlane", p); }
 
 		// Camera move speed
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
@@ -111,7 +111,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f); p.setEditable(true); properties.put("mouseRotationSensitivity", p); }
 
 		// Camera position
-		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 100.0f), new Vector3f(0.0f, 0.0f, 100.0f), true));
+		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 10000.0f), new Vector3f(0.0f, 0.0f, 10000.0f), true));
 
 		// Camera front vector
 		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f), true));

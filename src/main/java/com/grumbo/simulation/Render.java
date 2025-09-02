@@ -36,9 +36,12 @@ public class Render {
     private int uMvpLocationSphere;     // for mesh spheres
     private int uSphereRadiusScaleLoc;  // mass->radius scale
     private int uCameraPosLocSphere;
-    private int uNearDistLocSphere;
-    private int uFarDistLocSphere;
-    private int uImpostorPointScaleLoc; // impostor scale
+    private int uImpostorPointScaleLoc; // impostor scale (world radius scale)
+    private int uImpostorCameraPosLoc;
+    private int uImpostorCameraFrontLoc;
+    private int uImpostorFovYLoc;
+    private int uImpostorAspectLoc;
+    private int uImpostorPassLoc;
 
     // Mesh sphere resources
     private int sphereVao = 0;
@@ -49,14 +52,10 @@ public class Render {
     private int sphereSlices = 8;
 
     // Impostor config
-    private float impostorPointScale = 2.0f; // mass to pixel size scale
-    private int maxMeshInstances = 500000;
+    private float impostorPointScale = 1f; // mass to pixel size scale
+    private int maxMeshInstances = 500000000;
     private float sphereRadiusScale = Settings.getInstance().getDensity(); // radius = sqrt(mass) * scale
 
-    // Distance-based color/brightness params (defaults)
-    private float cameraX = 0f, cameraY = 0f, cameraZ = 0f;
-    private float nearDist = 0f;
-    private float farDist = 10000f;
 
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;
@@ -103,6 +102,11 @@ public class Render {
         checkProgram(impostorProgram);
         uMvpLocationImpostor = glGetUniformLocation(impostorProgram, "uMVP");
         uImpostorPointScaleLoc = glGetUniformLocation(impostorProgram, "uPointScale");
+        uImpostorCameraPosLoc = glGetUniformLocation(impostorProgram, "uCameraPos");
+        uImpostorCameraFrontLoc = glGetUniformLocation(impostorProgram, "uCameraFront");
+        uImpostorFovYLoc = glGetUniformLocation(impostorProgram, "uFovY");
+        uImpostorAspectLoc = glGetUniformLocation(impostorProgram, "uAspect");
+        uImpostorPassLoc = glGetUniformLocation(impostorProgram, "uPass");
 
         // Create mesh sphere program
         sphereProgram = glCreateProgram();
@@ -121,11 +125,9 @@ public class Render {
         uMvpLocationSphere = glGetUniformLocation(sphereProgram, "uMVP");
         uSphereRadiusScaleLoc = glGetUniformLocation(sphereProgram, "uRadiusScale");
         uCameraPosLocSphere = glGetUniformLocation(sphereProgram, "uCameraPos");
-        uNearDistLocSphere = glGetUniformLocation(sphereProgram, "uNearDist");
-        uFarDistLocSphere = glGetUniformLocation(sphereProgram, "uFarDist");
-
         glEnable(GL_PROGRAM_POINT_SIZE);
         // Initialize sphere mesh VAO/VBO/IBO
+        vao = glGenVertexArrays();
         rebuildSphereMesh();
 
     }
@@ -160,12 +162,34 @@ public class Render {
         }
     
         public void renderImpostorSpheres(SSBO bodiesOutSSBO) {
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // black background
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(true);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            renderImpostorSpheresPass(bodiesOutSSBO, 0);
+            glDisable(GL_DEPTH_TEST);
+
+            glBlendFunc(GL_ONE, GL_ONE);
+            renderImpostorSpheresPass(bodiesOutSSBO, 1);
+            glUseProgram(0);
+        }
+
+
+        private void renderImpostorSpheresPass(SSBO bodiesOutSSBO, int pass) {
             glUseProgram(impostorProgram);
             glUniform1f(uImpostorPointScaleLoc, impostorPointScale);
+            glUniform3f(uImpostorCameraPosLoc, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
+            glUniform3f(uImpostorCameraFrontLoc, Settings.getInstance().getCameraFront().x, Settings.getInstance().getCameraFront().y, Settings.getInstance().getCameraFront().z);
+            glUniform1f(uImpostorFovYLoc, (float)Math.toRadians(Settings.getInstance().getFov()));
+            glUniform1i(uImpostorPassLoc, pass);
+            float aspect = (float)Settings.getInstance().getWidth() / (float)Settings.getInstance().getHeight();
+            glUniform1f(uImpostorAspectLoc, aspect);
             bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(vao);
-            glDrawArrays(GL_POINTS, 0, gpuSimulation.numBodies());
-            glUseProgram(0);
+            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.numBodies());
+
         }
     
         public void renderMeshSpheres(SSBO bodiesOutSSBO) {
@@ -175,9 +199,7 @@ public class Render {
             glBindVertexArray(sphereVao);
             glUniform1f(uSphereRadiusScaleLoc, sphereRadiusScale);
             // Distance/color uniforms
-            glUniform3f(uCameraPosLocSphere, cameraX, cameraY, cameraZ);
-            glUniform1f(uNearDistLocSphere, nearDist);
-            glUniform1f(uFarDistLocSphere, farDist);
+            glUniform3f(uCameraPosLocSphere, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
             int instanceCount = Math.min(gpuSimulation.numBodies(), maxMeshInstances);
             glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
             glBindVertexArray(0);
@@ -198,17 +220,7 @@ public class Render {
         glUseProgram(0);
     }
     
-    /* --------- Distance-based coloring configuration -------- */
-    public void setCameraPos(float x, float y, float z) {
-            this.cameraX = x;
-            this.cameraY = y;
-            this.cameraZ = z;
-        }
-    
-    public void setDistanceRange(float nearDist, float farDist) {
-            this.nearDist = nearDist;
-            this.farDist = Math.max(farDist, nearDist + 0.0001f);
-        }
+
     
     /* --------- SHADERS --------- */
 

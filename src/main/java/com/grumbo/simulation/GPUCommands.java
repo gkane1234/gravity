@@ -19,10 +19,6 @@ public final class GPUCommands {
         return sim -> Settings.getInstance().setSoftening(newSoftening);
     }
 
-    // Update distance-based shading range for mesh spheres
-    public static GPUCommand updateDistanceRange(float nearDist, float farDist) {
-        return sim -> sim.setDistanceRange(nearDist, farDist);
-    }
 
     // Re-upload existing planet data (same size)
     public static GPUCommand uploadPlanetData(java.util.List<Planet> planets) {

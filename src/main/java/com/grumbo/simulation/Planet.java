@@ -1,19 +1,16 @@
 package com.grumbo.simulation;
 import java.awt.Color;
 import java.util.ArrayList;
+import org.joml.Vector3f;
 
 public class Planet {
 	
 
 	public static int num=0;
 	
-	public float x;
-	public float y;
-	public float z;
-	public float xVelocity;
-	public float yVelocity;
-	public float zVelocity;
 	public float mass;
+	public Vector3f position;
+	public Vector3f velocity;
 	
 	
 	public Color color;
@@ -22,37 +19,35 @@ public class Planet {
 	
 	public int name;
 
-	public long[][] tail;
-	public int tailIndex= 0;
+
 
 
 	
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass) {
-		this.x=x;
-		this.y=y;
-		this.z=z;
-		this.xVelocity=xVelocity;
-		this.yVelocity=yVelocity;
-		this.zVelocity=zVelocity;
-		this.mass=mass;
+
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass);
 		
+
+
+	}
+
+
+	
+	// Convenience constructor for 2D (sets z=0)
+	public Planet(float x, float y, float xVelocity, float yVelocity, float mass) {
+		this(new Vector3f(x, y, 0f), new Vector3f(xVelocity, yVelocity, 0f), mass);
+	}
+
+
+	public Planet(Vector3f position, Vector3f velocity, float mass) {
+		this.position = position;
+		this.velocity = velocity;
+		this.mass = mass;
+
 		name=num++;
 		
 		// Generate random color instead of using default
 		color = generateRandomColor();
-
-		//initialize tail
-		tail = new long[Settings.getInstance().getTailLength()][3]; // 3D tail
-		for (int i=0;i<Settings.getInstance().getTailLength();i++) {
-			tail[i]=new long[] {(long)x,(long)y,(long)z};
-		}
-		tailIndex=0;
-		
-	}
-	
-	// Convenience constructor for 2D (sets z=0)
-	public Planet(float x, float y, float xVelocity, float yVelocity, float mass) {
-		this(x, y, 0f, xVelocity, yVelocity, 0f, mass);
 	}
 
 	public static Planet deadBody() {
@@ -67,11 +62,9 @@ public class Planet {
 	//}
 	
 	public void merge(Planet o) {
-		x=(x*mass+o.x*o.mass)/(mass+o.mass);
-		y=(y*mass+o.y*o.mass)/(mass+o.mass);
+		position = position.mul(mass).add(o.position.mul(o.mass)).div(mass+o.mass);
+		velocity = velocity.mul(mass).add(o.velocity.mul(o.mass)).div(mass+o.mass);
 		//z=(z*mass+o.z*o.mass)/(mass*o.mass);
-		xVelocity=(xVelocity*mass+o.xVelocity*o.mass)/(mass+o.mass);
-		yVelocity=(yVelocity*mass+o.yVelocity*o.mass)/(mass+o.mass);
 		//zVelocity=(zVelocity*mass+o.zVelocity*o.mass)/(mass*o.mass);
 		mass=mass+o.mass;
 	}
@@ -92,65 +85,101 @@ public class Planet {
 		}
 		return ret;
 	}
-	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] m, float[] center, float[] relativeVelocity, float phi, boolean ccw, boolean giveOrbitalVelocity, float mass) {
+	private static float adherenceCalculation(float adherenceToPlane) {
+		//returns the difference in radians from the plane for the phi value
+		double factor = 1-Math.pow(Math.random(), (1.0-adherenceToPlane)); 
+		return (float)(Math.PI*factor);
+	}
+
+	private static Vector3f polarToPlanarCoordinates(float r,float theta, Vector3f u, Vector3f v) {
+		Vector3f uC = new Vector3f(u);
+		Vector3f vC = new Vector3f(v);
+		// System.out.println("r: " + r + ", theta: " + theta);
+
+		// System.out.println("u: " + u.x + ", " + u.y + ", " + u.z);
+		// System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
+		// System.out.println(r*(float)Math.cos(theta));
+		Vector3f cuTr = uC.mul(r*(float)Math.cos(theta));
+		Vector3f cvTr = vC.mul(r*(float)Math.sin(theta));
+		// System.out.println("cuTr: " + cuTr.x + ", " + cuTr.y + ", " + cuTr.z);
+		// System.out.println("cvTr: " + cvTr.x + ", " + cvTr.y + ", " + cvTr.z);
+		return cuTr.add(cvTr);
+	}
+
+	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] m, float[] center, float[] relativeVelocity, float phi,  float mass, float adherenceToPlane,float centerDensity,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
 		ArrayList<Planet> ret = new ArrayList<>();
-	
+		//System.out.println(adherenceCalculation(adherenceToPlane)	);
+
+		
 		// Disk normal tilted from +z by phi around the x-axis
-		final float nx = 0;
-		final float ny = (float)Math.sin(phi);
-		final float nz = (float)Math.cos(phi);
+		final Vector3f normal = new Vector3f(0f, (float)(Math.sin(phi)), (float)Math.cos(phi));
+
+		//float orbitalFactor = 1f;
+
+
+
+		
 	
-		// Build an orthonormal basis (u, v) in the plane perpendicular to n
+		// Build an orthonormal basis (u, v) in the plane perpendicular to n (i.e in the disk)
 		// Choose a helper axis not colinear with n
-		float ax, ay, az;
-		if (Math.abs(nx) < 0.9f) { ax = 1f; ay = 0f; az = 0f; } else { ax = 0f; ay = 1f; az = 0f; }
+		Vector3f a;
+		if (Math.abs(normal.x) < 0.9f) { a = new Vector3f(1f, 0f, 0f); } else { a = new Vector3f(0f, 1f, 0f); }
 	
 		// u = normalize(n x a)
-		float ux = ny*az - nz*ay;
-		float uy = nz*ax - nx*az;
-		float uz = nx*ay - ny*ax;
-		float uLen = (float)Math.sqrt(ux*ux + uy*uy + uz*uz);
-		ux /= uLen; uy /= uLen; uz /= uLen;
+		Vector3f u = new Vector3f(normal).cross(a).normalize();
+		System.out.println("u: " + u.x + ", " + u.y + ", " + u.z);
 	
 		// v = n x u  (already normalized)
-		float vx = ny*uz - nz*uy;
-		float vy = nz*ux - nx*uz;
-		float vz = nx*uy - ny*ux;
+		Vector3f v = new Vector3f(normal).cross(u);
+		System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
+
+		
 	
 		for (int i=0;i<num;i++) {
-			float r = randomInRange(radius);
-			float theta = (float)(Math.random()*2*Math.PI);
-			float cosT = (float)Math.cos(theta);
-			float sinT = (float)Math.sin(theta);
 
-			float approxMassWithinRadius = (m[1]+m[0])/2 * num * (float)Math.pow(r/radius[1], 2);
+			
+			float r = randomInRange(radius, centerDensity);
+			float theta = (float)(Math.random()*2*Math.PI);
+
+			float devianceFromPlane = adherenceCalculation(adherenceToPlane);
+
+			boolean abovePlane = Math.random() < 0.5;
+
+			devianceFromPlane = abovePlane ? devianceFromPlane : -devianceFromPlane;
+
+			Vector3f planarPlanetDir = polarToPlanarCoordinates(1, theta, u, v);
+
+			//System.out.println("planarPlanetDir: " + planarPlanetDir.x + ", " + planarPlanetDir.y + ", " + planarPlanetDir.z);
+
+			Vector3f planetDirWithDeviance = polarToPlanarCoordinates(1, devianceFromPlane, planarPlanetDir, normal);
+
+			Vector3f newNormal = polarToPlanarCoordinates(1, devianceFromPlane, normal, planarPlanetDir);
+
+
+
+			float approxMassWithinRadius = (m[1]+m[0])/2 * num * (float)Math.pow(r/radius[1], centerDensity+1);
 	
 			// Position in the inclined disk plane
-			float x = r*(ux*cosT + vx*sinT);
-			float y = r*(uy*cosT + vy*sinT);
-			float z = r*(uz*cosT + vz*sinT);
+			Vector3f position = planetDirWithDeviance.mul(r);
 	
-			float xV = 0f, yV = 0f, zV = 0f;
+			Vector3f velocity = new Vector3f(0f, 0f, 0f);
 			if (giveOrbitalVelocity) {
 				int dir = ccw ? 1 : -1;
-				float orbitalSpeed = (float)(Math.sqrt(approxMassWithinRadius/r));
+				float orbitalSpeed = (float)(Math.sqrt(approxMassWithinRadius/r))*orbitalFactor;
 	
 				// Tangent direction: t̂ = normalize(n × r̂)
-				float tx = ny*z - nz*y;
-				float ty = nz*x - nx*z;
-				float tz = nx*y - ny*x;
-				float tLen = (float)Math.sqrt(tx*tx + ty*ty + tz*tz);
-				if (tLen > 0f) { tx /= tLen; ty /= tLen; tz /= tLen; }
+				Vector3f t = new Vector3f(newNormal).cross(position).normalize();
 	
-				xV = dir * orbitalSpeed * tx;
-				yV = dir * orbitalSpeed * ty;
-				zV = dir * orbitalSpeed * tz;
+				velocity = t.mul(orbitalSpeed * dir);
 			}
+
+			position = position.add(new Vector3f(center));
+			velocity = velocity.add(new Vector3f(relativeVelocity));
 	
-			ret.add(new Planet(x+center[0], y+center[1], z+center[2], xV+relativeVelocity[0], yV+relativeVelocity[1], zV+relativeVelocity[2], randomInRange(m)));
+			ret.add(new Planet(position, velocity, randomInRange(m)));
 		}
 
-		Planet centerPlanet = new Planet(center[0], center[1], center[2], relativeVelocity[0], relativeVelocity[1], relativeVelocity[2], mass);
+		Planet centerPlanet = new Planet(new Vector3f(center), new Vector3f(relativeVelocity), mass);
 		ret.add(centerPlanet);
 		return ret;
 	}
@@ -186,7 +215,7 @@ public class Planet {
 		int remaining = planets.size();
 		for (int i=0;i<remaining;i++) {
 			for (int j=i+1;j<remaining;j++) {
-				if (planets.get(i).getRadius() + planets.get(j).getRadius() > Math.sqrt(Math.pow(planets.get(i).x - planets.get(j).x, 2) + Math.pow(planets.get(i).y - planets.get(j).y, 2) + Math.pow(planets.get(i).z - planets.get(j).z, 2))) {
+				if (planets.get(i).getRadius() + planets.get(j).getRadius() > Math.sqrt(Math.pow(planets.get(i).position.x - planets.get(j).position.x, 2) + Math.pow(planets.get(i).position.y - planets.get(j).position.y, 2) + Math.pow(planets.get(i).position.z - planets.get(j).position.z, 2))) {
 					planets.get(i).merge(planets.get(j));
 					ret.set(i, planets.get(i));
 					ret.remove(j);
@@ -201,8 +230,12 @@ public class Planet {
 	}
 
 
+	private static float randomInRange(float[] range, float density) {
+		return (float)(Math.pow(Math.random(), density)*(range[1]-range[0])+range[0]);
+	}
+
 	private static float randomInRange(float[] range) {
-		return (float)(Math.random()*(range[1]-range[0])+range[0]);
+		return randomInRange(range, 1.0f);
 	}
 	
 	/**

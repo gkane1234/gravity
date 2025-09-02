@@ -14,7 +14,7 @@ import java.util.Collections;
 
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL43.*;
 import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
@@ -55,7 +55,7 @@ public class OpenGLWindow {
     private int maxFPS = -1; // Default max FPS
 
     private boolean debug = true;
-    private Render.RenderMode renderMode = Render.RenderMode.MESH_SPHERES;
+    private Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES;
     public OpenGLWindow() {
         planets = createDiskSimulation();
         //planets = collisionTest();
@@ -70,12 +70,12 @@ public class OpenGLWindow {
     public ArrayList<Planet> createDiskSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
         float[] radius = {100, 100000};
-        float[] mRange = {1000, 100000};
+        float[] mRange = {1000, 8000};
         //Planet center = new Planet(1,0,0,0,0,0,100000);
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0), false, true, 100000));
-        planets.addAll(Planet.makeNewRandomDisk(100_000, radius, mRange, new float[] {0,300000,0}, new float[] {0,0,0},0, false, true, 1000000000));
-        planets.addAll(Planet.makeNewRandomDisk(100_000, radius, mRange, new float[] {0,0,0}, new float[] {0,0,0}, (float)(java.lang.Math.PI/2), true, true, 10000000));
+        planets.addAll(Planet.makeNewRandomDisk(5_000_000, radius, mRange, new float[] {0,100000,0}, new float[] {0,0,0},0, 10000000f,0.98f,0.9f,0.9f,false, true));
+        planets.addAll(Planet.makeNewRandomDisk(5_000_000, radius, mRange, new float[] {0,0,0}, new float[] {0,0,0}, (float)(java.lang.Math.PI/2), 10000000f,0.98f,0.9f,0.9f,false, true));
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0.2), false, true, 100000));
         //planets.add(center);
 
@@ -162,6 +162,18 @@ public class OpenGLWindow {
         glfwShowWindow(window);
 
         GL.createCapabilities();
+
+        glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
+        glfwSetFramebufferSizeCallback(window, (win, w, h) -> glViewport(0, 0, w, h));
+
+        glEnable(GL_PROGRAM_POINT_SIZE);
+        glEnable(GL_POINT_SPRITE);
+        glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, GL_LOWER_LEFT);
+
+        //glEnable(GL_DEPTH_TEST);
+        // glEnable(GL_BLEND);
+        // glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
+        // glBlendEquation(GL_FUNC_ADD);
 
         // Initialize UI
         openGlUI = new OpenGLUI(this);
@@ -290,7 +302,6 @@ public class OpenGLWindow {
             gpuSimulation.setMvp(mvpBuf);
         }
 
-        gpuSimulation.setCameraPos(eye.x, eye.y, eye.z);
     }
     
     private void drawCrosshair() {
@@ -329,7 +340,7 @@ public class OpenGLWindow {
         glEnd();
         
         // Re-enable depth testing
-        glEnable(GL_DEPTH_TEST);
+        //glEnable(GL_DEPTH_TEST);
         
         // Restore matrices
         glPopMatrix();

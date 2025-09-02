@@ -89,12 +89,6 @@ public class GPUSimulation {
     public void setMvp(FloatBuffer mvp) {
         render.setMvp(mvp);
     }
-    public void setCameraPos(float x, float y, float z) {
-        render.setCameraPos(x, y, z);
-    }
-    public void setDistanceRange(float nearDist, float farDist) {
-        render.setDistanceRange(nearDist, farDist);
-    }
 
     public void uploadPlanetsData(List<Planet> planets) {
         barnesHut.uploadPlanetsData(planets);

@@ -924,8 +924,8 @@ public class BarnesHut {
     buf.putInt(0);
     for (int i = 0; i < numBodies; i++) {
         Planet p = planets.get(i);
-        buf.putFloat(p.x).putFloat(p.y).putFloat(p.z).putFloat(p.mass);
-        buf.putFloat(p.xVelocity).putFloat(p.yVelocity).putFloat(p.zVelocity).putFloat(0f);
+        buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
+        buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(0f);
         java.awt.Color c = p.getColor();
         float cr = c != null ? (c.getRed() / 255f) : 1.0f;
         float cg = c != null ? (c.getGreen() / 255f) : 1.0f;

@@ -17,6 +17,10 @@ uniform float uRadiusScale; // radius = sqrt(mass) * scale
 out vec3 vWorldPos;
 out vec4 vColor;
 
+
+const float MIN_RADIUS = 10;
+const float RADIUS_SCALE = 10;
+
 float cbrt(float x)
 {
     return pow(x, 1.0/3.0);
@@ -34,7 +38,7 @@ void main() {
   }
   vec3 center = srcB.bodies[gl_InstanceID].posMass.xyz;
   float mass = srcB.bodies[gl_InstanceID].posMass.w;
-  float radius = max(10,10*cbrt(max(mass, 0.0)) * uRadiusScale);
+  float radius = max(MIN_RADIUS,RADIUS_SCALE*cbrt(max(mass, 0.0)) * uRadiusScale);
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;
   vColor = srcB.bodies[gl_InstanceID].color;
