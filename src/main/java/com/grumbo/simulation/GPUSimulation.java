@@ -6,12 +6,13 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 
+import static org.lwjgl.opengl.GL43C.*;
 
 public class GPUSimulation {
     
 
     private BarnesHut barnesHut;
-    private Render render;
+    public Render render;
 
 
 

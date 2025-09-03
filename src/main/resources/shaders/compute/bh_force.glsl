@@ -14,7 +14,7 @@ float invDist(vec3 r, float soft)
     float inv = inversesqrt(dist2);
     return inv;
 }
-const bool MERGING = false;
+const bool MERGING = true;
 void computeForce() 
 {
     vec3 accel = vec3(0.0);

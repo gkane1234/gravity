@@ -22,6 +22,7 @@ public class Render {
         OFF,
         POINTS,
         IMPOSTOR_SPHERES,
+        IMPOSTOR_SPHERES_WITH_GLOW,
         MESH_SPHERES,
     }
 
@@ -48,7 +49,6 @@ public class Render {
     private int uImpostorPassLoc;
     private int uImpostorProjLoc;
     private int uMvpLocationRegions;
-    private int uNodeStartIndexLoc;
     private int uMinMaxDepthLoc;
 
     private int regionsVao;
@@ -161,7 +161,6 @@ public class Render {
         glLinkProgram(regionsProgram);
         checkProgram(regionsProgram);
         uMvpLocationRegions = glGetUniformLocation(regionsProgram, "uMVP");
-        uNodeStartIndexLoc = glGetUniformLocation(regionsProgram, "uNodeStartIndex");
         uMinMaxDepthLoc = glGetUniformLocation(regionsProgram, "uMinMaxDepth");
         regionsVao = glGenVertexArrays();
         regionsVbo = glGenBuffers();
@@ -176,10 +175,11 @@ public class Render {
             switch (renderMode) {
                 case POINTS: renderPoints(bodiesOutSSBO); break;
                 case IMPOSTOR_SPHERES: renderImpostorSpheres(bodiesOutSSBO); break;
+                case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(bodiesOutSSBO); break;
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
                 default: break;
             }
-            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO());
+            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO(), bodiesOutSSBO);
         }
 
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
@@ -209,11 +209,14 @@ public class Render {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             renderImpostorSpheresPass(bodiesOutSSBO, 0);
-            // glEnable    (GL_DEPTH_TEST);
-            // glDepthMask(true);
 
-            // glBlendFunc(GL_ONE, GL_ONE);
-            // renderImpostorSpheresPass(bodiesOutSSBO, 1);
+            if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
+                glEnable    (GL_DEPTH_TEST);
+                glDepthMask(true);
+
+                glBlendFunc(GL_ONE, GL_ONE);
+                renderImpostorSpheresPass(bodiesOutSSBO, 1);
+            }
 
             glUseProgram(0);
         }
@@ -249,17 +252,17 @@ public class Render {
             glUseProgram(0);
         }
 
-        public void renderRegions(SSBO NodesSSBO) {
+        public void renderRegions(SSBO NodesSSBO, SSBO bodiesOutSSBO) {
+            glUseProgram(regionsProgram);
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(false);
-            glUseProgram(regionsProgram);
             // Bind nodes SSBO at binding 4
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.NODES_SSBO_BINDING,NodesSSBO.getBufferLocation());
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.BODIES_IN_SSBO_BINDING,bodiesOutSSBO.getBufferLocation());
+
             // Start after leaves
-            glUniform1i(uNodeStartIndexLoc, gpuSimulation.numBodies());
             glUniform2i(uMinMaxDepthLoc, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
 
             glBindVertexArray(regionsVao);
@@ -269,6 +272,7 @@ public class Render {
             }
             glBindVertexArray(0);
             glUseProgram(0);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
             glDepthMask(true);
             glEnable(GL_DEPTH_TEST);
         }

@@ -10,8 +10,10 @@ uniform float elasticity;
 uniform float density;
 uniform float restitution;
 uniform bool collision;
+//uniform bool merging;
 uniform uint numWorkGroups;
 uniform uint passShift;
+
 
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
