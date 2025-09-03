@@ -15,6 +15,7 @@ void initLeafNodesKernel()
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
     nodes[gid].readyChildren = 3u;
+    nodes[gid].firstBody = 0u;
 
     uint parentIdx = nodes[gid].parentId;
     uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
@@ -73,6 +74,7 @@ void propagateNodesKernel()
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
         nodes[nodeIdx].aabb = newAABB;
         nodes[nodeIdx].readyChildren = 3u;
+        nodes[nodeIdx].firstBody = 1u+min(nodes[leftChild].firstBody, nodes[rightChild].firstBody);
         uint parentIdx = nodes[nodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);

@@ -10,8 +10,8 @@ layout(std430, binding = 0) readonly buffer SrcBodies {
   Body bodies[];
 } srcB;
 
-uniform mat4 uMVP;
-uniform mat4 cameraToClipMatrix;
+uniform mat4 uModelView;
+uniform mat4 uProj;
 uniform float uPointScale; // world radius scale (applied to cbrt(mass))
 uniform vec3 uCameraPos;
 uniform vec3 uCameraFront;
@@ -22,8 +22,10 @@ uniform float uAspect; // width/height
 
 out vec2 vMapping;
 out vec4 vColor;
-out float trueRadius;
+out float bodyToGlowRatio;
 out float mass;
+out vec3 vCenterView;
+out float vCenterClipW;
 out float ndcDepth;
 
 float cbrt(float x) { return pow(x, 1.0/3.0); }
@@ -37,31 +39,34 @@ void main() {
 
   vec3 center = b.posMass.xyz;
   mass = b.posMass.w;
-  trueRadius = cbrt(max(mass, 0.0)) * uPointScale / b.velDensity.w;
-  float worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
-  trueRadius= trueRadius/ worldRadius;
-  vColor = b.color;
-  vec3 viewVec = center - uCameraPos;
-  float viewZ = dot(viewVec, normalize(uCameraFront));
-  if (viewZ <= 0.0) {
-    gl_Position = uMVP * vec4(center, 1.0);
-    return;
-  }
+  bodyToGlowRatio = cbrt(max(mass, 0.0)) * uPointScale / b.velDensity.w;
+  float worldRadius = bodyToGlowRatio*GLOW_RADIUS_FACTOR;
+  bodyToGlowRatio= bodyToGlowRatio/ worldRadius;
+    vColor = b.color;
 
-  vec4 centerClip = uMVP * vec4(center, 1.0);
-  ndcDepth = centerClip.z / centerClip.w;
+  // Transform center to view space
+  vec4 centerView4 = uModelView * vec4(center, 1.0);
+  vCenterView = centerView4.xyz;
 
+  // Project to clip
+  vec4 centerClip = uProj * centerView4;
+  vCenterClipW = centerClip.w;
+
+  // Which corner of the quad
   int vid = gl_VertexID & 3;
-  if (vid == 0) vMapping = vec2(-1.0, -1.0)*BOX_CORRECTION;
-  else if (vid == 1) vMapping = vec2(-1.0,  1.0)*BOX_CORRECTION;
-  else if (vid == 2) vMapping = vec2( 1.0, -1.0)*BOX_CORRECTION;
-  else               vMapping = vec2( 1.0,  1.0)*BOX_CORRECTION;
+  if (vid == 0) vMapping = vec2(-1.0, -1.0) * BOX_CORRECTION;
+  else if (vid == 1) vMapping = vec2(-1.0,  1.0) * BOX_CORRECTION;
+  else if (vid == 2) vMapping = vec2( 1.0, -1.0) * BOX_CORRECTION;
+  else               vMapping = vec2( 1.0,  1.0) * BOX_CORRECTION;
 
-  float camDist = length(viewVec);
+  // Compute projected quad size
+  float camDist = length(vCenterView);
   float ndcScaleY = worldRadius / (camDist * tan(0.5 * uFovY));
   float ndcScaleX = ndcScaleY / max(uAspect, 1e-6);
+
   vec2 ndcOffset = vMapping * vec2(ndcScaleX, ndcScaleY);
   vec2 clipOffset = ndcOffset * centerClip.w;
+
   gl_Position = vec4(centerClip.xy + clipOffset, centerClip.z, centerClip.w);
 
 }

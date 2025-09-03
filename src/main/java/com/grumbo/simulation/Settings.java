@@ -96,13 +96,13 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
-		{ Property<Float> p = Property.createFloatProperty("farPlane", 100000000.0f, 100000000.0f); p.setEditable(true); properties.put("farPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E10f, 1.0E10f); p.setEditable(true); properties.put("farPlane", p); }
 
 		// Camera move speed
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
 
 		// WASD movement sensitivity
-		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 1000f, 1000f); p.setEditable(true); properties.put("WASDSensitivity", p); }
+		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 10000f, 10000f); p.setEditable(true); properties.put("WASDSensitivity", p); }
 
 		// Mouse wheel sensitivity
 		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 20.0f, 20.0f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }
@@ -111,10 +111,10 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f); p.setEditable(true); properties.put("mouseRotationSensitivity", p); }
 
 		// Camera position
-		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 10000.0f), new Vector3f(0.0f, 0.0f, 10000.0f), true));
+		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 100.0f), new Vector3f(0.0f, 0.0f, 100.0f), true));
 
 		// Camera front vector
-		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, 1.0f), new Vector3f(0.0f, 0.0f, 1.0f), true));
+		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f), true));
 
 		// Camera up vector
 		properties.put("cameraUp", Property.createVector3fProperty("cameraUp", new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(0.0f, 1.0f, 0.0f), true));
@@ -127,6 +127,12 @@ public class Settings {
 
 		// Barnes-Hut acceptance criterion
 		{ Property<Float> p = Property.createFloatProperty("theta", 0.5f, 0.5f); p.setEditable(true); properties.put("theta", p); }
+
+		// Minimum and maximum depth for regions
+		{ Property<Integer> p = Property.createIntProperty("minDepth", 0, 0); p.setEditable(true); properties.put("minDepth", p); }
+
+		// Minimum and maximum depth for regions
+		{ Property<Integer> p = Property.createIntProperty("maxDepth", 8, 8); p.setEditable(true); properties.put("maxDepth", p); }
 
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
@@ -240,6 +246,12 @@ public class Settings {
 
 	public float getTheta() { return getValue("theta"); }
 	public void setTheta(float value) { setValue("theta", value); }
+
+	public int getMinDepth() { return getValue("minDepth"); }
+	public void setMinDepth(int value) { setValue("minDepth", value); }
+
+	public int getMaxDepth() { return getValue("maxDepth"); }
+	public void setMaxDepth(int value) { setValue("maxDepth", value); }
 
 	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
 

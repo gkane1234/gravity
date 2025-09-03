@@ -108,7 +108,7 @@
     },
     "farPlane": {
       "type": "float",
-      "default": 1000000.0,
+      "default": 10000000000.0,
       "description": "Far plane for camera",
       "editable": true
     },
@@ -120,7 +120,7 @@
     },
     "WASDSensitivity": { 
       "type": "float",
-      "default": 10,
+      "default": 10000,
       "description": "WASD movement sensitivity",
       "editable": true
     },
@@ -170,6 +170,18 @@
       "type": "float",
       "default": 0.5,
       "description": "Barnes-Hut acceptance criterion",
+      "editable": true
+    },
+    "minDepth": {
+      "type": "int",
+      "default": 0,
+      "description": "Minimum and maximum depth for regions",
+      "editable": true
+    },
+    "maxDepth": {
+      "type": "int",
+      "default": 8,
+      "description": "Minimum and maximum depth for regions",
       "editable": true
     }
   }

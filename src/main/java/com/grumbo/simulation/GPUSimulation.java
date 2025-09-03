@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 
-import static org.lwjgl.opengl.GL43C.*;
 
 public class GPUSimulation {
     
@@ -92,6 +91,15 @@ public class GPUSimulation {
 
     public void setCameraToClip(FloatBuffer cameraToClip) {
         render.setCameraToClip(cameraToClip);
+    }
+
+    public void setModelView(FloatBuffer modelView) {
+        render.setModelView(modelView);
+    }
+
+    // Expose nodes SSBO for regions rendering
+    public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
+        return barnesHut.getNodesSSBO();
     }
 
     public void uploadPlanetsData(List<Planet> planets) {

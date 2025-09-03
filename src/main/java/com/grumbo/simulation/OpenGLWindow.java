@@ -57,9 +57,10 @@ public class OpenGLWindow {
     private boolean debug = true;
     private Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES;
     public OpenGLWindow() {
-        planets = createJumboSimulation();
+        //planets = createJumboSimulation();
         //planets = collisionTest();
-        //planets = twoPlanets();
+        planets = twoPlanets();
+        planets = createDiskSimulation();
 
         //planets = Planet.mergeOverlappingPlanets(planets);
         //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
@@ -84,7 +85,7 @@ public class OpenGLWindow {
         //Planet center = new Planet(1,0,0,0,0,0,100000);
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
         //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0), false, true, 100000));
-        planets.addAll(Planet.makeNewRandomDisk(500_000, radius, mRange, densityRange, new float[] {0,1000,0}, new float[] {0,0,0},0, 10000000f,1f,0.98f,0.4f,false, true));
+        planets.addAll(Planet.makeNewRandomDisk(20_000, radius, mRange, densityRange, new float[] {0,1000,0}, new float[] {0,0,0},0, 10000000f,1f,0.98f,0.4f,false, true));
         Planet jumbo = new Planet(0,0,0,0,0,0,1000000000f,1);
         planets.add(jumbo);
         //planets.addAll(Planet.makeNewRandomDisk(500_000, radius, mRange, new float[] {0,0,0}, new float[] {0,0,0}, (float)(java.lang.Math.PI/2), 10000000f,0.98f,0.9f,0.9f,false, true));
@@ -316,6 +317,9 @@ public class OpenGLWindow {
             FloatBuffer projBuf = stack.mallocFloat(16);
             proj.get(projBuf);
             gpuSimulation.setCameraToClip(projBuf);
+            FloatBuffer viewBuf = stack.mallocFloat(16);
+            view.get(viewBuf);
+            gpuSimulation.setModelView(viewBuf);
         }
 
     }
