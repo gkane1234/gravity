@@ -14,6 +14,7 @@ float invDist(vec3 r, float soft)
     float inv = inversesqrt(dist2);
     return inv;
 }
+const bool MERGING = false;
 void computeForce() 
 {
     vec3 accel = vec3(0.0);
@@ -56,7 +57,7 @@ void computeForce()
                 //         body.posMass.xyz -= correction;
                 //     }
                 // } else 
-                if ((dist < bodyRadius + otherRadius) && (gid < index[nodeIdx])) {
+                if (MERGING && (dist < bodyRadius + otherRadius) && (gid < index[nodeIdx])) {
                     uint slot = atomicAdd(mergeQueueTail, 1u);
                     mergeQueue[slot] = uvec2(gid , index[nodeIdx]);
                 }
@@ -72,9 +73,10 @@ void computeForce()
     }
 
 
-    vec3 newVel = body.velPad.xyz + accel * dt;
+    vec3 newVel = body.velDensity.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
-    dstB.bodies[gid].velPad.xyz = newVel;
+    dstB.bodies[gid].velDensity.xyz = newVel;
+    dstB.bodies[gid].velDensity.w = body.velDensity.w;
     dstB.bodies[gid].posMass.xyz = newPos;
     dstB.bodies[gid].posMass.w = body.posMass.w;
     dstB.bodies[gid].color = body.color;

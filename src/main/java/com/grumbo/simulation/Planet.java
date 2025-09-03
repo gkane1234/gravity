@@ -11,6 +11,7 @@ public class Planet {
 	public float mass;
 	public Vector3f position;
 	public Vector3f velocity;
+	public float density;
 	
 	
 	public Color color;
@@ -23,35 +24,50 @@ public class Planet {
 
 
 	
+	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass, float density) {
+
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, density);
+		
+
+
+	}
+
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass) {
 
-		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass);
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, 1);
 		
 
 
 	}
 
 
+
+
 	
 	// Convenience constructor for 2D (sets z=0)
 	public Planet(float x, float y, float xVelocity, float yVelocity, float mass) {
-		this(new Vector3f(x, y, 0f), new Vector3f(xVelocity, yVelocity, 0f), mass);
+		this(new Vector3f(x, y, 0f), new Vector3f(xVelocity, yVelocity, 0f), mass, 1);
 	}
 
 
-	public Planet(Vector3f position, Vector3f velocity, float mass) {
+	public Planet(Vector3f position, Vector3f velocity, float mass, float density) {
 		this.position = position;
 		this.velocity = velocity;
 		this.mass = mass;
-
+		this.density = density;
+		
 		name=num++;
 		
 		// Generate random color instead of using default
 		color = generateRandomColor();
 	}
 
+	public Planet(Vector3f position, Vector3f velocity, float mass) {
+		this(position, velocity, mass, 1);
+	}
+
 	public static Planet deadBody() {
-		return new Planet(0, 0, 0, 0, 0, 0, 0);
+		return new Planet(0, 0, 0, 0, 0, 0, 0, 0);
 	}
 
 	
@@ -67,6 +83,7 @@ public class Planet {
 		//z=(z*mass+o.z*o.mass)/(mass*o.mass);
 		//zVelocity=(zVelocity*mass+o.zVelocity*o.mass)/(mass*o.mass);
 		mass=mass+o.mass;
+		density = density*o.density/(density/mass+o.density/o.mass);
 	}
 	
 	
@@ -78,10 +95,10 @@ public class Planet {
 		return color;
 	}
 
-	public static ArrayList<Planet> makeNewRandomBox(int num, float[] x, float[] y, float[] z, float[] xV, float[] yV, float[] zV, float[] m) {
+	public static ArrayList<Planet> makeNewRandomBox(int num, float[] x, float[] y, float[] z, float[] xV, float[] yV, float[] zV, float[] m, float[] density) {
 		ArrayList<Planet> ret = new ArrayList<>();
 		for (int i=0;i<num;i++) {
-			ret.add(new Planet(randomInRange(x), randomInRange(y), randomInRange(z), randomInRange(xV), randomInRange(yV), randomInRange(zV), randomInRange(m)));			
+			ret.add(new Planet(randomInRange(x), randomInRange(y), randomInRange(z), randomInRange(xV), randomInRange(yV), randomInRange(zV), randomInRange(m), randomInRange(density)));			
 		}
 		return ret;
 	}
@@ -106,7 +123,7 @@ public class Planet {
 		return cuTr.add(cvTr);
 	}
 
-	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] m, float[] center, float[] relativeVelocity, float phi,  float mass, float adherenceToPlane,float centerDensity,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
+	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
 		ArrayList<Planet> ret = new ArrayList<>();
 		//System.out.println(adherenceCalculation(adherenceToPlane)	);
 
@@ -157,7 +174,7 @@ public class Planet {
 
 
 
-			float approxMassWithinRadius = (m[1]+m[0])/2 * num * (float)Math.pow(r/radius[1], centerDensity+1);
+			float approxMassWithinRadius = (mass[1]+mass[0])/2 * num * (float)Math.pow(r/radius[1], centerDensity+1);
 	
 			// Position in the inclined disk plane
 			Vector3f position = planetDirWithDeviance.mul(r);
@@ -176,15 +193,15 @@ public class Planet {
 			position = position.add(new Vector3f(center));
 			velocity = velocity.add(new Vector3f(relativeVelocity));
 	
-			ret.add(new Planet(position, velocity, randomInRange(m)));
+			ret.add(new Planet(position, velocity, randomInRange(mass), randomInRange(density)));
 		}
 
-		Planet centerPlanet = new Planet(new Vector3f(center), new Vector3f(relativeVelocity), mass);
+		Planet centerPlanet = new Planet(new Vector3f(center), new Vector3f(relativeVelocity), centerMass, centerDensity);
 		ret.add(centerPlanet);
 		return ret;
 	}
 
-	public static Planet makeNewInOrbit(float[] radius, float[] m, Planet center) {
+	public static Planet makeNewInOrbit(float[] radius, float[] mass, float[] density, Planet center) {
 		float r = (float)(Math.random()*(radius[1]-radius[0])+radius[0]);
 		float orbitalSpeed = (float)(1.1*Math.sqrt(center.mass/r));
 		float theta = (float)(Math.random()*2*Math.PI);
@@ -195,14 +212,14 @@ public class Planet {
 		float xV = (float)(-orbitalSpeed*Math.sin(theta)*Math.sin(phi));
 		float yV = (float)(orbitalSpeed*Math.cos(theta)*Math.sin(phi));
 		float zV = (float)(-orbitalSpeed*Math.cos(phi));
-		Planet ret = new Planet(x, y, z, xV, yV, zV, randomInRange(m));
+		Planet ret = new Planet(x, y, z, xV, yV, zV, randomInRange(mass), randomInRange(density));
 		return ret;
 	}
 
-	public static ArrayList<Planet> makeNewInOrbit(int num, float[] m, Planet center, float[] radius) {
+	public static ArrayList<Planet> makeNewInOrbit(int num, float[] mass, float[] density, Planet center, float[] radius) {
 		ArrayList<Planet> ret = new ArrayList<>();
 		for (int i=0;i<num;i++) {
-			ret.add(makeNewInOrbit(radius, m, center));
+			ret.add(makeNewInOrbit(radius, mass, density, center));
 		}
 		return ret;
 	}
@@ -244,9 +261,11 @@ public class Planet {
 	 */
 	private static Color generateRandomColor() {
 		// Generate random RGB values with some constraints for better visibility
-		int red = (int)(Math.random() * 200) + 55;   // 55-255 for good visibility
-		int green = (int)(Math.random() * 200) + 55;  
-		int blue = (int)(Math.random() * 200) + 55;  
+		double min = 55;
+		double max = 255;
+		int red = (int)(Math.random() * (max - min) + min); 
+		int green = (int)(Math.random() * (max - min) + min);  
+		int blue = (int)(Math.random() * (max - min) + min);
 		
 		return new Color(red, green, blue);
 	}

@@ -13,6 +13,7 @@ import java.nio.FloatBuffer;
 import com.grumbo.gpu.SSBO;
 import com.grumbo.gpu.Body;
 
+import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
 import static org.lwjgl.opengl.GL43C.*;
 
 
@@ -42,6 +43,10 @@ public class Render {
     private int uImpostorFovYLoc;
     private int uImpostorAspectLoc;
     private int uImpostorPassLoc;
+    private int uImpostorCameraToClipMatrixLoc;
+
+    // Cached matrices
+    private FloatBuffer cameraToClipMatrix;
 
     // Mesh sphere resources
     private int sphereVao = 0;
@@ -107,6 +112,7 @@ public class Render {
         uImpostorFovYLoc = glGetUniformLocation(impostorProgram, "uFovY");
         uImpostorAspectLoc = glGetUniformLocation(impostorProgram, "uAspect");
         uImpostorPassLoc = glGetUniformLocation(impostorProgram, "uPass");
+        uImpostorCameraToClipMatrixLoc = glGetUniformLocation(impostorProgram, "cameraToClipMatrix");
 
         // Create mesh sphere program
         sphereProgram = glCreateProgram();
@@ -163,16 +169,18 @@ public class Render {
     
         public void renderImpostorSpheres(SSBO bodiesOutSSBO) {
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // black background
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glClear(GL_DEPTH_BUFFER_BIT);
             glEnable(GL_DEPTH_TEST);
             glDepthMask(true);
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             renderImpostorSpheresPass(bodiesOutSSBO, 0);
-            glDisable(GL_DEPTH_TEST);
+            // glEnable    (GL_DEPTH_TEST);
+            // glDepthMask(true);
 
-            glBlendFunc(GL_ONE, GL_ONE);
-            renderImpostorSpheresPass(bodiesOutSSBO, 1);
+            // glBlendFunc(GL_ONE, GL_ONE);
+            // renderImpostorSpheresPass(bodiesOutSSBO, 1);
+
             glUseProgram(0);
         }
 
@@ -186,6 +194,7 @@ public class Render {
             glUniform1i(uImpostorPassLoc, pass);
             float aspect = (float)Settings.getInstance().getWidth() / (float)Settings.getInstance().getHeight();
             glUniform1f(uImpostorAspectLoc, aspect);
+            // cameraToClipMatrix is set by caller via setCameraToClip
             bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(vao);
             glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.numBodies());
@@ -220,6 +229,14 @@ public class Render {
         glUseProgram(0);
     }
     
+    public void setCameraToClip(java.nio.FloatBuffer cameraToClip4x4ColumnMajor) {
+        // Mirror MVP handling: set on impostor program when provided
+        this.cameraToClipMatrix = cameraToClip4x4ColumnMajor;
+        glUseProgram(impostorProgram);
+        glUniformMatrix4fv(uImpostorCameraToClipMatrixLoc, false, cameraToClip4x4ColumnMajor);
+        glUseProgram(0);
+    }
+
 
     
     /* --------- SHADERS --------- */

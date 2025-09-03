@@ -21,7 +21,7 @@ const float SOFTENING = 0.1;
 
 
 
-struct Body { vec4 posMass; vec4 velPad; vec4 color; };
+struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
 
 const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0), vec4(0.0));
 struct AABB {

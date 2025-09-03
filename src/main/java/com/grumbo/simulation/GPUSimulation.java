@@ -90,6 +90,10 @@ public class GPUSimulation {
         render.setMvp(mvp);
     }
 
+    public void setCameraToClip(FloatBuffer cameraToClip) {
+        render.setCameraToClip(cameraToClip);
+    }
+
     public void uploadPlanetsData(List<Planet> planets) {
         barnesHut.uploadPlanetsData(planets);
     }
