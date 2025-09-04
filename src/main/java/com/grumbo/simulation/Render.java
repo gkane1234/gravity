@@ -1,6 +1,5 @@
 package com.grumbo.simulation;
 
-import com.grumbo.simulation.GPUSimulation;
 
 import java.nio.IntBuffer;
 import java.io.IOException;
@@ -55,8 +54,7 @@ public class Render {
         private int regionsVbo;
         private int regionsEbo;
 
-    // Cached matrices
-    private FloatBuffer cameraToClipMatrix;
+
 
     // Mesh sphere resources
     private int sphereVao = 0;
@@ -293,7 +291,6 @@ public class Render {
     
     public void setCameraToClip(java.nio.FloatBuffer cameraToClip4x4ColumnMajor) {
         // Mirror MVP handling: set on impostor program when provided
-        this.cameraToClipMatrix = cameraToClip4x4ColumnMajor;
         glUseProgram(impostorProgram);
         glUniformMatrix4fv(uImpostorProjLoc, false, cameraToClip4x4ColumnMajor);
         glUseProgram(0);

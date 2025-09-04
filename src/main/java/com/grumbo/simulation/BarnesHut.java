@@ -123,36 +123,7 @@ public class BarnesHut {
         this.debug = debug;
     }
     
-    private void checkMortonCodes(SSBO mortonBuffer, boolean print) {
-        boolean correctPartitioning = true;
-        boolean correctSorting = true;
-        long[] mortonCodes = new long[gpuSimulation.numBodies()];
-        LongBuffer mortonBufferLong = mortonBuffer.getBuffer().asLongBuffer();
-        long[] sortedMortonCodes = new long[gpuSimulation.numBodies()];
-        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-            mortonCodes[i] = mortonBufferLong.get(i);
-            sortedMortonCodes[i] = mortonCodes[i];
-            if (print) {
-                System.out.println("Morton Code: " + i + " " + mortonCodes[i]);
-            }
-        }
-        Arrays.sort(sortedMortonCodes);
-        int deadIndex = 0;
-        while (deadIndex < gpuSimulation.numBodies() && sortedMortonCodes[deadIndex] == -1) {
-            deadIndex++;
-        }
-        for (int i = 0; i < mortonCodes.length-deadIndex; i++) {
-            if (mortonCodes[i] != sortedMortonCodes[i+deadIndex]) {
-                correctSorting = false;
-            }
-            if (mortonCodes[i] == -1) {
-                correctPartitioning = false;
-            }
-        }
 
-        System.out.println("Morton Codes are correctly partitioned: " + correctPartitioning);
-        System.out.println("Morton Codes are correctly sorted: " + correctSorting);
-    }
     
     public void step() {
         renderingCheck();
@@ -1075,6 +1046,37 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
         SSBO.unBind();
         
         
+    }
+
+    private void checkMortonCodes(SSBO mortonBuffer, boolean print) {
+        boolean correctPartitioning = true;
+        boolean correctSorting = true;
+        long[] mortonCodes = new long[gpuSimulation.numBodies()];
+        LongBuffer mortonBufferLong = mortonBuffer.getBuffer().asLongBuffer();
+        long[] sortedMortonCodes = new long[gpuSimulation.numBodies()];
+        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
+            mortonCodes[i] = mortonBufferLong.get(i);
+            sortedMortonCodes[i] = mortonCodes[i];
+            if (print) {
+                System.out.println("Morton Code: " + i + " " + mortonCodes[i]);
+            }
+        }
+        Arrays.sort(sortedMortonCodes);
+        int deadIndex = 0;
+        while (deadIndex < gpuSimulation.numBodies() && sortedMortonCodes[deadIndex] == -1) {
+            deadIndex++;
+        }
+        for (int i = 0; i < mortonCodes.length-deadIndex; i++) {
+            if (mortonCodes[i] != sortedMortonCodes[i+deadIndex]) {
+                correctSorting = false;
+            }
+            if (mortonCodes[i] == -1) {
+                correctPartitioning = false;
+            }
+        }
+
+        System.out.println("Morton Codes are correctly partitioned: " + correctPartitioning);
+        System.out.println("Morton Codes are correctly sorted: " + correctSorting);
     }
     
     private float[][] oldComputeAABB() {

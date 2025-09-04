@@ -12,8 +12,8 @@ public abstract class UIElement {
     protected float yRenderOffset;
     protected boolean forceUpdate;
 
-    protected static final float[] defaultBackgroundColor = {0.2f, 0.2f, 0.2f};
-    protected static final float[] defaultTextColor = {0.9f, 0.9f, 0.9f};
+    protected float[] defaultBackgroundColor = {0.2f, 0.2f, 0.2f};
+    protected float[] defaultTextColor = {0.9f, 0.9f, 0.9f};
     
     public UIElement(float x, float y, float width, float height, float minWidth, float minHeight, float xRenderOffset, float yRenderOffset) {
         this.x = x;

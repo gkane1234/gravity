@@ -107,7 +107,6 @@ public class OpenGLWindow {
         float[] zVRange = {-0, 0};
         float[] mRange = {10, 10000};
         float[] densityRange = {1, 1};
-        float[] radius = {100, 1000};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
         planets = Planet.makeNewRandomBox(1_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange);
