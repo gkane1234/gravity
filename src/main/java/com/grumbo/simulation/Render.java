@@ -24,7 +24,7 @@ public class Render {
         IMPOSTOR_SPHERES,
         MESH_SPHERES
     }
-    public boolean showRegions = true;
+    public boolean showRegions = false;
 
         // Render Programs
         private int renderProgram; // points program
@@ -280,6 +280,9 @@ public class Render {
         glUseProgram(0);
         glUseProgram(sphereProgram);
         glUniformMatrix4fv(uMvpLocationSphere, false, mvp4x4ColumnMajor);
+        glUseProgram(0);
+        glUseProgram(regionsProgram);
+        glUniformMatrix4fv(uMvpLocationRegions, false, mvp4x4ColumnMajor);
         glUseProgram(0);
     }
     
