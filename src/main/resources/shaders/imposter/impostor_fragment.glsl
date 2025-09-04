@@ -2,14 +2,13 @@
 
 in vec2 vMapping;
 in vec4 vColor;
-in float trueRadius;
-in float renderRadius;
+in float bodyToGlowRatio;
+in float worldRadius;
 in float mass;
-in vec3 vCenter;
-in float ndcDepth;
+in vec3 vCenterView;
+in float vCenterClipW;
 
-uniform mat4 cameraToClipMatrix;
-uniform vec3 uCameraPos;
+uniform mat4 uProj;
 
 uniform int uPass; // 0 = sphere, 1 = glow
 
@@ -26,7 +25,7 @@ void main() {
 
     if (uPass == 0) {
         // --- Sphere interior pass ---
-        if (radius > trueRadius) discard;
+        if (radius > bodyToGlowRatio) discard;
 
         vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
         float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
@@ -36,13 +35,13 @@ void main() {
     } else {
         // --- Glow pass ---
         //fragColor = vec4(1.0,0,0,1);
-        if (radius <= trueRadius) discard;
+        if (radius <= bodyToGlowRatio) discard;
 
         if (mass < SOLAR_THRESHOLD)
             discard;
 
-        float glowRadius = 1 - trueRadius;
-        float t = (radius - trueRadius) / glowRadius;
+        float glowRadius = 1 - bodyToGlowRatio;
+        float t = (radius - bodyToGlowRatio) / glowRadius;
         float glow = exp(-4 * t * t);
 
 
@@ -53,8 +52,22 @@ void main() {
 
         
     }
-      //vec4 clipPos = cameraToClipMatrix * vec4(uCameraPos, 1.0);
-  //float ndcDepth = gl_Position.z / gl_Position.w;
-  gl_FragDepth = ((gl_DepthRange.diff * ndcDepth) +
-      gl_DepthRange.near + gl_DepthRange.far) / 2.0;
+    // Ray direction in view space
+    vec3 ray = normalize(vec3(vMapping, -1.0)); // pointing into screen
+
+    // Sphere intersection in view space
+    vec3 oc = -vCenterView; // ray origin at camera (0,0,0), sphere center at vCenterView
+    float b = dot(ray, oc);
+    float c = dot(oc, oc) - worldRadius*worldRadius;
+    float h = b*b - c;
+    //if (h < 0.0) discard; // miss
+    float t = b - sqrt(h); // nearest intersection
+    vec3 posView = t * ray; // intersection point in view space
+
+    // Project to clip space
+    vec4 posClip = uProj * vec4(posView, 1.0);
+
+    float ndcDepth = posClip.z / posClip.w;
+    gl_FragDepth = 0.5 * ndcDepth + 0.5;
+
 }

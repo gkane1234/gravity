@@ -57,7 +57,7 @@ public class OpenGLWindow {
     private boolean debug = true;
     private Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES;
     public OpenGLWindow() {
-        planets = createJumboSimulation();
+        planets = createDiskSimulation();
         //planets = collisionTest();
         //planets = twoPlanets();
 
@@ -93,6 +93,8 @@ public class OpenGLWindow {
 
         return planets;
     }
+
+    
 
     public ArrayList<Planet> createBoxSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
@@ -316,6 +318,9 @@ public class OpenGLWindow {
             FloatBuffer projBuf = stack.mallocFloat(16);
             proj.get(projBuf);
             gpuSimulation.setCameraToClip(projBuf);
+            FloatBuffer viewBuf = stack.mallocFloat(16);
+            view.get(viewBuf);
+            gpuSimulation.setModelView(viewBuf);
         }
 
     }

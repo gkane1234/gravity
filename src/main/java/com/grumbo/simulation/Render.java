@@ -25,25 +25,33 @@ public class Render {
         MESH_SPHERES
     }
 
-    // Render Programs
-    private int renderProgram; // points program
-    private int impostorProgram; // point-sprite impostor spheres
-    private int sphereProgram;   // instanced mesh spheres
-
-    //Render Uniforms
-    private int vao; // for points and impostors
-    private int uMvpLocation;           // for points
-    private int uMvpLocationImpostor;   // for impostors
-    private int uMvpLocationSphere;     // for mesh spheres
-    private int uSphereRadiusScaleLoc;  // mass->radius scale
-    private int uCameraPosLocSphere;
-    private int uImpostorPointScaleLoc; // impostor scale (world radius scale)
-    private int uImpostorCameraPosLoc;
-    private int uImpostorCameraFrontLoc;
-    private int uImpostorFovYLoc;
-    private int uImpostorAspectLoc;
-    private int uImpostorPassLoc;
-    private int uImpostorCameraToClipMatrixLoc;
+        // Render Programs
+        private int renderProgram; // points program
+        private int impostorProgram; // point-sprite impostor spheres
+        private int sphereProgram;   // instanced mesh spheres
+        private int regionsProgram; // regions
+        
+        //Render Uniforms
+        private int vao; // for points and impostors
+        private int uMvpLocation;           // for points
+        private int uModelViewLocationImpostor;   // for impostors
+        private int uMvpLocationSphere;     // for mesh spheres
+        private int uSphereRadiusScaleLoc;  // mass->radius scale
+        private int uCameraPosLocSphere;
+        private int uImpostorPointScaleLoc; // impostor scale (world radius scale)
+        private int uImpostorCameraPosLoc;
+        private int uImpostorCameraFrontLoc;
+        private int uImpostorFovYLoc;
+        private int uImpostorAspectLoc;
+        private int uImpostorPassLoc;
+        private int uImpostorProjLoc;
+        private int uMvpLocationRegions;
+        private int uNodeStartIndexLoc;
+        private int uMinMaxDepthLoc;
+    
+        private int regionsVao;
+        private int regionsVbo;
+        private int regionsEbo;
 
     // Cached matrices
     private FloatBuffer cameraToClipMatrix;
@@ -105,14 +113,14 @@ public class Render {
         glAttachShader(impostorProgram, ifs);
         glLinkProgram(impostorProgram);
         checkProgram(impostorProgram);
-        uMvpLocationImpostor = glGetUniformLocation(impostorProgram, "uMVP");
+        uModelViewLocationImpostor = glGetUniformLocation(impostorProgram, "uModelView");
         uImpostorPointScaleLoc = glGetUniformLocation(impostorProgram, "uPointScale");
         uImpostorCameraPosLoc = glGetUniformLocation(impostorProgram, "uCameraPos");
         uImpostorCameraFrontLoc = glGetUniformLocation(impostorProgram, "uCameraFront");
         uImpostorFovYLoc = glGetUniformLocation(impostorProgram, "uFovY");
         uImpostorAspectLoc = glGetUniformLocation(impostorProgram, "uAspect");
         uImpostorPassLoc = glGetUniformLocation(impostorProgram, "uPass");
-        uImpostorCameraToClipMatrixLoc = glGetUniformLocation(impostorProgram, "cameraToClipMatrix");
+        uImpostorProjLoc = glGetUniformLocation(impostorProgram, "uProj");
 
         // Create mesh sphere program
         sphereProgram = glCreateProgram();
@@ -221,9 +229,6 @@ public class Render {
         glUseProgram(renderProgram);
         glUniformMatrix4fv(uMvpLocation, false, mvp4x4ColumnMajor);
         glUseProgram(0);
-        glUseProgram(impostorProgram);
-        glUniformMatrix4fv(uMvpLocationImpostor, false, mvp4x4ColumnMajor);
-        glUseProgram(0);
         glUseProgram(sphereProgram);
         glUniformMatrix4fv(uMvpLocationSphere, false, mvp4x4ColumnMajor);
         glUseProgram(0);
@@ -233,7 +238,13 @@ public class Render {
         // Mirror MVP handling: set on impostor program when provided
         this.cameraToClipMatrix = cameraToClip4x4ColumnMajor;
         glUseProgram(impostorProgram);
-        glUniformMatrix4fv(uImpostorCameraToClipMatrixLoc, false, cameraToClip4x4ColumnMajor);
+        glUniformMatrix4fv(uImpostorProjLoc, false, cameraToClip4x4ColumnMajor);
+        glUseProgram(0);
+    }
+
+    public void setModelView(java.nio.FloatBuffer modelView4x4ColumnMajor) {
+        glUseProgram(impostorProgram);
+        glUniformMatrix4fv(uModelViewLocationImpostor, false, modelView4x4ColumnMajor);
         glUseProgram(0);
     }
 

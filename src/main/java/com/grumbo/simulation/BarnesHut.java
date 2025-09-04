@@ -1,11 +1,11 @@
 package com.grumbo.simulation;
 
-import com.grumbo.simulation.GPUSimulation;
+
 import com.grumbo.gpu.*;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ArrayList;
+
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ByteBuffer;
@@ -906,6 +906,11 @@ public class BarnesHut {
     public SSBO getOutputSSBO() {
         return SWAPPING_BODIES_OUT_SSBO;
     }
+
+    public SSBO getNodesSSBO() {
+        return NODES_SSBO;
+    }
+
 
 
     private int numGroups() {
