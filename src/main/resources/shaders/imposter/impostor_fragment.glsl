@@ -52,22 +52,22 @@ void main() {
 
         
     }
-    // Ray direction in view space
-    vec3 ray = normalize(vec3(vMapping, -1.0)); // pointing into screen
+    // // Ray direction in view space
+    // vec3 ray = normalize(vec3(vMapping, -1.0)); // pointing into screen
 
-    // Sphere intersection in view space
-    vec3 oc = -vCenterView; // ray origin at camera (0,0,0), sphere center at vCenterView
-    float b = dot(ray, oc);
-    float c = dot(oc, oc) - worldRadius*worldRadius;
-    float h = b*b - c;
-    //if (h < 0.0) discard; // miss
-    float t = b - sqrt(h); // nearest intersection
-    vec3 posView = t * ray; // intersection point in view space
+    // // Sphere intersection in view space
+    // vec3 oc = -vCenterView; // ray origin at camera (0,0,0), sphere center at vCenterView
+    // float b = dot(ray, oc);
+    // float c = dot(oc, oc) - worldRadius*worldRadius;
+    // float h = b*b - c;
+    // //if (h < 0.0) discard; // miss
+    // float t = b - sqrt(h); // nearest intersection
+    // vec3 posView = t * ray; // intersection point in view space
 
-    // Project to clip space
-    vec4 posClip = uProj * vec4(posView, 1.0);
+    // // Project to clip space
+    // vec4 posClip = uProj * vec4(posView, 1.0);
 
-    float ndcDepth = posClip.z / posClip.w;
-    gl_FragDepth = 0.5 * ndcDepth + 0.5;
+    // float ndcDepth = posClip.z / posClip.w;
+    // gl_FragDepth = 0.5 * ndcDepth + 0.5;
 
 }
