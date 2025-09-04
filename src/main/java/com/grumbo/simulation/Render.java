@@ -24,6 +24,7 @@ public class Render {
         IMPOSTOR_SPHERES,
         MESH_SPHERES
     }
+    public boolean showRegions = true;
 
         // Render Programs
         private int renderProgram; // points program
@@ -144,6 +145,28 @@ public class Render {
         vao = glGenVertexArrays();
         rebuildSphereMesh();
 
+        // Initialize regions program
+        regionsProgram = glCreateProgram();
+        int rvs = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(rvs, getRegionsVertexShaderSource());
+        glCompileShader(rvs);
+        checkShader(rvs);
+        int rfs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(rfs, getRegionsFragmentShaderSource());
+        glCompileShader(rfs);
+        checkShader(rfs);
+        glAttachShader(regionsProgram, rvs);
+        glAttachShader(regionsProgram, rfs);
+        glLinkProgram(regionsProgram);
+        checkProgram(regionsProgram);
+        uMvpLocationRegions = glGetUniformLocation(regionsProgram, "uMVP");
+        uNodeStartIndexLoc = glGetUniformLocation(regionsProgram, "uNodeStartIndex");
+        uMinMaxDepthLoc = glGetUniformLocation(regionsProgram, "uMinMaxDepth");
+        regionsVao = glGenVertexArrays();
+        regionsVbo = glGenBuffers();
+        regionsEbo = glGenBuffers();
+        rebuildRegionsMesh();
+
     }
 
         /* --------- Rendering --------- */
@@ -153,7 +176,9 @@ public class Render {
                 case POINTS: renderPoints(bodiesOutSSBO); break;
                 case IMPOSTOR_SPHERES: renderImpostorSpheres(bodiesOutSSBO); break;
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
+                default: break;
             }
+            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO());
         }
 
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
@@ -221,6 +246,30 @@ public class Render {
             glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
             glBindVertexArray(0);
             glUseProgram(0);
+        }
+
+        public void renderRegions(SSBO NodesSSBO) {
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(false);
+            glUseProgram(regionsProgram);
+            // Bind nodes SSBO at binding 4
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
+            // Start after leaves
+            glUniform1i(uNodeStartIndexLoc, gpuSimulation.numBodies());
+            glUniform2i(uMinMaxDepthLoc, 0, 10);
+
+            glBindVertexArray(regionsVao);
+            int instanceCount = Math.max(0, gpuSimulation.numBodies() - 1);
+            if (instanceCount > 0) {
+                glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0L, instanceCount);
+            }
+            glBindVertexArray(0);
+            glUseProgram(0);
+            glDepthMask(true);
+            glEnable(GL_DEPTH_TEST);
         }
 
 
@@ -313,6 +362,10 @@ public class Render {
         if (mode != null) this.renderMode = mode;
     }
 
+    public RenderMode getRenderMode() {
+        return this.renderMode;
+    }
+
     public void setImpostorPointScale(float scale) {
         this.impostorPointScale = scale <= 0 ? 1.0f : scale;
     }
@@ -394,6 +447,82 @@ public class Render {
         idx.flip();
         return idx;
     }
+        /* --------- Regions --------- */
+
+        private void rebuildRegionsMesh() {
+            float[] cubeVertices = {
+                -0.5f, -0.5f,  0.5f,
+                0.5f, -0.5f,  0.5f,
+                0.5f,  0.5f,  0.5f,
+               -0.5f,  0.5f,  0.5f,
+           
+               // Back face
+               -0.5f, -0.5f, -0.5f,
+                0.5f, -0.5f, -0.5f,
+                0.5f,  0.5f, -0.5f,
+               -0.5f,  0.5f, -0.5f
+            };
+    
+            int[] cubeIndices = {
+                // Front face
+                0, 1, 2,
+                2, 3, 0,
+    
+                // Right face
+                1, 5, 6,
+                6, 2, 1,
+    
+                // Back face
+                5, 4, 7,
+                7, 6, 5,
+    
+                // Left face
+                4, 0, 3,
+                3, 7, 4,
+    
+                // Top face
+                3, 2, 6,
+                6, 7, 3,
+    
+                // Bottom face
+                4, 5, 1,
+                1, 0, 4
+            };
+            if (regionsVao == 0) regionsVao = glGenVertexArrays();
+            if (regionsVbo == 0) regionsVbo = glGenBuffers();
+            if (regionsEbo == 0) regionsEbo = glGenBuffers();
+            glBindVertexArray(regionsVao);
+    
+            // Vertex buffer
+            glBindBuffer(GL_ARRAY_BUFFER, regionsVbo);
+            glBufferData(GL_ARRAY_BUFFER, cubeVertices, GL_STATIC_DRAW);
+    
+            // Index buffer
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, regionsEbo);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeIndices, GL_STATIC_DRAW);
+    
+            // Vertex attribute (pos)
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.BYTES, 0L);
+    
+            glBindVertexArray(0);
+    
+    
+        }
+        private String getRegionsVertexShaderSource() {
+            try {
+                return Files.readString(Paths.get("src/main/resources/shaders/regions/regions_vertex.glsl"));
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read regions vertex shader: " + e.getMessage());
+            }
+        }
+        private String getRegionsFragmentShaderSource() {
+            try {
+                return Files.readString(Paths.get("src/main/resources/shaders/regions/regions_fragment.glsl"));
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read regions fragment shader: " + e.getMessage());
+            }
+        }
 
     /* --------- Cleanup --------- */
     public void cleanup() {
