@@ -11,9 +11,13 @@ import java.nio.FloatBuffer;
 
 import com.grumbo.gpu.SSBO;
 import com.grumbo.gpu.Body;
+import org.joml.Vector3f;
+import org.joml.Matrix4f;
+import static org.lwjgl.opengl.GL43.*;
+import org.lwjgl.system.MemoryStack;
+import static org.lwjgl.system.MemoryStack.*;
 
-import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
-import static org.lwjgl.opengl.GL43C.*;
+
 
 
 public class Render {
@@ -47,7 +51,6 @@ public class Render {
         private int uImpostorPassLoc;
         private int uImpostorProjLoc;
         private int uMvpLocationRegions;
-        private int uNodeStartIndexLoc;
         private int uMinMaxDepthLoc;
     
         private int regionsVao;
@@ -159,7 +162,6 @@ public class Render {
         glLinkProgram(regionsProgram);
         checkProgram(regionsProgram);
         uMvpLocationRegions = glGetUniformLocation(regionsProgram, "uMVP");
-        uNodeStartIndexLoc = glGetUniformLocation(regionsProgram, "uNodeStartIndex");
         uMinMaxDepthLoc = glGetUniformLocation(regionsProgram, "uMinMaxDepth");
         regionsVao = glGenVertexArrays();
         regionsVbo = glGenBuffers();
@@ -169,8 +171,9 @@ public class Render {
     }
 
         /* --------- Rendering --------- */
-        public void render(SSBO bodiesOutSSBO, OpenGLWindow.State state) {
+        public void render(SSBO bodiesOutSSBO, GPUSimulation.State state) {
             if (renderMode == RenderMode.OFF) return;
+            getCameraView();
             switch (renderMode) {
                 case POINTS: renderPoints(bodiesOutSSBO); break;
                 case IMPOSTOR_SPHERES: renderImpostorSpheres(bodiesOutSSBO); break;
@@ -178,7 +181,7 @@ public class Render {
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
                 default: break;
             }
-            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO());
+            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO(), bodiesOutSSBO);
         }
 
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
@@ -251,7 +254,7 @@ public class Render {
             glUseProgram(0);
         }
 
-        public void renderRegions(SSBO NodesSSBO) {
+        public void renderRegions(SSBO NodesSSBO, SSBO bodiesOutSSBO) {
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -261,8 +264,14 @@ public class Render {
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
             // Start after leaves
-            glUniform1i(uNodeStartIndexLoc, gpuSimulation.numBodies());
-            glUniform2i(uMinMaxDepthLoc, 0, 10);
+            
+            glUniform2i(uMinMaxDepthLoc, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
+
+            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+                SSBO.BODIES_IN_SSBO_BINDING,
+                bodiesOutSSBO.getBufferLocation(),
+                0,
+                16*Float.BYTES);
 
             glBindVertexArray(regionsVao);
             int instanceCount = Math.max(0, gpuSimulation.numBodies() - 1);
@@ -274,6 +283,40 @@ public class Render {
             glDepthMask(true);
             glEnable(GL_DEPTH_TEST);
         }
+
+
+        
+    private void getCameraView() {
+        // Get camera position from Settings
+        Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
+        Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
+        Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
+        float fov = Settings.getInstance().getFov();
+        float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+        float near = Settings.getInstance().getNearPlane();
+        float far = Settings.getInstance().getFarPlane();
+
+        Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
+        Matrix4f view = new Matrix4f().lookAt(eye, center, up);
+        Matrix4f mvp = new Matrix4f(proj).mul(view);
+
+
+
+        try (MemoryStack stack = stackPush()) {
+            FloatBuffer mvpBuf = stack.mallocFloat(16);
+            mvp.get(mvpBuf);
+            setMvp(mvpBuf);
+            FloatBuffer projBuf = stack.mallocFloat(16);
+            proj.get(projBuf);
+            setCameraToClip(projBuf);
+            FloatBuffer viewBuf = stack.mallocFloat(16);
+            view.get(viewBuf);
+            setModelView(viewBuf);
+        }
+
+    }
+
+
 
 
     public void setMvp(java.nio.FloatBuffer mvp4x4ColumnMajor) {

@@ -74,18 +74,10 @@ public class SettingsGenerator {
             import com.fasterxml.jackson.databind.ObjectMapper;
             import java.util.ArrayList;
             import org.joml.Vector3f;
-            import java.net.URL;
-            import java.nio.file.Path;
-            import java.nio.file.Paths;
-            import java.nio.file.Files;
-
-            import com.grumbo.UI.*;
-            import com.grumbo.gpu.*;
             
 
             public class Settings {
                 
-                private static final String SETTINGS_FILE = getSettingsFile().getAbsolutePath();
                 private static Settings instance;
                 
                 // Property map to store all settings
@@ -445,7 +437,6 @@ public class SettingsGenerator {
                 \t\t\tFile parent = file.getParentFile();
                 \t\t\tif (parent != null) { parent.mkdirs(); }
                 \t\t\tmapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonData);
-                \t\t\tSystem.out.println("Settings saved to " + file.getAbsolutePath());
                 \t\t} catch (IOException e) {
                 \t\t\tSystem.err.println("Failed to save settings: " + e.getMessage());
                 \t\t}

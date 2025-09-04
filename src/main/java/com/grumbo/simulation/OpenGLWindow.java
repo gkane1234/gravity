@@ -1,148 +1,36 @@
 package com.grumbo.simulation;
-
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
-import org.lwjgl.system.*;
-
 import com.grumbo.UI.OpenGLUI;
-
 import org.joml.*;
-
-import java.nio.*;
-import java.util.ArrayList;
-import java.util.Collections;
-
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43.*;
-import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
 public class OpenGLWindow {
 
     // The window handle
     private long window;
-    
-    // Mouse variables
 
-
-    
     private OpenGLUI openGlUI;
-    
-    // Settings panel state
 
-    
     // FPS monitoring
-
     private double lastTime = 0.0;
     private int frameCount = 0;
     private double fps = 0.0;
     
-
     public GPUSimulation gpuSimulation;
-    private ArrayList<Planet> planets;
 
-    public enum State {
-        LOADING,
-        RUNNING,
-        PAUSED,
-        FRAME_ADVANCE
-    }
-    public State state = State.FRAME_ADVANCE;
-
-    private boolean advanceFrame = false;
     // FPS limiting using GPU swap interval
     private int maxFPS = -1; // Default max FPS
 
-    private boolean debug = true;
-    private Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
-    public OpenGLWindow() {
-        //planets = createDiskSimulation();
-        planets = createJumboSimulation();
-        //planets = collisionTest();
-        //planets = twoPlanets();
-
-        //planets = Planet.mergeOverlappingPlanets(planets);
-        //planets.add(new Planet(0, 0, 0, 0, 0, 0, 10_000_000));
-
-
+    public OpenGLWindow(GPUSimulation gpuSimulation) {
+        this.gpuSimulation = gpuSimulation;
     }
 
-    public ArrayList<Planet> createJumboSimulation() {
-        ArrayList<Planet> planets = new ArrayList<>();
-        Planet jumbo = new Planet(0,0,0,0,0,0,100000f,1);
-        Planet jumbo2 = new Planet(0,0,-1000,0,0,0,100000f,1);
-        planets.add(jumbo);
-        planets.add(jumbo2);
-        return planets;
-    }
 
-    public ArrayList<Planet> createDiskSimulation() {
-        ArrayList<Planet> planets = new ArrayList<>();
-        float[] radius = {100, 100000};
-        float[] mRange = {1000, 12000};
-        float[] densityRange = {1, 1};
-        //Planet center = new Planet(1,0,0,0,0,0,100000);
-        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
-        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0), false, true, 100000));
-        planets.addAll(Planet.makeNewRandomDisk(500_000, radius, mRange, densityRange, new float[] {0,1000,0}, new float[] {0,0,0},0, 10000000f,1f,0.98f,0.4f,false, true));
-        Planet jumbo = new Planet(0,0,0,0,0,0,1000000000f,1);
-        planets.add(jumbo);
-        //planets.addAll(Planet.makeNewRandomDisk(500_000, radius, mRange, new float[] {0,0,0}, new float[] {0,0,0}, (float)(java.lang.Math.PI/2), 10000000f,0.98f,0.9f,0.9f,false, true));
-        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(0.2), false, true, 100000));
-        //planets.add(center);
-
-        return planets;
-    }
-
-    
-
-    public ArrayList<Planet> createBoxSimulation() {
-        ArrayList<Planet> planets = new ArrayList<>();
-        float[] xRange = {-4000, 4000};
-        float[] yRange = {-4000, 4000};
-        float[] zRange = {-4000, 4000};
-        float[] xVRange = {-0, 0};
-        float[] yVRange = {-0, 0};
-        float[] zVRange = {-0, 0};
-        float[] mRange = {10, 10000};
-        float[] densityRange = {1, 1};
-        Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
-        //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNewRandomBox(1_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange);
-        planets.add(center);
-        //planets.add(center2);
-
-        return planets;
-    }
-
-    public ArrayList<Planet> collisionTest() {
-        ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 1000;
-        for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), 0, 0, 0, 100));
-        }
-
-        Collections.shuffle(newPlanets);
-        return newPlanets;
-    }
-
-    public ArrayList<Planet> twoPlanets() {
-        ArrayList<Planet> newPlanets = new ArrayList<>();
-        newPlanets.add(new Planet(0, 0, 0, 0, 0, 0, 100));
-        newPlanets.add(new Planet(20, 0, 0, 0, 0, 0, 100));
-        newPlanets.add(new Planet(-20, 0, 0, 0, 0, 0, 100));
-        return newPlanets;
-    }
-
-    public void run() {
-        init();
-        loop();
-        cleanup();
-
-    }
-
-    private void init() {
+    public void init() {
         // Setup an error callback
         GLFWErrorCallback.createPrint(System.err).set();
 
@@ -185,74 +73,33 @@ public class OpenGLWindow {
         glEnable(GL_POINT_SPRITE);
         glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, GL_LOWER_LEFT);
 
-        //glEnable(GL_DEPTH_TEST);
-        // glEnable(GL_BLEND);
-        // glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
-        // glBlendEquation(GL_FUNC_ADD);
-
-        // Initialize UI
         openGlUI = new OpenGLUI(this);
         
-
         System.out.println(getStartupInfo());
-        
-        // Initialize GPU simulation
-        gpuSimulation = new GPUSimulation(this, planets, renderMode, debug);
-        gpuSimulation.init();
-        
-
-        // Enable depth testing for 3D
-        //glEnable(GL_DEPTH_TEST);
         
     }
 
-    private void loop() {
-        System.out.println("Starting render loop...");
-        
-        // Initialize FPS timing
-        lastTime = glfwGetTime();
-        
-        while (!glfwWindowShouldClose(window)) {
-            // Update FPS calculation
-            updateFPS();
+    public void step() {
 
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        if (glfwWindowShouldClose(window)) {
 
+            System.out.println("Render loop ended");
 
-            // Set up camera view
-            getCameraView();
-
-
-            gpuSimulation.step(state);
-            
-            // Draw crosshair
-            drawCrosshair();
-
-            openGlUI.drawUI();
-           
-
-            glfwSwapBuffers(window);
-            glfwPollEvents();
-            
+            gpuSimulation.stop();
+            cleanup();
         }
         
-        System.out.println("Render loop ended");
-
-        // Cleanup embedded sim GL objects
-        if (gpuSimulation != null) {
-            gpuSimulation.cleanupEmbedded();
-        }
+        // Update FPS calculation
+        updateFPS();
+        openGlUI.drawUI();
+        glfwSwapBuffers(window);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glfwPollEvents();
     }
  
     // Input Methods
 
-    public void updateCameraDirection() {
-        Vector3f direction = new Vector3f();
-        direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
-        direction.y = (float)java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getPitch()));
-        direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
-        Settings.getInstance().setCameraFront(direction.normalize());
-    }
+
   
     
     // Initialization Methods
@@ -295,81 +142,8 @@ public class OpenGLWindow {
     }
 
     // Drawing Methods
-    
-    private void getCameraView() {
-        // Get camera position from Settings
-        Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
-        Vector3f center = new Vector3f(eye).add(Settings.getInstance().getCameraFront());
-        Vector3f up = new Vector3f(Settings.getInstance().getCameraUp());
-        float fov = Settings.getInstance().getFov();
-        float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
-        float near = Settings.getInstance().getNearPlane();
-        float far = Settings.getInstance().getFarPlane();
-
-        Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
-        Matrix4f view = new Matrix4f().lookAt(eye, center, up);
-        Matrix4f mvp = new Matrix4f(proj).mul(view);
-
-
-        try (MemoryStack stack = stackPush()) {
-            FloatBuffer mvpBuf = stack.mallocFloat(16);
-            mvp.get(mvpBuf);
-            gpuSimulation.setMvp(mvpBuf);
-            FloatBuffer projBuf = stack.mallocFloat(16);
-            proj.get(projBuf);
-            gpuSimulation.setCameraToClip(projBuf);
-            FloatBuffer viewBuf = stack.mallocFloat(16);
-            view.get(viewBuf);
-            gpuSimulation.setModelView(viewBuf);
-        }
-
-    }
-    
-    private void drawCrosshair() {
-        // Save current matrices
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Set up 2D orthographic projection for crosshair
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Disable depth testing for crosshair
-        glDisable(GL_DEPTH_TEST);
-        
-        // Set crosshair color (white)
-        glColor3f(1.0f, 1.0f, 1.0f);
-        glLineWidth(2.0f);
-        
-        // Calculate center of screen
-        float centerX = Settings.getInstance().getWidth() / 2.0f;
-        float centerY = Settings.getInstance().getHeight() / 2.0f;
-        float crosshairSize = 10.0f;
-        
-        // Draw crosshair lines
-        glBegin(GL_LINES);
-        // Horizontal line
-        glVertex2f(centerX - crosshairSize, centerY);
-        glVertex2f(centerX + crosshairSize, centerY);
-        // Vertical line
-        glVertex2f(centerX, centerY - crosshairSize);
-        glVertex2f(centerX, centerY + crosshairSize);
-        glEnd();
-        
-        // Re-enable depth testing
-        //glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-    }
  
+    
     private void cleanup() {
         // Cleanup font resources
 
@@ -431,16 +205,23 @@ public class OpenGLWindow {
     public long getWindow() {
         return window;
     }
-    public void setAdvanceFrame(boolean advanceFrame) {
-        this.advanceFrame = advanceFrame;
-    }
+
     public double getFPS() {
         return fps;
     }
 
-    public boolean advanceFrame() {
-        return advanceFrame;
+    public GPUSimulation.State getState() {
+        return gpuSimulation.state;
     }
+    public void setState(GPUSimulation.State state) {
+        this.gpuSimulation.state = state;
+    }
+
+    public GPUSimulation getGPUSimulation() {
+        return gpuSimulation;
+    }
+
+
 
     public void toggleRegions() {
         gpuSimulation.toggleRegions();

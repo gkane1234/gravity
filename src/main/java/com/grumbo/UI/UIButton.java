@@ -34,7 +34,6 @@ public class UIButton extends UIElement {
     public boolean handleMousePress(double mouseX, double mouseY) {
         if (hitTest(mouseX, mouseY)) {
             if (onClick != null) onClick.run();
-            System.out.println("Button clicked: " + text);
             return true;
         }
         return false;

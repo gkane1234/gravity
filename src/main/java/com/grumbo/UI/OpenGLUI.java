@@ -150,17 +150,17 @@ public class OpenGLUI {
             }},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F1, () -> {showFPS = !showFPS;},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {
-            if (openGlWindow.state == OpenGLWindow.State.FRAME_ADVANCE) {
-                openGlWindow.state = OpenGLWindow.State.RUNNING;
+            if (openGlWindow.getState() == GPUSimulation.State.PAUSED) {
+                openGlWindow.setState(GPUSimulation.State.RUNNING);
                 System.out.println("Switched to continuous simulation mode");
             } else {
-                openGlWindow.state = OpenGLWindow.State.FRAME_ADVANCE;
+                openGlWindow.setState(GPUSimulation.State.PAUSED);
                 System.out.println("Switched to frame advance mode - press ENTER to advance frames");
             }
         },false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.state == OpenGLWindow.State.FRAME_ADVANCE) openGlWindow.setAdvanceFrame(true);},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
         
         
     }
@@ -168,7 +168,7 @@ public class OpenGLUI {
     public void drawUI() {
         runKeyFunctions();
 
-        if (openGlWindow.state == OpenGLWindow.State.FRAME_ADVANCE) {
+        if (openGlWindow.getState() == GPUSimulation.State.PAUSED) {
             drawFrameAdvanceIndicator();
         }
 
@@ -247,7 +247,7 @@ public class OpenGLUI {
                 if (Settings.getInstance().getPitch() < -89.0f)
                     Settings.getInstance().setPitch(-89.0f);
 
-                openGlWindow.updateCameraDirection();
+                updateCameraDirection();
             } else if (displaySettings) {
                 settingsPane.onMouseMove(xpos, ypos);
             }
@@ -287,7 +287,13 @@ public class OpenGLUI {
 
 
 
-      
+    private void updateCameraDirection() {
+        Vector3f direction = new Vector3f();
+        direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
+        direction.y = (float)java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getPitch()));
+        direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
+        Settings.getInstance().setCameraFront(direction.normalize());
+    }
     private void processWASDQEMovement(int key) {
         // Don't process movement if a text field is focused
         if (settingsPane.textFieldFocused) {
@@ -449,6 +455,51 @@ public class OpenGLUI {
         
         // Re-enable depth testing
         glEnable(GL_DEPTH_TEST);
+        
+        // Restore matrices
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+
+    private void drawCrosshair() {
+        // Save current matrices
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Set up 2D orthographic projection for crosshair
+        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+        
+        // Disable depth testing for crosshair
+        glDisable(GL_DEPTH_TEST);
+        
+        // Set crosshair color (white)
+        glColor3f(1.0f, 1.0f, 1.0f);
+        glLineWidth(2.0f);
+        
+        // Calculate center of screen
+        float centerX = Settings.getInstance().getWidth() / 2.0f;
+        float centerY = Settings.getInstance().getHeight() / 2.0f;
+        float crosshairSize = 10.0f;
+        
+        // Draw crosshair lines
+        glBegin(GL_LINES);
+        // Horizontal line
+        glVertex2f(centerX - crosshairSize, centerY);
+        glVertex2f(centerX + crosshairSize, centerY);
+        // Vertical line
+        glVertex2f(centerX, centerY - crosshairSize);
+        glVertex2f(centerX, centerY + crosshairSize);
+        glEnd();
+        
+        // Re-enable depth testing
+        //glEnable(GL_DEPTH_TEST);
         
         // Restore matrices
         glPopMatrix();

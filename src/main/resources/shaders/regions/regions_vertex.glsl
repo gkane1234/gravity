@@ -20,21 +20,28 @@ struct Node {
 layout(std430, binding = 4) readonly buffer Nodes {
 	Node nodes[];
 };
+layout(std430, binding = 0) readonly buffer BodiesHeader { 
+	uint numBodies;
+	uint initialNumBodies;
+};
 
 layout(location = 0) in vec3 aPos; // unit cube in [-0.5, 0.5]
 
 uniform mat4 uMVP;
-uniform int uNodeStartIndex; // usually initialNumBodies
 uniform ivec2 uMinMaxDepth;
-
 out flat int uTreeDepth;
 
 void main() {
-	int nodeIndex = gl_InstanceID + uNodeStartIndex;
+	if (gl_InstanceID >= numBodies) {
+		uTreeDepth = 0;
+		gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+		return;
+	}
+	int nodeIndex = gl_InstanceID + int(initialNumBodies);
 
 	Node node = nodes[nodeIndex];
 
-    if (int(node.firstBody) < uMinMaxDepth.x || node.firstBody > uMinMaxDepth.y) {
+    if (node.firstBody < uMinMaxDepth.x || node.firstBody > uMinMaxDepth.y) {
         uTreeDepth = 0;
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;

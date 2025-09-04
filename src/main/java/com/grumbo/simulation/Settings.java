@@ -8,18 +8,10 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import org.joml.Vector3f;
-import java.net.URL;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.Files;
-
-import com.grumbo.UI.*;
-import com.grumbo.gpu.*;
 
 
 public class Settings {
 
-    private static final String SETTINGS_FILE = getSettingsFile().getAbsolutePath();
     private static Settings instance;
 
     // Property map to store all settings
@@ -436,7 +428,6 @@ public class Settings {
 			File parent = file.getParentFile();
 			if (parent != null) { parent.mkdirs(); }
 			mapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonData);
-			System.out.println("Settings saved to " + file.getAbsolutePath());
 		} catch (IOException e) {
 			System.err.println("Failed to save settings: " + e.getMessage());
 		}

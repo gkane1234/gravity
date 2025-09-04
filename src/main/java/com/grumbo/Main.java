@@ -1,6 +1,6 @@
 package com.grumbo;
 
-import com.grumbo.simulation.OpenGLWindow;
+import com.grumbo.simulation.GPUSimulation;
 
 /**
  * Main - Application Entry Point
@@ -16,7 +16,9 @@ import com.grumbo.simulation.OpenGLWindow;
  // - Cant put chunk size too low or else it will freeze or lose correct velocity of planets
 public class Main {
     public static void main(String[] args) {
-        OpenGLWindow window = new OpenGLWindow();
-        window.run();
+        GPUSimulation gpuSimulation = new GPUSimulation();
+        gpuSimulation.run();
+        
     }
+    
 }
