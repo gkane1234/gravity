@@ -22,9 +22,10 @@ public class Render {
         OFF,
         POINTS,
         IMPOSTOR_SPHERES,
+        IMPOSTOR_SPHERES_WITH_GLOW,
         MESH_SPHERES
     }
-    public boolean showRegions = false;
+    public boolean showRegions = true;
 
         // Render Programs
         private int renderProgram; // points program
@@ -175,6 +176,7 @@ public class Render {
             switch (renderMode) {
                 case POINTS: renderPoints(bodiesOutSSBO); break;
                 case IMPOSTOR_SPHERES: renderImpostorSpheres(bodiesOutSSBO); break;
+                case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(bodiesOutSSBO); break;
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
                 default: break;
             }
@@ -208,11 +210,14 @@ public class Render {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             renderImpostorSpheresPass(bodiesOutSSBO, 0);
-            // glEnable    (GL_DEPTH_TEST);
-            // glDepthMask(true);
 
-            // glBlendFunc(GL_ONE, GL_ONE);
-            // renderImpostorSpheresPass(bodiesOutSSBO, 1);
+            if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
+                glEnable    (GL_DEPTH_TEST);
+                glDepthMask(true);
+
+                glBlendFunc(GL_ONE, GL_ONE);
+                renderImpostorSpheresPass(bodiesOutSSBO, 1);
+            }
 
             glUseProgram(0);
         }

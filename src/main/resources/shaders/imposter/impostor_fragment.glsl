@@ -37,12 +37,12 @@ void main() {
         //fragColor = vec4(1.0,0,0,1);
         if (radius <= bodyToGlowRatio) discard;
 
-        if (mass < SOLAR_THRESHOLD)
-            discard;
+        // if (mass < SOLAR_THRESHOLD)
+        //     discard;
 
         float glowRadius = 1 - bodyToGlowRatio;
         float t = (radius - bodyToGlowRatio) / glowRadius;
-        float glow = exp(-4 * t * t);
+        float glow = exp(-0.1 * t * t);
 
 
 

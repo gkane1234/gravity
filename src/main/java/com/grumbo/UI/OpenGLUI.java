@@ -159,6 +159,7 @@ public class OpenGLUI {
             }
         },false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.state == OpenGLWindow.State.FRAME_ADVANCE) openGlWindow.setAdvanceFrame(true);},false));
         
         

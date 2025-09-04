@@ -12,6 +12,7 @@ uniform float restitution;
 uniform bool collision;
 uniform uint numWorkGroups;
 uniform uint passShift;
+uniform bool mergeBodies;
 
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;

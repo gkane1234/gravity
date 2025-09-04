@@ -55,9 +55,10 @@ public class OpenGLWindow {
     private int maxFPS = -1; // Default max FPS
 
     private boolean debug = true;
-    private Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES;
+    private Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
     public OpenGLWindow() {
-        planets = createDiskSimulation();
+        //planets = createDiskSimulation();
+        planets = createJumboSimulation();
         //planets = collisionTest();
         //planets = twoPlanets();
 
@@ -440,6 +441,10 @@ public class OpenGLWindow {
 
     public boolean advanceFrame() {
         return advanceFrame;
+    }
+
+    public void toggleRegions() {
+        gpuSimulation.toggleRegions();
     }
 
     public String getPerformanceText() {

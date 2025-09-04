@@ -74,7 +74,7 @@ void propagateNodesKernel()
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
         nodes[nodeIdx].aabb = newAABB;
         nodes[nodeIdx].readyChildren = 3u;
-        nodes[nodeIdx].firstBody = 1u+min(nodes[leftChild].firstBody, nodes[rightChild].firstBody);
+        nodes[nodeIdx].firstBody = 1u+max(nodes[leftChild].firstBody, nodes[rightChild].firstBody);
         uint parentIdx = nodes[nodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);

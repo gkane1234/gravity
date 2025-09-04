@@ -27,10 +27,11 @@ out float mass;
 out vec3 vCenterView;
 out float vCenterClipW;
 out float ndcDepth;
+out float worldRadius;
 
 float cbrt(float x) { return pow(x, 1.0/3.0); }
 
-const float GLOW_RADIUS_FACTOR = 3;
+const float GLOW_RADIUS_FACTOR = 10;
 const float BOX_CORRECTION = 1.5;
 
 void main() {
@@ -40,7 +41,7 @@ void main() {
   vec3 center = b.posMass.xyz;
   mass = b.posMass.w;
   bodyToGlowRatio = cbrt(max(mass, 0.0)) * uPointScale / b.velDensity.w;
-  float worldRadius = bodyToGlowRatio*GLOW_RADIUS_FACTOR;
+  worldRadius = bodyToGlowRatio*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= bodyToGlowRatio/ worldRadius;
     vColor = b.color;
 

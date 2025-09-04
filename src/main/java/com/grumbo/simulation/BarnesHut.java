@@ -904,7 +904,7 @@ public class BarnesHut {
     }
 
     public SSBO getOutputSSBO() {
-        return SWAPPING_BODIES_OUT_SSBO;
+        return SWAPPING_BODIES_IN_SSBO;
     }
 
     public SSBO getNodesSSBO() {
@@ -1220,6 +1220,7 @@ public void resizeBuffersAndUpload(List<Planet> newPlanets) {
             NODES_SSBO.bind();
             ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer nodeData = nodeBuffer.asIntBuffer();
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             
             int numLeaves = gpuSimulation.numBodies();
             int totalNodes = 2 * gpuSimulation.numBodies() - 1;

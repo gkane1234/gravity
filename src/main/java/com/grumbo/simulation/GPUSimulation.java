@@ -112,6 +112,10 @@ public class GPUSimulation {
     public String getPerformanceText() {
         return barnesHut.debugString;
     }
+
+    public void toggleRegions() {
+        render.showRegions = !render.showRegions;
+    }
     
 
 
