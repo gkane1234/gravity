@@ -77,3 +77,6 @@ bool isEmpty(Body b) {
     return b.posMass.w == 0.0;
 }
 
+float radius(Body b) {
+    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+}

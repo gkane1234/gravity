@@ -15,11 +15,9 @@ import static org.lwjgl.glfw.GLFW.*;
  */
 public class SettingsPane {
 
-
     private final Set<UIRow> renderedRows= new HashSet<>();
     private ArrayList<Property<?>> propertyRows = new ArrayList<>();
     private ArrayList<UIRow> titleAndPageButtons = new ArrayList<>();
-
 
     private UISlider activeSlider = null;
     private double mouseX = 0.0;
@@ -31,10 +29,7 @@ public class SettingsPane {
 
     public boolean textFieldFocused = false;
 
-
     public SettingsPane() {
-        //Instead of creating them as it is rendered each time, create all of them here explicitly, get rid of the ensure methods. For each property bunch them together for each one somehow
-        // Title and page buttons (top title; bottom paging buttons are laid out in draw)
         ArrayList<UIElement> titleRow = new ArrayList<>();
         titleRow.add(new UIText("=== SETTINGS " + (currentPage + 1)+  " ==="));
         titleAndPageButtons.add(new UIRow(titleRow));
@@ -56,8 +51,6 @@ public class SettingsPane {
             UIRow row = prop.getEditorRow();
             if (row != null) propertyRows.add(prop);
         }
-
-
     }
 
     // -------- Public input hooks (to be called from window callbacks) --------
@@ -68,7 +61,6 @@ public class SettingsPane {
             activeSlider.handleMouseDrag(mouseX, mouseY);
         }
     }
-
 
     public void onMouseButton(int button, int action) {
         if (button != GLFW_MOUSE_BUTTON_LEFT) return;
@@ -148,7 +140,6 @@ public class SettingsPane {
         float bottomY = Settings.getInstance().getHeight() - bottomSpace;
         float verticalPadding = 10.0f;
 
-
         // Title (update existing element text and draw)
         ((UIText)titleAndPageButtons.get(0).getElements().get(0)).setText("=== SETTINGS " + (currentPage + 1)+  " ===");
         titleAndPageButtons.get(0).calculateSize(font);
@@ -192,7 +183,6 @@ public class SettingsPane {
     private void beginUiFrame() {
         renderedRows.clear();
     }
-
 
     public boolean wasRendered(UIRow row) {
         return renderedRows.contains(row);

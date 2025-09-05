@@ -1,13 +1,11 @@
 package com.grumbo.UI;
 
 import org.lwjgl.glfw.GLFW;
-import org.joml.Vector3f;
 import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL43.*;
+import org.joml.Vector3f;
 
 import com.grumbo.simulation.*;
-
-
 import java.util.ArrayList;
 
 public class OpenGLUI {
@@ -24,11 +22,7 @@ public class OpenGLUI {
     private BitmapFont font;
 
     private SettingsPane settingsPane;
-
-
-
-
-
+    public boolean showCrosshair = false;
     public class KeyEvent {
         public int key;
         private Runnable pressAction;
@@ -97,8 +91,6 @@ public class OpenGLUI {
         }
     }
 
-
-
     public ArrayList<KeyEvent> keyEvents = new ArrayList<>();
     private OpenGLWindow openGlWindow;
 
@@ -116,25 +108,23 @@ public class OpenGLUI {
     public void initKeyEvents() {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() * 1.1),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() / 1.1),true));
-        // WASD movement is now handled directly in OpenGLWindow for relative camera movement
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_W, () -> {processWASDQEMovement(GLFW.GLFW_KEY_W);},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_A, () -> {processWASDQEMovement(GLFW.GLFW_KEY_A);},true)); // Left - handled in OpenGLWindow
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_S, () -> {processWASDQEMovement(GLFW.GLFW_KEY_S);},true)); // Backward - handled in OpenGLWindow
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_D, () -> {processWASDQEMovement(GLFW.GLFW_KEY_D);},true)); // Right - handled in OpenGLWindow
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_Q, () -> {processWASDQEMovement(GLFW.GLFW_KEY_Q);},true)); // Up - handled in OpenGLWindow
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_E, () -> {processWASDQEMovement(GLFW.GLFW_KEY_E);},true)); // Down - handled in OpenGLWindow
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_A, () -> {processWASDQEMovement(GLFW.GLFW_KEY_A);},true)); 
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_S, () -> {processWASDQEMovement(GLFW.GLFW_KEY_S);},true)); 
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_D, () -> {processWASDQEMovement(GLFW.GLFW_KEY_D);},true)); 
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_Q, () -> {processWASDQEMovement(GLFW.GLFW_KEY_Q);},true)); 
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_E, () -> {processWASDQEMovement(GLFW.GLFW_KEY_E);},true)); 
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_P, () -> {}));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_I, () -> {}));
-       // keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> Settings.getInstance().setTickSize(incrementWait(Settings.getInstance().getTickSize(), false))));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_I, () -> {processIJKLMovement(GLFW.GLFW_KEY_I);},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_J, () -> {processIJKLMovement(GLFW.GLFW_KEY_J);},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_K, () -> {processIJKLMovement(GLFW.GLFW_KEY_K);},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_L, () -> {processIJKLMovement(GLFW.GLFW_KEY_L);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F, () -> Settings.getInstance().toggleFollow()));
-       // keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> Settings.getInstance().setTickSize(incrementWait(Settings.getInstance().getTickSize(), true))));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_R, () -> {}));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
-
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_UP, () -> {Settings.getInstance().setDt((float)(Settings.getInstance().getDt() * 1.1));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_DOWN, () -> {Settings.getInstance().setDt((float)(Settings.getInstance().getDt() / 1.1));},true));
-        //theta
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 0.9));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 1.1));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_B, () -> {}));
@@ -160,9 +150,9 @@ public class OpenGLUI {
         },false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
-        
-        
     }
 
     public void drawUI() {
@@ -187,6 +177,9 @@ public class OpenGLUI {
             drawDebugInfo();
         }
 
+        if (showCrosshair) {
+            drawCrosshair();
+        }
     }
 
     public void updateKeys(int key, int action) {
@@ -206,10 +199,26 @@ public class OpenGLUI {
         }
     }
 
+    public void changeCamera(float xoffset, float yoffset) {
+        xoffset *= Settings.getInstance().getMouseRotationSensitivity();
+        yoffset *= Settings.getInstance().getMouseRotationSensitivity();
+        Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + xoffset));
+        Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + yoffset));
+        // Constrain pitch to prevent camera flipping
+        if (Settings.getInstance().getPitch() > 89.0f)
+            Settings.getInstance().setPitch(89.0f);
+        if (Settings.getInstance().getPitch() < -89.0f)
+            Settings.getInstance().setPitch(-89.0f);
+        // Normalize yaw to keep trig inputs well-conditioned
+        float yaw = Settings.getInstance().getYaw();
+        yaw = ((yaw + 180.0f) % 360.0f + 360.0f) % 360.0f - 180.0f;
+        Settings.getInstance().setYaw(yaw);
+
+        updateCameraDirection();
+    }
 
     public void setupCallbacks() {
 
-        
         // Key callback
         glfwSetKeyCallback(openGlWindow.getWindow(), (window, key, scancode, action, mods) -> {
             // Route keys to focused textfields when not captured
@@ -235,19 +244,7 @@ public class OpenGLUI {
             lastX = xpos;
             lastY = ypos;
             if (mouseCaptured) {
-                xoffset *= Settings.getInstance().getMouseRotationSensitivity();
-                yoffset *= Settings.getInstance().getMouseRotationSensitivity();
-
-                Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + xoffset));
-                Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + yoffset));
-
-                // Constrain pitch to prevent camera flipping
-                if (Settings.getInstance().getPitch() > 89.0f)
-                    Settings.getInstance().setPitch(89.0f);
-                if (Settings.getInstance().getPitch() < -89.0f)
-                    Settings.getInstance().setPitch(-89.0f);
-
-                updateCameraDirection();
+                changeCamera((float)xoffset, (float)yoffset);
             } else if (displaySettings) {
                 settingsPane.onMouseMove(xpos, ypos);
             }
@@ -284,8 +281,6 @@ public class OpenGLUI {
             glfwSetWindowShouldClose(window, true);
         });
     }
-
-
 
     private void updateCameraDirection() {
         Vector3f direction = new Vector3f();
@@ -336,12 +331,35 @@ public class OpenGLUI {
         // Apply movement to camera position
         if (moveDirection.length() > 0) {
             Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
-            //System.out.println("Camera pos: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z);
             
         }
     }
+    private void processIJKLMovement(int key) {
+        // Don't process movement if a text field is focused
+        if (settingsPane.textFieldFocused) {
+            return;
+        }
+        
+        // Handle relative camera movement based on key states
+        Vector3f moveDirection = new Vector3f();
+        float moveSpeed = 1f;
 
-       
+        switch (key) {
+            case GLFW.GLFW_KEY_I: // Up in world space
+            changeCamera(0, moveSpeed);
+                break;
+            case GLFW.GLFW_KEY_J: // Left in world space
+                changeCamera(-moveSpeed, 0);
+                break;
+        case GLFW.GLFW_KEY_K: // Down in world space
+                changeCamera(0, -moveSpeed);
+                break;
+            case GLFW.GLFW_KEY_L: // Right in world space
+                changeCamera(moveSpeed, 0);
+                break;
+        }
+    }
+
     private void drawFPS() {
         if (font == null || !font.isLoaded()) {
             return; // Skip if font is not available
@@ -395,8 +413,6 @@ public class OpenGLUI {
         glMatrixMode(GL_PROJECTION);
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
-
-
     }
 
     public String getPerformanceText() {
@@ -536,9 +552,6 @@ public class OpenGLUI {
             }
         }
 
-
-
-        
         // Calculate position (right side of screen)
         int x = Settings.getInstance().getWidth() - (int)width - 20; // 400 pixels from right edge
         int y = 80;
@@ -548,8 +561,6 @@ public class OpenGLUI {
         // Calculate total height needed
         int totalHeight = lines.length * (lineHeight+10);
 
-
-        
         // Draw background rectangle
         glColor4f(0.0f, 0.0f, 0.0f, 0.8f); // Semi-transparent black
         glBegin(GL_QUADS);
@@ -583,10 +594,5 @@ public class OpenGLUI {
     public boolean isFontLoaded() {
         return font != null && font.isLoaded();
     }
-
-    
-    
-    
-    
     
 }

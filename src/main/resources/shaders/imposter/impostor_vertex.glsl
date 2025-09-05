@@ -34,15 +34,19 @@ float cbrt(float x) { return pow(x, 1.0/3.0); }
 const float GLOW_RADIUS_FACTOR = 10;
 const float BOX_CORRECTION = 1.5;
 
+float radius(Body b) {
+    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+}
+
 void main() {
   Body b = srcB.bodies[gl_InstanceID];
 
 
   vec3 center = b.posMass.xyz;
   mass = b.posMass.w;
-  bodyToGlowRatio = cbrt(max(mass, 0.0)) * uPointScale / b.velDensity.w;
-  worldRadius = bodyToGlowRatio*GLOW_RADIUS_FACTOR;
-  bodyToGlowRatio= bodyToGlowRatio/ worldRadius;
+  float trueRadius = radius(b);
+  worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
+  bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
     vColor = b.color;
 
   // Transform center to view space

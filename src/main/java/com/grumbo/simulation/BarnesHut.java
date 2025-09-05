@@ -1,22 +1,20 @@
 package com.grumbo.simulation;
 
-
 import com.grumbo.gpu.*;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
-
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Arrays;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Arrays;
+import java.util.ArrayList;
 
 import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL43C.*;
-
 
 public class BarnesHut {
 
@@ -25,14 +23,9 @@ public class BarnesHut {
     private static final int WORK_GROUP_SIZE = 256;
     private static final int NUM_RADIX_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
 
-
-
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 64;
+    private static final int PROPAGATE_NODES_ITERATIONS = 128;
     private boolean debug;
-
-
-
 
     // Uniforms
     public Map<String, Uniform<?>> uniforms;
@@ -50,6 +43,7 @@ public class BarnesHut {
     private int passShift;
 
     // Compute Shaders
+    private List<ComputeShader> computeShaders;
     private ComputeShader computeAABBKernel;
     private ComputeShader collapseAABBKernel;
     private ComputeShader mortonKernel;
@@ -93,8 +87,8 @@ public class BarnesHut {
     private SSBO MERGE_QUEUE_SSBO;
     private SSBO DEBUG_SSBO;
     
-
     //Debug variables
+    private List<Long> computeShaderDebugTimes;
     private long renderingTime;
     private long resetTime;
     private long aabbTime;
@@ -115,6 +109,7 @@ public class BarnesHut {
     private long propagateNodesTime;
     private long buildTreeTime;
     private long computeForceTime;
+
     public String debugString;
     private GPUSimulation gpuSimulation;
 
@@ -122,8 +117,6 @@ public class BarnesHut {
         this.gpuSimulation = gpuSimulation;
         this.debug = debug;
     }
-    
-
     
     public void step() {
         renderingCheck();
@@ -151,15 +144,15 @@ public class BarnesHut {
         initComputeSSBOs();
         initComputeUniforms();
         initComputeShaders();
-    }
 
+        //System.out.println(FIXED_BODIES_IN_SSBO.getData(0, 10));
+    }
 
     private void initComputeSSBOs() {
         
         //Create SSBOs
 
         ssbos = new HashMap<>();
-
 
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
             return packPlanets(gpuSimulation.getPlanets());
@@ -231,8 +224,6 @@ public class BarnesHut {
         }, "DEBUG_SSBO", 1, new VariableType[] { VariableType.FLOAT }, 100, new VariableType[] { VariableType.UINT });
         ssbos.put(DEBUG_SSBO.getName(), DEBUG_SSBO);
 
-
-
         for (SSBO ssbo : ssbos.values()) {
             ssbo.createBuffer();
         }
@@ -296,11 +287,11 @@ public class BarnesHut {
         collisionUniform = new Uniform<Boolean>("collision", () -> {
             return false;
         });
-
     }
 
     private void initComputeShaders() {
-        
+
+        computeShaders = new ArrayList<>();
         //Compute AABB Kernel
         computeAABBKernel = new ComputeShader("KERNEL_COMPUTE_AABB", this);
         computeAABBKernel.setUniforms(new Uniform[] {
@@ -313,7 +304,7 @@ public class BarnesHut {
         computeAABBKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(computeAABBKernel);
         collapseAABBKernel = new ComputeShader("KERNEL_COLLAPSE_AABB", this);
         collapseAABBKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -325,7 +316,7 @@ public class BarnesHut {
         collapseAABBKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
-
+        computeShaders.add(collapseAABBKernel); 
         mortonKernel = new ComputeShader("KERNEL_MORTON", this);
         mortonKernel.setUniforms(new Uniform[] {
         });
@@ -339,7 +330,7 @@ public class BarnesHut {
         mortonKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(mortonKernel);   
         deadCountKernel = new ComputeShader("KERNEL_DEAD_COUNT", this);
         deadCountKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -352,7 +343,7 @@ public class BarnesHut {
         deadCountKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(deadCountKernel);
         deadExclusiveScanKernel = new ComputeShader("KERNEL_DEAD_EXCLUSIVE_SCAN", this);
         deadExclusiveScanKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -366,7 +357,7 @@ public class BarnesHut {
         deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
-
+        computeShaders.add(deadExclusiveScanKernel);
         deadScatterKernel = new ComputeShader("KERNEL_DEAD_SCATTER", this);
         deadScatterKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -382,7 +373,7 @@ public class BarnesHut {
         deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(deadScatterKernel);
         radixSortHistogramKernel = new ComputeShader("KERNEL_RADIX_HIST", this);
         radixSortHistogramKernel.setUniforms(new Uniform[] {
 
@@ -398,7 +389,7 @@ public class BarnesHut {
         radixSortHistogramKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(radixSortHistogramKernel);
         radixSortParallelScanKernel = new ComputeShader("KERNEL_RADIX_PARALLEL_SCAN", this);
         radixSortParallelScanKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -412,7 +403,7 @@ public class BarnesHut {
         radixSortParallelScanKernel.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
-
+        computeShaders.add(radixSortParallelScanKernel);    
         radixSortExclusiveScanKernel = new ComputeShader("KERNEL_RADIX_EXCLUSIVE_SCAN", this);
         radixSortExclusiveScanKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -424,7 +415,7 @@ public class BarnesHut {
         radixSortExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
-
+        computeShaders.add(radixSortExclusiveScanKernel);
         radixSortDeadExclusiveScanKernel = new ComputeShader("KERNEL_RADIX_DEAD_EXCLUSIVE_SCAN", this);
         radixSortDeadExclusiveScanKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -436,7 +427,7 @@ public class BarnesHut {
         radixSortDeadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
-
+        computeShaders.add(radixSortDeadExclusiveScanKernel);
         radixSortScatterKernel = new ComputeShader("KERNEL_RADIX_SCATTER", this);
 
         radixSortScatterKernel.setUniforms(new Uniform[] {
@@ -454,10 +445,10 @@ public class BarnesHut {
             "SWAPPING_BODIES_IN_SSBO"
         });
 
-
         radixSortScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
+        computeShaders.add(radixSortScatterKernel); 
 
         radixSortDeadScatterKernel = new ComputeShader("KERNEL_RADIX_DEAD_SCATTER", this);
         radixSortDeadScatterKernel.setUniforms(new Uniform[] {
@@ -474,7 +465,7 @@ public class BarnesHut {
         radixSortDeadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(radixSortDeadScatterKernel);
 
         buildBinaryRadixTreeKernel = new ComputeShader("KERNEL_BUILD_BINARY_RADIX_TREE", this);
         buildBinaryRadixTreeKernel.setUniforms(new Uniform[] {
@@ -493,7 +484,7 @@ public class BarnesHut {
             int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return internalNodeGroups;
         });
-
+        computeShaders.add(buildBinaryRadixTreeKernel);
         //Compute COM and Location Kernels
 
         initLeavesKernel = new ComputeShader("KERNEL_INIT_LEAVES", this);
@@ -513,7 +504,7 @@ public class BarnesHut {
         initLeavesKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(initLeavesKernel);
         resetKernel = new ComputeShader("KERNEL_RESET", this);
 
         resetKernel.setUniforms(new Uniform[] {
@@ -530,7 +521,7 @@ public class BarnesHut {
         resetKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
-
+        computeShaders.add(resetKernel);
         propagateNodesKernel = new ComputeShader("KERNEL_PROPAGATE_NODES", this);
 
         propagateNodesKernel.setUniforms(new Uniform[] {
@@ -548,6 +539,7 @@ public class BarnesHut {
             int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return workGroups;
         });
+        computeShaders.add(propagateNodesKernel);
         computeForceKernel = new ComputeShader("KERNEL_COMPUTE_FORCE", this);
 
         computeForceKernel.setUniforms(new Uniform[] {
@@ -569,7 +561,7 @@ public class BarnesHut {
         computeForceKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(computeForceKernel);
         mergeBodiesKernel = new ComputeShader("KERNEL_MERGE", this);
         mergeBodiesKernel.setUniforms(new Uniform[] {
             
@@ -583,7 +575,7 @@ public class BarnesHut {
         mergeBodiesKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
-
+        computeShaders.add(mergeBodiesKernel);
         debugKernel = new ComputeShader("KERNEL_DEBUG", this);
 
         debugKernel.setUniforms(new Uniform[] {
@@ -600,7 +592,7 @@ public class BarnesHut {
         debugKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-
+        computeShaders.add(debugKernel);
     }
 
     /* --------- Barnes-Hut --------- */
@@ -789,23 +781,7 @@ public class BarnesHut {
             initLeavesTime = System.nanoTime();
         }
 
-
-        // Reset work queue head/tail to 0 before init
-        // WORK_QUEUE_SSBO.bind();
-        // ByteBuffer initQ = BufferUtils.createByteBuffer(2 * Integer.BYTES);
-        // initQ.putInt(0).putInt(0).flip();
-        // glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, initQ);
-        // SSBO.unBind();
-        
-
-
-
-        //System.out.println(WORK_QUEUE_SSBO.getData(0, 24));
-
-
         initLeavesKernel.run();
-
-        //System.out.println(WORK_QUEUE_SSBO.getData(0, 24));
 
         if (debug) {
             checkGLError("initLeaves");
@@ -819,15 +795,12 @@ public class BarnesHut {
 
         }
         
-
         if (debug) {
             checkGLError("propagateNodes");
             glFinish();
             propagateNodesTime = System.nanoTime() - propagateNodesTime;
             computeCOMAndLocationTime = initLeavesTime + propagateNodesTime;
         }
-
-
     }
 
     private void computeForce() {
@@ -841,8 +814,6 @@ public class BarnesHut {
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
         }
-
-
     }
 
     private void mergeBodies() {
@@ -882,96 +853,70 @@ public class BarnesHut {
         return NODES_SSBO;
     }
 
-
-
     private int numGroups() {
         return (gpuSimulation.numBodies() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
     }
 
-    
     public ByteBuffer packPlanets(List<Planet> planets) {
         // Packs planet data to float buffer: pos(x,y,z), mass, vel(x,y,z), pad, color(r,g,b,a)
-    int numBodies = planets.size();
-    
-    ByteBuffer buf = BufferUtils.createByteBuffer((4+numBodies * Body.STRUCT_SIZE)*4);
-    buf.putInt(numBodies);
-    buf.putInt(numBodies);
-    buf.putInt(0);
-    buf.putInt(0);
-    for (int i = 0; i < numBodies; i++) {
-        Planet p = planets.get(i);
-        buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
-        buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
-        java.awt.Color c = p.getColor();
-        float cr = c != null ? (c.getRed() / 255f) : 1.0f;
-        float cg = c != null ? (c.getGreen() / 255f) : 1.0f;
-        float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
-        buf.putFloat(cr).putFloat(cg).putFloat(cb).putFloat(1.0f);
-    }
-    buf.flip();
-    return buf;
-}
-
-public void uploadPlanetsData(List<Planet> newPlanets) {
-    // Assumes buffers are already correctly sized
-    ByteBuffer data = packPlanets(newPlanets);
-    glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_WRITE_ONLY);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
-    SSBO.unBind();
-}
-
-public void resizeBuffersAndUpload(List<Planet> newPlanets) {
-    // Resizes SSBOs to fit new count, then uploads
-
-
-    
-    // Resize Barnes-Hut auxiliary buffers
-    for (SSBO ssbo : ssbos.values()) {
-        ssbo.createBuffer();
+        int numBodies = planets.size();
+        
+        ByteBuffer buf = BufferUtils.createByteBuffer((4+numBodies * Body.STRUCT_SIZE)*4);
+        buf.putInt(numBodies);
+        buf.putInt(numBodies);
+        buf.putInt(0);
+        buf.putInt(0);
+        for (int i = 0; i < numBodies; i++) {
+            Planet p = planets.get(i);
+            buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
+            buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
+            java.awt.Color c = p.getColor();
+            float cr = c != null ? (c.getRed() / 255f) : 1.0f;
+            float cg = c != null ? (c.getGreen() / 255f) : 1.0f;
+            float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
+            buf.putFloat(cr).putFloat(cg).putFloat(cb).putFloat(1.0f);
+        }
+        buf.flip();
+        return buf;
     }
 
-    SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
-    SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
-    CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
-    CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
-    CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
-    CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
-}
+    public void uploadPlanetsData(List<Planet> newPlanets) {
+        // Assumes buffers are already correctly sized
+        ByteBuffer data = packPlanets(newPlanets);
+        glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_WRITE_ONLY);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
+        SSBO.unBind();
+    }
 
+    public void resizeBuffersAndUpload(List<Planet> newPlanets) {
+        // Resizes SSBOs to fit new count, then uploads
+
+
+        
+        // Resize Barnes-Hut auxiliary buffers
+        for (SSBO ssbo : ssbos.values()) {
+            ssbo.createBuffer();
+        }
+
+        SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
+        SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
+        CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
+        CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
+        CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
+        CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
+    }
 
     /* --------- Cleanup --------- */
 
     public void cleanup() {
-
-        if (computeAABBKernel != null) computeAABBKernel.delete();
-        if (mortonKernel != null) mortonKernel.delete();
-        if (radixSortHistogramKernel != null) radixSortHistogramKernel.delete();
-        if (radixSortParallelScanKernel != null) radixSortParallelScanKernel.delete();
-        if (radixSortExclusiveScanKernel != null) radixSortExclusiveScanKernel.delete();
-        if (radixSortScatterKernel != null) radixSortScatterKernel.delete();
-        if (buildBinaryRadixTreeKernel != null) buildBinaryRadixTreeKernel.delete();
-        if (initLeavesKernel != null) initLeavesKernel.delete();
-        if (propagateNodesKernel != null) propagateNodesKernel.delete();
-        if (computeForceKernel != null) computeForceKernel.delete();
-        
-        if (debugKernel != null) debugKernel.delete();
-        if (FIXED_BODIES_IN_SSBO != null) FIXED_BODIES_IN_SSBO.delete();
-        if (FIXED_BODIES_OUT_SSBO != null) FIXED_BODIES_OUT_SSBO.delete();
-        if (MORTON_IN_SSBO != null) MORTON_IN_SSBO.delete();
-        if (INDEX_IN_SSBO != null) INDEX_IN_SSBO.delete();
-        if (NODES_SSBO != null) NODES_SSBO.delete();
-        if (AABB_SSBO != null) AABB_SSBO.delete();
-        if (WG_HIST_SSBO != null) WG_HIST_SSBO.delete();
-        if (WG_SCANNED_SSBO != null) WG_SCANNED_SSBO.delete();
-        if (MORTON_OUT_SSBO != null) MORTON_OUT_SSBO.delete();
-        if (INDEX_OUT_SSBO != null) INDEX_OUT_SSBO.delete();
-        if (WORK_QUEUE_SSBO != null) WORK_QUEUE_SSBO.delete();
-        if (MERGE_QUEUE_SSBO != null) MERGE_QUEUE_SSBO.delete();
-
+        for (ComputeShader shader : computeShaders) {
+            shader.delete();
+        }
+        for (SSBO ssbo : ssbos.values()) {
+            ssbo.delete();
+        }
     }
 
-
-    
     /* --------- Debugging --------- */
 
     private void checkGLError(String operation) {

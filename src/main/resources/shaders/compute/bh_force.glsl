@@ -39,8 +39,8 @@ void computeForce()
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
             if (index[nodeIdx] != gid) {
                 Body other = srcB.bodies[index[nodeIdx]];
-                float bodyRadius = pow(body.posMass.w, 1.0/3.0);
-                float otherRadius = pow(other.posMass.w, 1.0/3.0);
+                float bodyRadius = radius(body);
+                float otherRadius = radius(other);
                 float dist = length(r);
                 // if (collision && dist < bodyRadius + otherRadius) {
                 //     vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;

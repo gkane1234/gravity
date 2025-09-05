@@ -8,7 +8,6 @@ public final class GPUCommands {
         void run(GPUSimulation sim);
     }
 
-    
     private GPUCommands() {}
 
     public static GPUCommand updateDt(float newDt) {

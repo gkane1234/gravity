@@ -1,24 +1,20 @@
 package com.grumbo.simulation;
 
-
-import java.nio.IntBuffer;
 import java.io.IOException;
+import java.nio.IntBuffer;
+import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+
 import org.lwjgl.BufferUtils;
-
-import java.nio.FloatBuffer;
-
-import com.grumbo.gpu.SSBO;
-import com.grumbo.gpu.Body;
-import org.joml.Vector3f;
-import org.joml.Matrix4f;
 import static org.lwjgl.opengl.GL43.*;
 import org.lwjgl.system.MemoryStack;
 import static org.lwjgl.system.MemoryStack.*;
+import org.joml.Vector3f;
+import org.joml.Matrix4f;
 
-
-
+import com.grumbo.gpu.SSBO;
+import com.grumbo.gpu.Body;
 
 public class Render {
     public enum RenderMode {
@@ -28,36 +24,34 @@ public class Render {
         IMPOSTOR_SPHERES_WITH_GLOW,
         MESH_SPHERES
     }
-    public boolean showRegions = true;
+    public boolean showRegions = false;
 
-        // Render Programs
-        private int renderProgram; // points program
-        private int impostorProgram; // point-sprite impostor spheres
-        private int sphereProgram;   // instanced mesh spheres
-        private int regionsProgram; // regions
-        
-        //Render Uniforms
-        private int vao; // for points and impostors
-        private int uMvpLocation;           // for points
-        private int uModelViewLocationImpostor;   // for impostors
-        private int uMvpLocationSphere;     // for mesh spheres
-        private int uSphereRadiusScaleLoc;  // mass->radius scale
-        private int uCameraPosLocSphere;
-        private int uImpostorPointScaleLoc; // impostor scale (world radius scale)
-        private int uImpostorCameraPosLoc;
-        private int uImpostorCameraFrontLoc;
-        private int uImpostorFovYLoc;
-        private int uImpostorAspectLoc;
-        private int uImpostorPassLoc;
-        private int uImpostorProjLoc;
-        private int uMvpLocationRegions;
-        private int uMinMaxDepthLoc;
+    // Render Programs
+    private int renderProgram; // points program
+    private int impostorProgram; // point-sprite impostor spheres
+    private int sphereProgram;   // instanced mesh spheres
+    private int regionsProgram; // regions
     
-        private int regionsVao;
-        private int regionsVbo;
-        private int regionsEbo;
+    //Render Uniforms
+    private int vao; // for points and impostors
+    private int uMvpLocation;           // for points
+    private int uModelViewLocationImpostor;   // for impostors
+    private int uMvpLocationSphere;     // for mesh spheres
+    private int uSphereRadiusScaleLoc;  // mass->radius scale
+    private int uCameraPosLocSphere;
+    private int uImpostorPointScaleLoc; // impostor scale (world radius scale)
+    private int uImpostorCameraPosLoc;
+    private int uImpostorCameraFrontLoc;
+    private int uImpostorFovYLoc;
+    private int uImpostorAspectLoc;
+    private int uImpostorPassLoc;
+    private int uImpostorProjLoc;
+    private int uMvpLocationRegions;
+    private int uMinMaxDepthLoc;
 
-
+    private int regionsVao;
+    private int regionsVbo;
+    private int regionsEbo;
 
     // Mesh sphere resources
     private int sphereVao = 0;
@@ -71,7 +65,6 @@ public class Render {
     private float impostorPointScale = 1f; // mass to pixel size scale
     private int maxMeshInstances = 500000000;
     private float sphereRadiusScale = Settings.getInstance().getDensity(); // radius = sqrt(mass) * scale
-
 
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;
@@ -171,6 +164,7 @@ public class Render {
     }
 
         /* --------- Rendering --------- */
+
         public void render(SSBO bodiesOutSSBO, GPUSimulation.State state) {
             if (renderMode == RenderMode.OFF) return;
             getCameraView();
@@ -214,10 +208,12 @@ public class Render {
 
             if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
                 glEnable    (GL_DEPTH_TEST);
-                glDepthMask(true);
+                glDepthMask(false);
 
                 glBlendFunc(GL_ONE, GL_ONE);
                 renderImpostorSpheresPass(bodiesOutSSBO, 1);
+
+                glDepthMask(true);
             }
 
             glUseProgram(0);
@@ -300,8 +296,6 @@ public class Render {
         Matrix4f view = new Matrix4f().lookAt(eye, center, up);
         Matrix4f mvp = new Matrix4f(proj).mul(view);
 
-
-
         try (MemoryStack stack = stackPush()) {
             FloatBuffer mvpBuf = stack.mallocFloat(16);
             mvp.get(mvpBuf);
@@ -313,7 +307,6 @@ public class Render {
             view.get(viewBuf);
             setModelView(viewBuf);
         }
-
     }
 
 
@@ -345,8 +338,6 @@ public class Render {
         glUseProgram(0);
     }
 
-
-    
     /* --------- SHADERS --------- */
 
     private String getVertexShaderSource() {
@@ -596,6 +587,4 @@ public class Render {
                 System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
             }
         }
-    
-    
 }

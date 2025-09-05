@@ -19,6 +19,7 @@ void main() {
     const float SOLAR_THRESHOLD = 10000;
     float r2 = dot(vMapping, vMapping);
     const float MASS_FACTOR = 10000;
+    const float bodyRenderDistance = 100000;
     if (r2 > 1.0) discard;
 
     float radius = sqrt(r2);
@@ -26,6 +27,8 @@ void main() {
     if (uPass == 0) {
         // --- Sphere interior pass ---
         if (radius > bodyToGlowRatio) discard;
+
+        if (length(vCenterView) > bodyRenderDistance) discard;
 
         vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
         float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
@@ -42,32 +45,58 @@ void main() {
 
         float glowRadius = 1 - bodyToGlowRatio;
         float t = (radius - bodyToGlowRatio) / glowRadius;
-        float glow = exp(-0.1 * t * t);
+        //float fOfT = (t/(1-t));
+        float glow = cos(3.14159*t)/2+1/2;
+
+        //map glow from 1 to 0 over glowRadius<t<1
 
 
 
 
-        vec3 glowColor = mix(vec3(1.0), vColor.rgb, 0.7);
+        vec3 glowColor = vec3(0.5);//mix(vec3(0.1), vColor.rgb, 0.7);
         fragColor = vec4(glowColor * glow, 1.0); // additive, alpha ignored
 
         
     }
-    // // Ray direction in view space
-    // vec3 ray = normalize(vec3(vMapping, -1.0)); // pointing into screen
+    // Reconstruct NDC position of this fragment
+    float tanHalfFovY = 1.0 / uProj[1][1];
+    float tanHalfFovX = 1.0 / uProj[0][0];
 
-    // // Sphere intersection in view space
-    // vec3 oc = -vCenterView; // ray origin at camera (0,0,0), sphere center at vCenterView
-    // float b = dot(ray, oc);
-    // float c = dot(oc, oc) - worldRadius*worldRadius;
-    // float h = b*b - c;
-    // //if (h < 0.0) discard; // miss
-    // float t = b - sqrt(h); // nearest intersection
-    // vec3 posView = t * ray; // intersection point in view space
+    float camDist = length(vCenterView);
+    float ndcScaleY = worldRadius / (camDist * tanHalfFovY);
+    float ndcScaleX = worldRadius / (camDist * tanHalfFovX);
 
-    // // Project to clip space
-    // vec4 posClip = uProj * vec4(posView, 1.0);
+    vec4 centerClip = uProj * vec4(vCenterView, 1.0);
+    vec2 centerNdc = centerClip.xy / centerClip.w;
+    vec2 fragNdc = centerNdc + vMapping * vec2(ndcScaleX, ndcScaleY);
 
-    // float ndcDepth = posClip.z / posClip.w;
-    // gl_FragDepth = 0.5 * ndcDepth + 0.5;
+    // View-space ray through this fragment
+    vec3 ray = normalize(vec3(fragNdc.x * tanHalfFovX,
+                              fragNdc.y * tanHalfFovY,
+                              -1.0));
+
+        // Sphere intersection in view space
+    vec3 L = vCenterView;          // center in view space
+    float b = dot(ray, L);
+    float c = dot(L, L) - worldRadius * worldRadius;
+    float h = b * b - c;
+
+    // Discard for solid sphere if no hit; for glow, allow tangent fallback
+    if (uPass == 0 && h < 0.0) discard;
+
+    float sqrtH = sqrt(max(h, 0.0));
+    float tNear = b - sqrtH;
+    float tFar  = b + sqrtH;
+
+    // If the near root is behind the camera, use the far root for glow; discard for solid
+    if (uPass == 0 && tNear < 0.0) discard;
+    float t = (tNear >= 0.0) ? tNear : tFar;
+
+    vec3 posView = t * ray;
+
+    // Project to clip space and write depth
+    vec4 posClip = uProj * vec4(posView, 1.0);
+    float ndcDepth = posClip.z / posClip.w;
+    gl_FragDepth = 0.5 * ndcDepth + 0.5;
 
 }

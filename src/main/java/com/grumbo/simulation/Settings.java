@@ -52,7 +52,7 @@ public class Settings {
 		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("doubleArray"); p.setEditable(true); properties.put("shift", p); }
 
 		// Time step
-		{ Property<Float> p = Property.createFloatProperty("dt", 0.1f, 0.1f); p.setEditable(true); properties.put("dt", p); }
+		{ Property<Float> p = Property.createFloatProperty("dt", 6f, 6f); p.setEditable(true); properties.put("dt", p); }
 
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
@@ -118,13 +118,13 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
 
 		// Barnes-Hut acceptance criterion
-		{ Property<Float> p = Property.createFloatProperty("theta", 0.5f, 0.5f); p.setEditable(true); properties.put("theta", p); }
+		{ Property<Float> p = Property.createFloatProperty("theta", 0.6f, 0.6f); p.setEditable(true); properties.put("theta", p); }
 
 		// Minimum and maximum depth for regions
 		{ Property<Integer> p = Property.createIntProperty("minDepth", 0, 0); p.setEditable(true); properties.put("minDepth", p); }
 
 		// Minimum and maximum depth for regions
-		{ Property<Integer> p = Property.createIntProperty("maxDepth", 8, 8); p.setEditable(true); properties.put("maxDepth", p); }
+		{ Property<Integer> p = Property.createIntProperty("maxDepth", 100, 100); p.setEditable(true); properties.put("maxDepth", p); }
 
 		// Merge bodies
 		properties.put("mergeBodies", Property.createBooleanProperty("mergeBodies", false, false, true));

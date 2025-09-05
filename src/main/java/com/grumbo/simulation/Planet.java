@@ -4,32 +4,17 @@ import java.util.ArrayList;
 import org.joml.Vector3f;
 
 public class Planet {
-	
 
-	public static int num=0;
-	
 	public float mass;
 	public Vector3f position;
 	public Vector3f velocity;
 	public float density;
-	
-	
 	public Color color;
-	
-
-	
 	public int name;
 
-
-
-
-	
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass, float density) {
 
 		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, density);
-		
-
-
 	}
 
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass) {
@@ -40,25 +25,11 @@ public class Planet {
 
 	}
 
-
-
-
-	
-	// Convenience constructor for 2D (sets z=0)
-	public Planet(float x, float y, float xVelocity, float yVelocity, float mass) {
-		this(new Vector3f(x, y, 0f), new Vector3f(xVelocity, yVelocity, 0f), mass, 1);
-	}
-
-
 	public Planet(Vector3f position, Vector3f velocity, float mass, float density) {
 		this.position = position;
 		this.velocity = velocity;
 		this.mass = mass;
 		this.density = density;
-		
-		name=num++;
-		
-		// Generate random color instead of using default
 		color = generateRandomColor();
 	}
 
@@ -70,22 +41,12 @@ public class Planet {
 		return new Planet(0, 0, 0, 0, 0, 0, 0, 0);
 	}
 
-	
-	//public double[] getCoordinates(double zFactor, double theta, double phi) {
-		//sqrt(((cos(theta)sin(phi))^2*X)^2+(sin(phi)^2)*z)^2))
-		//return new double[] {zFactor*Math.sqrt(Math.pow(x*Math.pow(Math.cos(theta)*Math.sin(phi),2),2)+Math.pow(z*Math.pow(Math.cos(phi),2),2)),
-		                   //zFactor*Math.sqrt(Math.pow(y*Math.pow(Math.sin(theta)*Math.sin(phi),2),2)+Math.pow(z*Math.pow(Math.cos(phi),2),2))};
-	//}
-	
 	public void merge(Planet o) {
 		position = position.mul(mass).add(o.position.mul(o.mass)).div(mass+o.mass);
 		velocity = velocity.mul(mass).add(o.velocity.mul(o.mass)).div(mass+o.mass);
-		//z=(z*mass+o.z*o.mass)/(mass*o.mass);
-		//zVelocity=(zVelocity*mass+o.zVelocity*o.mass)/(mass*o.mass);
 		mass=mass+o.mass;
 		density = density*o.density/(density/mass+o.density/o.mass);
 	}
-	
 	
 	public double getRadius() {
 		return Math.sqrt(this.mass)*Settings.getInstance().getDensity()/2;
@@ -111,32 +72,43 @@ public class Planet {
 	private static Vector3f polarToPlanarCoordinates(float r,float theta, Vector3f u, Vector3f v) {
 		Vector3f uC = new Vector3f(u);
 		Vector3f vC = new Vector3f(v);
-		// System.out.println("r: " + r + ", theta: " + theta);
-
-		// System.out.println("u: " + u.x + ", " + u.y + ", " + u.z);
-		// System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
-		// System.out.println(r*(float)Math.cos(theta));
 		Vector3f cuTr = uC.mul(r*(float)Math.cos(theta));
 		Vector3f cvTr = vC.mul(r*(float)Math.sin(theta));
-		// System.out.println("cuTr: " + cuTr.x + ", " + cuTr.y + ", " + cuTr.z);
-		// System.out.println("cvTr: " + cvTr.x + ", " + cvTr.y + ", " + cvTr.z);
 		return cuTr.add(cvTr);
 	}
+	public static ArrayList<Planet> createSeveralDisks(int numDisks, int[] numPlanetsRange, float[] radiusRangeLow, float[] stellarDensityRange, float[] mRange, 
+			float[] densityRange, float[] centerX, float[] centerY, float[] centerZ, float[] relativeVelocityX, float[] relativeVelocityY, float[] relativeVelocityZ, 
+			float[] phiRange, float[] centerMassRange, float[] centerDensityRange, 
+			float[] adherenceToPlaneRange, float orbitalFactor, boolean giveOrbitalVelocity) {
+
+		ArrayList<Planet> planets = new ArrayList<>();
+		for (int i = 0; i < numDisks; i++) {
+			int num = randomInRange(numPlanetsRange);
+			float[] radius = {randomInRange(radiusRangeLow), num/randomInRange(stellarDensityRange)};
+			float[] mass = {randomInRange(mRange), randomInRange(mRange)};
+			float[] density = {randomInRange(densityRange), randomInRange(densityRange)};
+			float[] center = {randomInRange(centerX), randomInRange(centerY), randomInRange(centerZ)};
+			float[] relativeVelocity = {randomInRange(relativeVelocityX), randomInRange(relativeVelocityY), randomInRange(relativeVelocityZ)};
+			float phi = randomInRange(phiRange);
+			float centerMass = randomInRange(centerMassRange);
+			float centerDensity = randomInRange(centerDensityRange);
+			float adherenceToPlane = randomInRange(adherenceToPlaneRange);
+			orbitalFactor = orbitalFactor;
+			boolean ccw = false;
+			giveOrbitalVelocity = giveOrbitalVelocity;
+
+			planets.addAll(Planet.makeNewRandomDisk(num, radius, mass, density, 
+			center, relativeVelocity, phi, centerMass, centerDensity, adherenceToPlane, orbitalFactor, ccw, giveOrbitalVelocity));
+		}
+		return planets;
+}
 
 	public static ArrayList<Planet> makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
 		ArrayList<Planet> ret = new ArrayList<>();
-		//System.out.println(adherenceCalculation(adherenceToPlane)	);
 
-		
 		// Disk normal tilted from +z by phi around the x-axis
 		final Vector3f normal = new Vector3f(0f, (float)(Math.sin(phi)), (float)Math.cos(phi));
 
-		//float orbitalFactor = 1f;
-
-
-
-		
-	
 		// Build an orthonormal basis (u, v) in the plane perpendicular to n (i.e in the disk)
 		// Choose a helper axis not colinear with n
 		Vector3f a;
@@ -150,12 +122,8 @@ public class Planet {
 		Vector3f v = new Vector3f(normal).cross(u);
 		System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
 
-		
-	
 		for (int i=0;i<num;i++) {
-
-			
-			float r = randomInRange(radius, centerDensity);
+			float r = randomInRange(radius, 1);
 			float theta = (float)(Math.random()*2*Math.PI);
 
 			float devianceFromPlane = adherenceCalculation(adherenceToPlane);
@@ -172,8 +140,6 @@ public class Planet {
 
 			Vector3f newNormal = polarToPlanarCoordinates(1, devianceFromPlane, normal, planarPlanetDir);
 
-
-
 			float approxMassWithinRadius = (mass[1]+mass[0])/2 * num * (float)Math.pow(r/radius[1], centerDensity+1);
 	
 			// Position in the inclined disk plane
@@ -182,12 +148,14 @@ public class Planet {
 			Vector3f velocity = new Vector3f(0f, 0f, 0f);
 			if (giveOrbitalVelocity) {
 				int dir = ccw ? 1 : -1;
-				float orbitalSpeed = (float)(Math.sqrt(approxMassWithinRadius/r))*orbitalFactor;
+				float orbitalSpeed = (float)(Math.sqrt((centerMass+approxMassWithinRadius)/r))*orbitalFactor;
+			
 	
 				// Tangent direction: t̂ = normalize(n × r̂)
-				Vector3f t = new Vector3f(newNormal).cross(position).normalize();
+				Vector3f tangent = new Vector3f(newNormal).cross(planetDirWithDeviance).normalize();
+
 	
-				velocity = t.mul(orbitalSpeed * dir);
+				velocity = tangent.mul(orbitalSpeed * dir);
 			}
 
 			position = position.add(new Vector3f(center));
@@ -254,11 +222,15 @@ public class Planet {
 	private static float randomInRange(float[] range) {
 		return randomInRange(range, 1.0f);
 	}
-	
-	/**
-	 * Generates a random color for planets
-	 * @return A random Color object
-	 */
+	private static int randomInRange(int[] range) {
+		float[] rangeFloat = {range[0], range[1]};
+		return (int) randomInRange(rangeFloat, 1.0f);
+	}
+	private static int randomInRange(int[] range, float density) {
+		float[] rangeFloat = {range[0], range[1]};
+		return (int) randomInRange(rangeFloat, density);
+	}
+
 	private static Color generateRandomColor() {
 		// Generate random RGB values with some constraints for better visibility
 		double min = 55;
@@ -267,8 +239,6 @@ public class Planet {
 		int green = (int)(Math.random() * (max - min) + min);  
 		int blue = (int)(Math.random() * (max - min) + min);
 		
-		return new Color(red, green, blue);
+		return new Color(red, red, red);
 	}
-
-
 }

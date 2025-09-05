@@ -2,7 +2,6 @@ package com.grumbo.simulation;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
 import com.grumbo.UI.OpenGLUI;
-import org.joml.*;
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43.*;
@@ -29,7 +28,6 @@ public class OpenGLWindow {
         this.gpuSimulation = gpuSimulation;
     }
 
-
     public void init() {
         // Setup an error callback
         GLFWErrorCallback.createPrint(System.err).set();
@@ -50,7 +48,6 @@ public class OpenGLWindow {
         window = glfwCreateWindow(Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), "Gravity Simulator 3D", NULL, NULL);
         if (window == NULL)
             throw new RuntimeException("Failed to create the GLFW window");
-
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
@@ -76,7 +73,6 @@ public class OpenGLWindow {
         openGlUI = new OpenGLUI(this);
         
         System.out.println(getStartupInfo());
-        
     }
 
     public void step() {
@@ -96,12 +92,7 @@ public class OpenGLWindow {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glfwPollEvents();
     }
- 
-    // Input Methods
 
-
-  
-    
     // Initialization Methods
    
     private String getStartupInfo() {
@@ -141,9 +132,6 @@ public class OpenGLWindow {
 
     }
 
-    // Drawing Methods
- 
-    
     private void cleanup() {
         // Cleanup font resources
 
@@ -210,21 +198,18 @@ public class OpenGLWindow {
         return fps;
     }
 
+    public boolean getShowCrosshair() {
+        return openGlUI.showCrosshair;
+    }
+    public void setShowCrosshair(boolean showCrosshair) {
+        openGlUI.showCrosshair = showCrosshair;
+    }
+
     public GPUSimulation.State getState() {
         return gpuSimulation.state;
     }
     public void setState(GPUSimulation.State state) {
         this.gpuSimulation.state = state;
-    }
-
-    public GPUSimulation getGPUSimulation() {
-        return gpuSimulation;
-    }
-
-
-
-    public void toggleRegions() {
-        gpuSimulation.toggleRegions();
     }
 
     public String getPerformanceText() {

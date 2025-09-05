@@ -32,7 +32,7 @@
     },
     "dt": {
       "type": "float",
-      "default": 0.1,
+      "default": 6,
       "description": "Time step",
       "editable": true
     },
@@ -168,7 +168,7 @@
     },
     "theta": {
       "type": "float",
-      "default": 0.5,
+      "default": 0.6,
       "description": "Barnes-Hut acceptance criterion",
       "editable": true
     },
@@ -180,7 +180,7 @@
     },
     "maxDepth": {
       "type": "int",
-      "default": 8,
+      "default": 100,
       "description": "Minimum and maximum depth for regions",
       "editable": true
     },
