@@ -41,7 +41,7 @@ public class GPUSimulation {
     private Recording recording;
     private boolean isRecording = false;
     private int recordFrameIndex = 0;
-    private int initialBodyCount = 0;
+    private int initialbodiesContained = 0;
     private Path recordDir;
     private BufferedWriter recordMetaWriter;
 
@@ -53,7 +53,7 @@ public class GPUSimulation {
 
         this.openGlWindow = new OpenGLWindow(this); 
         this.planets = planets;
-        this.initialBodyCount = planets.size();
+        this.initialbodiesContained = planets.size();
 
         this.barnesHut = new BarnesHut(this,debug);
         this.render = new Render(this,renderMode,debug);
@@ -68,7 +68,7 @@ public class GPUSimulation {
         this.barnesHut = new BarnesHut(this,debug);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
-        this.initialBodyCount = planets.size();
+        this.initialbodiesContained = planets.size();
     }
 
     public static ArrayList<Planet> createJumboSimulation() {
@@ -382,7 +382,7 @@ public class GPUSimulation {
             recordFrameIndex = 0;
             Path meta = recordDir.resolve("metadata.txt");
             recordMetaWriter = Files.newBufferedWriter(meta, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-            recordMetaWriter.write("bodies " + initialBodyCount);
+            recordMetaWriter.write("bodies " + initialbodiesContained);
             recordMetaWriter.newLine();
             recordMetaWriter.write("frames");
             recordMetaWriter.newLine();

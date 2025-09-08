@@ -11,8 +11,8 @@ struct Node {
 	AABB aabb;
 	uint childA;
 	uint childB;
-	uint firstBody;
-	uint bodyCount;
+	uint nodeDepth;
+	uint bodiesContained;
 	uint readyChildren;
 	uint parentId;
 };
@@ -41,7 +41,7 @@ void main() {
 
 	Node node = nodes[nodeIndex];
 
-    if (node.firstBody < uMinMaxDepth.x || node.firstBody > uMinMaxDepth.y) {
+    if (node.nodeDepth < uMinMaxDepth.x || node.nodeDepth > uMinMaxDepth.y) {
         uTreeDepth = 0;
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
@@ -51,6 +51,6 @@ void main() {
 	vec3 center = (minC + maxC) * 0.5;
 	vec3 size = (maxC - minC);
 	vec3 worldPos = center + aPos * size;
-    uTreeDepth = int(node.firstBody);
+    uTreeDepth = int(node.nodeDepth);
 	gl_Position = uMVP * vec4(worldPos, 1.0);
 }

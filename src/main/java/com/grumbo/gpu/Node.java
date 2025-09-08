@@ -12,8 +12,8 @@ public class Node {
     //     vec3 aabbMax;
     //     uint childA;       // left child index
     //     uint childB;       // right child index
-    //     uint firstBody;    // optional: leaf body index or start
-    //     uint bodyCount;    // optional: number of bodies in leaf
+    //     uint nodeDepth;    // optional: leaf body index or start
+    //     uint bodiesContained;    // optional: number of bodies in leaf
     //     uint readyChildren; // atomic counter: 0, 1, or 2
     //     uint parentId;     // parent node index (0xFFFFFFFF for root)
     //   };
@@ -41,20 +41,20 @@ public class Node {
     public float[] aabbMax;
     public int childA;
     public int childB;
-    public int firstBody;
-    public int bodyCount;
+    public int nodeDepth;
+    public int bodiesContained;
     public int readyChildren;
     public int parentId;
     public boolean isLeaf;
 
-    public Node(float[] comMass, float[] aabbMin, float[] aabbMax, int childA, int childB, int firstBody, int bodyCount, int readyChildren, int parentId, boolean isLeaf) {
+    public Node(float[] comMass, float[] aabbMin, float[] aabbMax, int childA, int childB, int nodeDepth, int bodiesContained, int readyChildren, int parentId, boolean isLeaf) {
         this.comMass = comMass;
         this.aabbMin = aabbMin;
         this.aabbMax = aabbMax;
         this.childA = childA;
         this.childB = childB;
-        this.firstBody = firstBody;
-        this.bodyCount = bodyCount;
+        this.nodeDepth = nodeDepth;
+        this.bodiesContained = bodiesContained;
         this.readyChildren = readyChildren;
         this.parentId = parentId;
         this.isLeaf = isLeaf;
@@ -97,8 +97,8 @@ public class Node {
 
         this.childA = buffer.get(index * STRUCT_SIZE + CHILD_A_OFFSET);
         this.childB = buffer.get(index * STRUCT_SIZE + CHILD_B_OFFSET);
-        this.firstBody = buffer.get(index * STRUCT_SIZE + FIRST_BODY_OFFSET);
-        this.bodyCount = buffer.get(index * STRUCT_SIZE + BODY_COUNT_OFFSET);
+        this.nodeDepth = buffer.get(index * STRUCT_SIZE + FIRST_BODY_OFFSET);
+        this.bodiesContained = buffer.get(index * STRUCT_SIZE + BODY_COUNT_OFFSET);
 
         this.readyChildren = buffer.get(index * STRUCT_SIZE + READY_CHILDREN_OFFSET);
         this.parentId = buffer.get(index * STRUCT_SIZE + PARENT_ID_OFFSET);
@@ -133,8 +133,8 @@ public class Node {
                 ", aabbMax=" + Arrays.toString(aabbMax) +
                 ", childA=" + childA +
                 ", childB=" + childB +
-                ", firstBody=" + firstBody +
-                ", bodyCount=" + bodyCount +
+                ", nodeDepth=" + nodeDepth +
+                ", bodiesContained=" + bodiesContained +
                 ", readyChildren=" + readyChildren +
                 ", parentId=" + parentId +
                 '}' + marker;

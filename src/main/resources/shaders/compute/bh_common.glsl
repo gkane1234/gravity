@@ -35,8 +35,8 @@ struct Node {
     AABB aabb;
     uint childA;
     uint childB;
-    uint firstBody;
-    uint bodyCount;
+    uint nodeDepth;
+    uint bodiesContained;
     uint readyChildren;
     uint parentId;
 };
