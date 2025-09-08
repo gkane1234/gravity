@@ -179,7 +179,7 @@ public class Render {
         }
 
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
-            int RENDERING_SSBO_OFFSET = 16;
+            int RENDERING_SSBO_OFFSET = Body.HEADER_SIZE;
             glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
                 SSBO.BODIES_IN_SSBO_BINDING,
                 bodiesOutSSBO.getBufferLocation(),

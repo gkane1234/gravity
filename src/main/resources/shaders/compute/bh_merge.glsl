@@ -40,6 +40,6 @@ void mergeBodiesKernel() {
         if (isEmpty(body1) || isEmpty(body2)) {
             continue;
         }
-        dstB.numBodies--;
+        sim.numBodies--;
     }
 }

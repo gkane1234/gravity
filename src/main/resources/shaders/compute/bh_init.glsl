@@ -1,0 +1,4 @@
+void initKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    index[gid] = gid;
+}

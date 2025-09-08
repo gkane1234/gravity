@@ -5,7 +5,7 @@
 void initLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies) return;
+    if (gid >= sim.numBodies) return;
 
     uint bodyIdx = index[gid];
     Body body = srcB.bodies[bodyIdx];
@@ -31,7 +31,7 @@ void propagateNodesKernel()
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0) {
-        if (nodes[srcB.initialNumBodies].readyChildren != 3u) {
+        if (nodes[sim.initialNumBodies].readyChildren != 3u) {
             atomicAdd(uintDebug[0], 1u);
         }
     }

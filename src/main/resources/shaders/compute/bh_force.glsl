@@ -19,13 +19,15 @@ void computeForce()
 {
     vec3 accel = vec3(0.0);
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.initialNumBodies) return;
+    if (gid >= sim.numBodies) return;
 
-    Body body = srcB.bodies[gid];
+    uint bodyIdx = index[gid];
+
+    Body body = srcB.bodies[bodyIdx];
 
     uint stack[64];
     uint stackSize = 0;
-    stack[stackSize++] = srcB.initialNumBodies;
+    stack[stackSize++] = sim.initialNumBodies;
 
 
     while (stackSize > 0) {
@@ -37,7 +39,7 @@ void computeForce()
         float longestSide = max(extent.x, max(extent.y, extent.z));
         if (node.childA == 0xFFFFFFFFu) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-            if (index[nodeIdx] != gid) {
+            if (index[nodeIdx] != bodyIdx) {
                 Body other = srcB.bodies[index[nodeIdx]];
                 float bodyRadius = radius(body);
                 float otherRadius = radius(other);
@@ -57,9 +59,9 @@ void computeForce()
                 //         body.posMass.xyz -= correction;
                 //     }
                 // } else 
-                if (MERGING && (dist < bodyRadius + otherRadius) && (gid < index[nodeIdx])) {
+                if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < index[nodeIdx])) {
                     uint slot = atomicAdd(mergeQueueTail, 1u);
-                    mergeQueue[slot] = uvec2(gid , index[nodeIdx]);
+                    mergeQueue[slot] = uvec2(bodyIdx , index[nodeIdx]);
                 }
             }
         }
@@ -75,11 +77,11 @@ void computeForce()
 
     vec3 newVel = body.velDensity.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
-    dstB.bodies[gid].velDensity.xyz = newVel;
-    dstB.bodies[gid].velDensity.w = body.velDensity.w;
-    dstB.bodies[gid].posMass.xyz = newPos;
-    dstB.bodies[gid].posMass.w = body.posMass.w;
-    dstB.bodies[gid].color = body.color;
+    dstB.bodies[bodyIdx].velDensity.xyz = newVel;
+    dstB.bodies[bodyIdx].velDensity.w = body.velDensity.w;
+    dstB.bodies[bodyIdx].posMass.xyz = newPos;
+    dstB.bodies[bodyIdx].posMass.w = body.posMass.w;
+    dstB.bodies[bodyIdx].color = body.color;
 
 }
 

@@ -17,9 +17,8 @@ void radixHistogramKernel()
 
     barrier();
 
-    bool inRange = gid < srcB.numBodies;
+    bool inRange = gid < sim.numBodies;
 
-    //if the body is alive, add it to the histogram
     if (inRange) {
         uint64_t key = morton[gid];
         uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
@@ -124,7 +123,7 @@ void radixScatterKernel()
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
     //check if body exists
-    bool isActive = (gid < srcB.numBodies);
+    bool isActive = (gid < sim.numBodies);
     //get the morton code for the body
     uint64_t key = isActive ? morton[gid] : 0ul;
     //get the digits for the body

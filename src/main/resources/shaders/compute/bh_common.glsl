@@ -41,14 +41,14 @@ struct Node {
     uint parentId;
 };
 
-layout(std430, binding = 0) readonly buffer  BodiesIn  { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; Body bodies[]; } srcB;
+layout(std430, binding = 0) readonly buffer  BodiesIn  {  Body bodies[]; } srcB;
 
-layout(std430, binding = 1) buffer BodiesOut { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; Body bodies[]; } dstB;
+layout(std430, binding = 1) buffer BodiesOut {  Body bodies[]; } dstB;
 
 layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
-layout(std430, binding = 5) buffer AABBBuffer { AABB aabb[]; };
+layout(std430, binding = 5) buffer Values { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; AABB bounds; } sim;
 // first half is for alive values second for dead values
 layout(std430, binding = 6) buffer WGHist      { uint wgHist[];      };
 // first half is for alive values second for dead values
@@ -56,7 +56,7 @@ layout(std430, binding = 7) buffer WGScanned   { uint wgScanned[];   };
 layout(std430, binding = 8) buffer BucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];  };
 layout(std430, binding = 9) buffer MortonOut   { uint64_t mortonOut[];   };
 layout(std430, binding = 10) buffer IndicesOut  { uint indexOut[];    };
-layout(std430, binding = 11) buffer WorkQueue { uint head; uint tail; uint activeThreads; uint items[]; };
+layout(std430, binding = 11) buffer WorkQueue { uint head; uint tail; uint activeThreads; uint pad0; uint items[]; };
 layout(std430, binding = 12) buffer MergeQueue { uint mergeQueueTail; uvec2 mergeQueue[];};
 layout(std430, binding = 13) buffer Debug { uint uintDebug[100]; float floatDebug[100]; };
 

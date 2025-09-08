@@ -5,21 +5,32 @@ uint deadHistOffset()   { return aliveHistSize(); }
 uint deadScannedOffset(){ return aliveScannedSize(); }
 
 shared uint deadFlags[WG_SIZE];
+bool outOfBounds(Body b) {
+    return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
+           b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
+           b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
+}
 void deadCountKernel() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
 
-    bool inRange = gid < srcB.initialNumBodies;
-    bool alive = inRange && !isEmpty(srcB.bodies[gid]);
-    bool dead = inRange && isEmpty(srcB.bodies[gid]);
+    bool inRange = gid < sim.numBodies;
+    uint bodyIdx = index[gid];
+    bool alive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
+    bool dead = inRange && isEmpty(srcB.bodies[bodyIdx]);
     if (lid == 0u) {
         wgHist[wgId + deadHistOffset()] = 0u;
     }
+    if (alive&& outOfBounds(srcB.bodies[bodyIdx])) {
+        dead = true;
+
+    }
+
     deadFlags[lid] = dead ? 1u : 0u;
     // this makes sure that the body is set to empty correctly on the old buffer
     if (dead) {
-        dstB.bodies[gid] = EMPTY_BODY;
+        dstB.bodies[bodyIdx] = EMPTY_BODY;
     }
     barrier();
 
@@ -46,9 +57,9 @@ void deadExclusiveScanKernel() {
             wgScanned[wg+ deadScannedOffset()] = sum;
             sum += v;
         }
-
-        uintDebug[0] = sum;
+        sim.numBodies -= sum;
     }
+    
 }
 
 
@@ -59,9 +70,10 @@ void deadScatterKernel() {
     uint lid = gl_LocalInvocationID.x;
     uint wgId = gl_WorkGroupID.x;
     uint gid = gl_GlobalInvocationID.x;
-    bool inRange = (gid < srcB.initialNumBodies);
-    bool isDead  = inRange && isEmpty(srcB.bodies[gid]);
-    bool isAlive = inRange && !isEmpty(srcB.bodies[gid]);
+    bool inRange = (gid < sim.numBodies);
+    uint bodyIdx = index[gid];
+    bool isDead  = inRange && isEmpty(srcB.bodies[bodyIdx]);
+    bool isAlive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
 
     if (isDead) {
         deadFlags[lid] = 1u;
@@ -81,15 +93,13 @@ void deadScatterKernel() {
 
     uint localAliveRank = lid - localDeadRank;
 
-
     if (isDead) {
-        uint dstIndex = srcB.numBodies+ wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
-        mortonOut[dstIndex] = 0xFFFFFFFFFFFFFFFFul;
-        indexOut[dstIndex]  = index[gid];
+        uint dstIndex = sim.numBodies + wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
+        indexOut[dstIndex]  = bodyIdx;
+        mortonOut[dstIndex] = DEAD_VALUE;
     }
     else if (isAlive) {
         uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId+ deadScannedOffset()] + localAliveRank;
-        mortonOut[dstIndex] = morton[gid];
-        indexOut[dstIndex]  = index[gid];
+        indexOut[dstIndex]  = bodyIdx;
     }
 }

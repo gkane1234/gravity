@@ -31,21 +31,20 @@ uint64_t mortonEncode3D(vec3 pNorm)
 void encodeMortonKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.initialNumBodies) return;
-    //If the body is empty, set code to the dead value
-    if (isEmpty(srcB.bodies[gid])) {
-        morton[gid] = DEAD_VALUE; //-1
-        index[gid] = gid;
-        return;
-    }
+    if (gid >= sim.numBodies) return;
 
-    AABB scene = aabb[0];
-    vec3 pos = srcB.bodies[gid].posMass.xyz;
-    vec3 extent = max(scene.maxCorner - scene.minCorner, vec3(1e-9));
+    //change to accept the already alive-dead sorted index array
+
+    uint bodyIdx = index[gid];
+
+    Body body = srcB.bodies[bodyIdx];
+
+    AABB scene = sim.bounds;
+    vec3 pos = srcB.bodies[bodyIdx].posMass.xyz;
+    vec3 extent = max(scene.maxCorner - scene.minCorner, vec3(1e-9)); //can calculate this once now
     vec3 pNorm = (pos - scene.minCorner) / extent;
 
     morton[gid] = mortonEncode3D(pNorm);
-    index[gid]  = gid;
 }
 
 

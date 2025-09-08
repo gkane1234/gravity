@@ -17,7 +17,7 @@ public class SSBO {
     public static final int MORTON_IN_SSBO_BINDING = 2;
     public static final int INDEX_IN_SSBO_BINDING = 3;
     public static final int NODES_SSBO_BINDING = 4;
-    public static final int AABB_SSBO_BINDING = 5;
+    public static final int VALUES_SSBO_BINDING = 5;
     public static final int WG_HIST_SSBO_BINDING = 6;
     public static final int WG_SCANNED_SSBO_BINDING = 7;
     public static final int BUCKET_TOTALS_SSBO_BINDING = 8;
@@ -175,8 +175,6 @@ public class SSBO {
                     result += "\n";
                 }
             }
-            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
             return result+"\n";
         }
 
@@ -199,8 +197,6 @@ public class SSBO {
             result += readEachField(buffer, currentByteOffset, types);
         }
         
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
         return result;
     }
 

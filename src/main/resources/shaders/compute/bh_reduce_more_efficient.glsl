@@ -3,7 +3,7 @@
 void initLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies) return;
+    if (gid >= sim.numBodies) return;
 
     
 

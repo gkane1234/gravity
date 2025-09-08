@@ -44,8 +44,7 @@ public class BarnesHut {
 
     // Compute Shaders
     private List<ComputeShader> computeShaders;
-    private ComputeShader computeAABBKernel;
-    private ComputeShader collapseAABBKernel;
+    private ComputeShader initKernel;
     private ComputeShader mortonKernel;
     private ComputeShader deadCountKernel;
     private ComputeShader deadExclusiveScanKernel;
@@ -77,7 +76,7 @@ public class BarnesHut {
     private SSBO CURRENT_INDEX_IN_SSBO;
     private SSBO CURRENT_INDEX_OUT_SSBO;
     private SSBO NODES_SSBO;
-    private SSBO AABB_SSBO;
+    private SSBO VALUES_SSBO;
     private SSBO WG_HIST_SSBO;
     private SSBO WG_SCANNED_SSBO;
     private SSBO BUCKET_TOTALS_SSBO;
@@ -91,9 +90,6 @@ public class BarnesHut {
     private List<Long> computeShaderDebugTimes;
     private long renderingTime;
     private long resetTime;
-    private long aabbTime;
-    private long computeAABBTime;
-    private long collapseAABBTime;
     private long mortonTime;
     private long deadTime;
     private long deadCountTime;
@@ -112,23 +108,31 @@ public class BarnesHut {
 
     public String debugString;
     private GPUSimulation gpuSimulation;
+    private float[][] bounds;
 
-    public BarnesHut(GPUSimulation gpuSimulation, boolean debug) {
+    public BarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
         this.gpuSimulation = gpuSimulation;
         this.debug = debug;
+        this.bounds = bounds;
     }
     
     public void step() {
+        //System.out.println(FIXED_BODIES_IN_SSBO.getHeader());
         renderingCheck();
         resetQueues();
-        computeAABB();
-        generateMortonCodes();
-        initializeSwappingMortonBuffers();
         partitionDeadBodies();
-        swapMortonBuffers();
+        checkMortonCodes(MORTON_IN_SSBO, true);
+        generateMortonCodes();
+        checkMortonCodes(MORTON_IN_SSBO, true);
+
+        initializeSwappingMortonBuffers();
         radixSort();
+        checkMortonCodes(CURRENT_MORTON_IN_SSBO, true);
         buildBinaryRadixTree();
+        debugTree();
         computeCOMAndLocation();
+        System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), 2));
+        //System.out.println(FIXED_BODIES_IN_SSBO.getData(0, 10));
         computeForce();
         mergeBodies();
         swapBodyBuffers();
@@ -144,6 +148,7 @@ public class BarnesHut {
         initComputeSSBOs();
         initComputeUniforms();
         initComputeShaders();
+        initKernel.run();
 
         //System.out.println(FIXED_BODIES_IN_SSBO.getData(0, 10));
     }
@@ -156,12 +161,12 @@ public class BarnesHut {
 
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
             return packPlanets(gpuSimulation.getPlanets());
-        }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, Body.headerTypes);
+        }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
 
         FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
             return packPlanets(gpuSimulation.getPlanets());
-        }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, Body.headerTypes);
+        }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
         MORTON_IN_SSBO = new SSBO(SSBO.MORTON_IN_SSBO_BINDING, () -> {
@@ -179,10 +184,10 @@ public class BarnesHut {
         }, "NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
         ssbos.put(NODES_SSBO.getName(), NODES_SSBO);
 
-        AABB_SSBO = new SSBO(SSBO.AABB_SSBO_BINDING, () -> {
-            return numGroups() * 2 * 4 * Float.BYTES;
-        }, "AABB_SSBO", 8, new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT });
-        ssbos.put(AABB_SSBO.getName(), AABB_SSBO);
+        VALUES_SSBO = new SSBO(SSBO.VALUES_SSBO_BINDING, () -> {
+            return packValues();
+        }, "VALUES_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(VALUES_SSBO.getName(), VALUES_SSBO);
 
         WG_HIST_SSBO = new SSBO(SSBO.WG_HIST_SSBO_BINDING, () -> {
             return numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES;
@@ -190,7 +195,7 @@ public class BarnesHut {
         ssbos.put(WG_HIST_SSBO.getName(), WG_HIST_SSBO);
 
         WG_SCANNED_SSBO = new SSBO(SSBO.WG_SCANNED_SSBO_BINDING, () -> {
-            return Integer.BYTES + numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES;
+            return Integer.BYTES + numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES + Integer.BYTES;
         }, "WG_SCANNED_SSBO", 1, new VariableType[] { VariableType.UINT }, 4, new VariableType[] { VariableType.UINT });
         ssbos.put(WG_SCANNED_SSBO.getName(), WG_SCANNED_SSBO);
 
@@ -225,6 +230,7 @@ public class BarnesHut {
         ssbos.put(DEBUG_SSBO.getName(), DEBUG_SSBO);
 
         for (SSBO ssbo : ssbos.values()) {
+            System.out.println("Creating buffer for " + ssbo.getName());
             ssbo.createBuffer();
         }
 
@@ -292,39 +298,25 @@ public class BarnesHut {
     private void initComputeShaders() {
 
         computeShaders = new ArrayList<>();
-        //Compute AABB Kernel
-        computeAABBKernel = new ComputeShader("KERNEL_COMPUTE_AABB", this);
-        computeAABBKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
+        initKernel = new ComputeShader("KERNEL_INIT", this);
+        initKernel.setUniforms(new Uniform[] {
         });
-        computeAABBKernel.setSSBOs(new String[] {
-            "AABB_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
+        initKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
+            "INDEX_IN_SSBO"
         });
-        computeAABBKernel.setXWorkGroupsFunction(() -> {
+        initKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        computeShaders.add(computeAABBKernel);
-        collapseAABBKernel = new ComputeShader("KERNEL_COLLAPSE_AABB", this);
-        collapseAABBKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        collapseAABBKernel.setSSBOs(new String[] {
-            "AABB_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
-        });
-        collapseAABBKernel.setXWorkGroupsFunction(() -> {
-            return 1;
-        });
-        computeShaders.add(collapseAABBKernel); 
+        computeShaders.add(initKernel);
         mortonKernel = new ComputeShader("KERNEL_MORTON", this);
         mortonKernel.setUniforms(new Uniform[] {
         });
         mortonKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "MORTON_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "INDEX_IN_SSBO",
-            "AABB_SSBO"
 
         });
         mortonKernel.setXWorkGroupsFunction(() -> {
@@ -336,9 +328,12 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         deadCountKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WG_HIST_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_BODIES_OUT_SSBO"
+            "SWAPPING_BODIES_OUT_SSBO",
+            "INDEX_IN_SSBO",
+            "MORTON_IN_SSBO"
         });
         deadCountKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -349,10 +344,13 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         deadExclusiveScanKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WG_HIST_SSBO",
             "WG_SCANNED_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "DEBUG_SSBO"
+            "DEBUG_SSBO",
+            "INDEX_IN_SSBO",
+            "MORTON_IN_SSBO"
         });
         deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return 1;
@@ -363,12 +361,13 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         deadScatterKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WG_SCANNED_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
-            "CURRENT_MORTON_OUT_SSBO",
-            "CURRENT_INDEX_OUT_SSBO"
+            "INDEX_IN_SSBO",
+            "MORTON_IN_SSBO",
+            "MORTON_OUT_SSBO",
+            "INDEX_OUT_SSBO"
         });
         deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -381,6 +380,7 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         radixSortHistogramKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "CURRENT_MORTON_IN_SSBO",
             "CURRENT_INDEX_IN_SSBO",
             "WG_HIST_SSBO",
@@ -395,6 +395,7 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         radixSortParallelScanKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WG_HIST_SSBO",
             "WG_SCANNED_SSBO",
             "BUCKET_TOTALS_SSBO",
@@ -409,6 +410,7 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         radixSortExclusiveScanKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "BUCKET_TOTALS_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
@@ -421,6 +423,7 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         radixSortDeadExclusiveScanKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WG_HIST_SSBO",
             "WG_SCANNED_SSBO"
         });
@@ -436,6 +439,7 @@ public class BarnesHut {
         });
 
         radixSortScatterKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "CURRENT_MORTON_IN_SSBO",
             "CURRENT_INDEX_IN_SSBO",
             "WG_SCANNED_SSBO",
@@ -455,6 +459,7 @@ public class BarnesHut {
             numWorkGroupsUniform
         });
         radixSortDeadScatterKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WG_SCANNED_SSBO",
             "CURRENT_INDEX_IN_SSBO",
             "CURRENT_MORTON_IN_SSBO",
@@ -473,6 +478,7 @@ public class BarnesHut {
         });
         
         buildBinaryRadixTreeKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "CURRENT_MORTON_IN_SSBO",
             "CURRENT_INDEX_IN_SSBO",
             "NODES_SSBO",
@@ -494,6 +500,7 @@ public class BarnesHut {
         }); 
 
         initLeavesKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "NODES_SSBO",
             "CURRENT_MORTON_IN_SSBO",
@@ -512,6 +519,7 @@ public class BarnesHut {
         });
 
         resetKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "WORK_QUEUE_SSBO",
             "MERGE_QUEUE_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
@@ -528,6 +536,7 @@ public class BarnesHut {
         });
 
         propagateNodesKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "NODES_SSBO",
             "WORK_QUEUE_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
@@ -550,10 +559,10 @@ public class BarnesHut {
         });
 
         computeForceKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
             "NODES_SSBO",
-            "DEBUG_SSBO",
             "INDEX_IN_SSBO",
             "MERGE_QUEUE_SSBO",
         });
@@ -567,6 +576,7 @@ public class BarnesHut {
             
         });
         mergeBodiesKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
             "MERGE_QUEUE_SSBO",
@@ -583,6 +593,7 @@ public class BarnesHut {
         });
 
         debugKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
             "CURRENT_MORTON_IN_SSBO",
             "CURRENT_INDEX_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
@@ -650,35 +661,6 @@ public class BarnesHut {
         }
 
     }
-
-    private void computeAABB() {
-        long computeAABBStartTime = 0;
-        long collapseAABBStartTime = 0;
-
-        if (debug) {
-            computeAABBStartTime = System.nanoTime();
-        }
-
-        computeAABBKernel.run();
-        if (debug) {
-            checkGLError("computeAABB");
-            glFinish(); 
-            computeAABBTime = System.nanoTime() - computeAABBStartTime;
-            collapseAABBStartTime = System.nanoTime();
-        }
-
-        collapseAABBKernel.run();
-        if (debug) {
-            checkGLError("collapseAABB");
-            glFinish();
-            collapseAABBTime = System.nanoTime() - collapseAABBStartTime;
-            aabbTime = computeAABBTime + collapseAABBTime;
-
-            glFinish();
-        }
-
-    }
-
     private void generateMortonCodes() {
         if (debug) {
             mortonTime = System.nanoTime();
@@ -861,11 +843,7 @@ public class BarnesHut {
         // Packs planet data to float buffer: pos(x,y,z), mass, vel(x,y,z), pad, color(r,g,b,a)
         int numBodies = planets.size();
         
-        ByteBuffer buf = BufferUtils.createByteBuffer((4+numBodies * Body.STRUCT_SIZE)*4);
-        buf.putInt(numBodies);
-        buf.putInt(numBodies);
-        buf.putInt(0);
-        buf.putInt(0);
+        ByteBuffer buf = BufferUtils.createByteBuffer((numBodies * Body.STRUCT_SIZE)*4+Body.HEADER_SIZE);
         for (int i = 0; i < numBodies; i++) {
             Planet p = planets.get(i);
             buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
@@ -876,6 +854,19 @@ public class BarnesHut {
             float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
             buf.putFloat(cr).putFloat(cg).putFloat(cb).putFloat(1.0f);
         }
+        buf.flip();
+        return buf;
+    }
+    public ByteBuffer packValues() {
+
+        //layout(std430, binding = 5) buffer Values { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; AABB bounds; } sim;
+        ByteBuffer buf = BufferUtils.createByteBuffer(12*4);
+        buf.putInt(gpuSimulation.numBodies());
+        buf.putInt(gpuSimulation.numBodies());
+        buf.putInt(0);
+        buf.putInt(0);
+        buf.putFloat(bounds[0][0]).putFloat(bounds[0][1]).putFloat(bounds[0][2]).putInt(0);
+        buf.putFloat(bounds[1][0]).putFloat(bounds[1][1]).putFloat(bounds[1][2]).putInt(0);
         buf.flip();
         return buf;
     }
@@ -926,12 +917,9 @@ public class BarnesHut {
         }
     }
     private String printProfiling() {
-        long totalTime = aabbTime + mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime;
+        long totalTime = mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime;
         long percentRendering = (renderingTime * 100) / totalTime;
         long percentReset = (resetTime * 100) / totalTime;
-        long percentAABB = (aabbTime * 100) / totalTime;
-        long percentAABBCompute = (computeAABBTime * 100) / totalTime;
-        long percentCollapseAABB = (collapseAABBTime * 100) / totalTime;
         long percentMorton = (mortonTime * 100) / totalTime;
         long percentDead = (deadTime * 100) / totalTime;
         long percentDeadCount = (deadCountTime * 100) / totalTime;
@@ -951,9 +939,6 @@ public class BarnesHut {
         final long oneMillion = 1_000_000;
         return renderingTime/oneMillion + " ms (" + percentRendering + "%)" +":Rendering\n" + 
                resetTime/oneMillion + " ms (" + percentReset + "%)" +":Reset\n" + 
-               aabbTime/oneMillion + " ms (" + percentAABB + "%)" +":AABB\n" + 
-               "\t" + computeAABBTime/oneMillion + " ms (" + percentAABBCompute + "%)" +":Compute\n" + 
-               "\t" + collapseAABBTime/oneMillion + " ms (" + percentCollapseAABB + "%)" +":Collapse\n" + 
                mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +
                deadTime/oneMillion + " ms (" + percentDead + "%)" +":Dead\n" +
                "\t" + deadCountTime/oneMillion + " ms (" + percentDeadCount + "%)" +":Count\n" +
@@ -972,26 +957,6 @@ public class BarnesHut {
                totalTime/oneMillion + " ms" +":Total\n";
     }
 
-
-    
-    private void debugAABB() {
-        AABB_SSBO.bind();
-        ByteBuffer bb = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        FloatBuffer fb = bb.asFloatBuffer();
-
-        // 7) Print the first few AABBs
-        for (int i = 0; i < Math.min(8, gpuSimulation.numBodies()); ++i) {
-            float minx = fb.get(); float miny = fb.get(); float minz = fb.get(); float pad0 = fb.get();
-            float maxx = fb.get(); float maxy = fb.get(); float maxz = fb.get(); float pad1 = fb.get();
-            System.out.printf("DEBUG AABB %d: min=(%f,%f,%f) max=(%f,%f,%f) pad0=%f pad1=%f%n",
-                            i, minx, miny, minz, maxx, maxy, maxz, pad0, pad1);
-        }
-
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        SSBO.unBind();
-        
-        
-    }
 
     private void checkMortonCodes(SSBO mortonBuffer, boolean print) {
         boolean correctPartitioning = true;

@@ -2,7 +2,7 @@
 #extension GL_NV_gpu_shader5 : enable
 
 #include "bh_common.glsl"
-#include "bh_aabb.glsl"
+#include "bh_init.glsl"
 #include "bh_morton.glsl"
 #include "bh_radix.glsl"
 #include "bh_tree.glsl"
@@ -15,10 +15,8 @@
 
 void main()
 {
-#ifdef KERNEL_COMPUTE_AABB
-    computeNewAABBKernel();
-#elif defined(KERNEL_COLLAPSE_AABB)
-    collapseAABBKernel();
+#ifdef KERNEL_INIT
+    initKernel();
 #elif defined(KERNEL_MORTON)
     encodeMortonKernel();
 #elif defined(KERNEL_DEAD_COUNT)
@@ -57,5 +55,6 @@ void main()
     // no-op
 #endif
 }
+
 
 

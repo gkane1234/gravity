@@ -47,15 +47,16 @@ public class GPUSimulation {
 
     public GPUSimulation() {
 
-        ArrayList<Planet> planets = createSeveralDisksAroundAnotherDiskSimulation();
+        ArrayList<Planet> planets = createBoxSimulation();
         Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
         boolean debug = true;
 
         this.openGlWindow = new OpenGLWindow(this); 
         this.planets = planets;
         this.initialbodiesContained = planets.size();
+        float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
 
-        this.barnesHut = new BarnesHut(this,debug);
+        this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.commandQueue = new ConcurrentLinkedQueue<>();
@@ -65,7 +66,8 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this);
         this.planets = planets;
         this.commandQueue = new ConcurrentLinkedQueue<>();
-        this.barnesHut = new BarnesHut(this,debug);
+        float[][] bounds = new float[][] {{-100000, -100000, -100000}, {100000, 100000, 100000}};
+        this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.initialbodiesContained = planets.size();
@@ -178,9 +180,9 @@ public class GPUSimulation {
 
     public static ArrayList<Planet> createBoxSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
-        float[] xRange = {-4000, 4000};
-        float[] yRange = {-4000, 4000};
-        float[] zRange = {-4000, 4000};
+        float[] xRange = {-40, 40};
+        float[] yRange = {-40, 40};
+        float[] zRange = {-40, 40};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};
@@ -188,7 +190,7 @@ public class GPUSimulation {
         float[] densityRange = {1, 1};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNewRandomBox(1_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange);
+        planets = Planet.makeNewRandomBox(30, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange);
         planets.add(center);
         //planets.add(center2);
 

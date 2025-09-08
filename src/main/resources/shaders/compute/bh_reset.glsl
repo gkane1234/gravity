@@ -1,3 +1,5 @@
+uniform bool firstPass;
+
 void resetKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid == 0) {
@@ -6,6 +8,5 @@ void resetKernel() {
         tail = 0u;
         mergeQueueTail = 0u;
         //mergeQueueHead = 0u;
-        dstB.numBodies = srcB.numBodies;
     }
 }
