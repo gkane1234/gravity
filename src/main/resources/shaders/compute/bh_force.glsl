@@ -79,7 +79,6 @@ void computeForce()
     dstB.bodies[gid].velDensity.w = body.velDensity.w;
     dstB.bodies[gid].posMass.xyz = newPos;
     dstB.bodies[gid].posMass.w = body.posMass.w;
-    dstB.bodies[gid].color = body.color;
 
 }
 

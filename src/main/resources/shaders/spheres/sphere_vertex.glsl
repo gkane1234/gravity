@@ -4,7 +4,6 @@ layout (location = 0) in vec3 aPos; // unit sphere position
 struct Body {
   vec4 posMass;
   vec4 velPad;
-  vec4 color;
 };
 
 layout(std430, binding = 0) readonly buffer SrcBodies {
@@ -15,7 +14,6 @@ uniform mat4 uMVP;
 uniform float uRadiusScale; // radius = sqrt(mass) * scale
 
 out vec3 vWorldPos;
-out vec4 vColor;
 
 
 const float MIN_RADIUS = 10;
@@ -33,7 +31,6 @@ void main() {
   if (isEmptyBody(srcB.bodies[gl_InstanceID].posMass.w)) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
     gl_PointSize = 0.0;
-    vColor = vec4(0.0);
     return;
   }
   vec3 center = srcB.bodies[gl_InstanceID].posMass.xyz;
@@ -41,7 +38,6 @@ void main() {
   float radius = max(MIN_RADIUS,RADIUS_SCALE*cbrt(max(mass, 0.0)) * uRadiusScale);
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;
-  vColor = srcB.bodies[gl_InstanceID].color;
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }
 

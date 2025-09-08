@@ -858,10 +858,10 @@ public class BarnesHut {
     }
 
     public ByteBuffer packPlanets(List<Planet> planets) {
-        // Packs planet data to float buffer: pos(x,y,z), mass, vel(x,y,z), pad, color(r,g,b,a)
+        // Packs planet data to float buffer: pos(x,y,z), mass, vel(x,y,z), pad
         int numBodies = planets.size();
         
-        ByteBuffer buf = BufferUtils.createByteBuffer((4+numBodies * Body.STRUCT_SIZE)*4);
+        ByteBuffer buf = BufferUtils.createByteBuffer((numBodies * Body.STRUCT_SIZE)*4+Body.HEADER_SIZE);
         buf.putInt(numBodies);
         buf.putInt(numBodies);
         buf.putInt(0);
@@ -870,11 +870,6 @@ public class BarnesHut {
             Planet p = planets.get(i);
             buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
             buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
-            java.awt.Color c = p.getColor();
-            float cr = c != null ? (c.getRed() / 255f) : 1.0f;
-            float cg = c != null ? (c.getGreen() / 255f) : 1.0f;
-            float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
-            buf.putFloat(cr).putFloat(cg).putFloat(cb).putFloat(1.0f);
         }
         buf.flip();
         return buf;
@@ -1022,38 +1017,6 @@ public class BarnesHut {
 
         System.out.println("Morton Codes are correctly partitioned: " + correctPartitioning);
         System.out.println("Morton Codes are correctly sorted: " + correctSorting);
-    }
-    
-    private float[][] oldComputeAABB() {
-        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
-        
-        SWAPPING_BODIES_IN_SSBO.bind();
-        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        FloatBuffer bodyData = buffer.asFloatBuffer();
-        
-        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-            int offset = i * 12; // 12 floats per body (pos+mass, vel+pad, color)
-            float x = bodyData.get(offset + 0);
-            float y = bodyData.get(offset + 1);
-            float z = bodyData.get(offset + 2);
-            
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            minZ = Math.min(minZ, z);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-            maxZ = Math.max(maxZ, z);
-        }
-        
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        SSBO.unBind();
-        
-        float[][] raabb = new float[][] {
-            {minX, minY, minZ},
-            {maxX, maxY, maxZ}
-        };
-        return raabb;
     }
 
     private void debugMortonCodes() {

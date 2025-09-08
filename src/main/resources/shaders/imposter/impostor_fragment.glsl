@@ -1,7 +1,6 @@
 #version 430
 
 in vec2 vMapping;
-in vec4 vColor;
 in float bodyToGlowRatio;
 in float worldRadius;
 in float mass;
@@ -33,7 +32,7 @@ void main() {
         vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
         float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
 
-        vec3 color = vColor.rgb * (0.8 + 0.2 * diffuse);
+        vec3 color = vec3(0.8 + 0.2 * diffuse);
         fragColor = vec4(color, 1.0);
     } else {
         // --- Glow pass ---
@@ -53,7 +52,7 @@ void main() {
 
 
 
-        vec3 glowColor = vec3(0.5);//mix(vec3(0.1), vColor.rgb, 0.7);
+        vec3 glowColor = vec3(0.5);
         fragColor = vec4(glowColor * glow, 1.0); // additive, alpha ignored
 
         

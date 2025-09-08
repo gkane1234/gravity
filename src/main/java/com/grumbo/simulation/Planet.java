@@ -1,5 +1,4 @@
 package com.grumbo.simulation;
-import java.awt.Color;
 import java.util.ArrayList;
 import org.joml.Vector3f;
 
@@ -9,7 +8,6 @@ public class Planet {
 	public Vector3f position;
 	public Vector3f velocity;
 	public float density;
-	public Color color;
 	public int name;
 
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass, float density) {
@@ -30,7 +28,6 @@ public class Planet {
 		this.velocity = velocity;
 		this.mass = mass;
 		this.density = density;
-		color = generateRandomColor();
 	}
 
 	public Planet(Vector3f position, Vector3f velocity, float mass) {
@@ -52,9 +49,6 @@ public class Planet {
 		return Math.sqrt(this.mass)*Settings.getInstance().getDensity()/2;
 	}
 	
-	public Color getColor() {
-		return color;
-	}
 
 	public static ArrayList<Planet> makeNewRandomBox(int num, float[] x, float[] y, float[] z, float[] xV, float[] yV, float[] zV, float[] m, float[] density) {
 		ArrayList<Planet> ret = new ArrayList<>();
@@ -229,16 +223,5 @@ public class Planet {
 	private static int randomInRange(int[] range, float density) {
 		float[] rangeFloat = {range[0], range[1]};
 		return (int) randomInRange(rangeFloat, density);
-	}
-
-	private static Color generateRandomColor() {
-		// Generate random RGB values with some constraints for better visibility
-		double min = 55;
-		double max = 255;
-		int red = (int)(Math.random() * (max - min) + min); 
-		int green = (int)(Math.random() * (max - min) + min);  
-		int blue = (int)(Math.random() * (max - min) + min);
-		
-		return new Color(red, red, red);
 	}
 }

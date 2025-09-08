@@ -22,9 +22,9 @@ const float SOFTENING = 0.1;
 
 
 
-struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
+struct Body { vec4 posMass; vec4 velDensity;};
 
-const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0), vec4(0.0));
+const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0));
 struct AABB {
     vec3 minCorner;
     vec3 maxCorner;

@@ -3,7 +3,6 @@
 struct Body {
   vec4 posMass;
   vec4 velDensity;
-  vec4 color;
 };
 
 layout(std430, binding = 0) readonly buffer SrcBodies {
@@ -21,7 +20,6 @@ uniform float uAspect; // width/height
 
 
 out vec2 vMapping;
-out vec4 vColor;
 out float bodyToGlowRatio;
 out float mass;
 out vec3 vCenterView;
@@ -47,7 +45,6 @@ void main() {
   float trueRadius = radius(b);
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
-    vColor = b.color;
 
   // Transform center to view space
   vec4 centerView4 = uModelView * vec4(center, 1.0);
