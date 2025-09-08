@@ -97,6 +97,11 @@ public class SettingsPane {
                 for (UIElement element : row.getElements()) {
                     if (element.handleKeyPress(key, action, mods)) {
                     keyPressed = true;
+                    if (element instanceof UITextField) {
+                        if (!((UITextField) element).isFocused()) {
+                            textFieldFocused = false;
+                        }
+                    }
                 }
             }
         }

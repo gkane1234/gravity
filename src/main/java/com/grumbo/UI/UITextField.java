@@ -9,14 +9,18 @@ public class UITextField extends UIElement {
     private static final float MIN_TEXT_FIELD_HEIGHT = 16.0f;
     private static final float PADDING = 10.0f;
 
+    private int minWidth;
+
     private StringBuilder text;
     private boolean focused;
     private Runnable onCommit; // Called when Enter pressed
     private Runnable updateFunction;
+    private int numericalRounding;
     public UITextField(float x, float y, float width, float height, String initial, Runnable updateFunction) {
         super(x, y, width, height, MIN_TEXT_FIELD_WIDTH, MIN_TEXT_FIELD_HEIGHT, 0.0f, 0.0f);
         this.text = new StringBuilder(initial == null ? "" : initial);
         this.focused = false;
+        this.minWidth = 0;
     }
 
     public UITextField(String initial) {
@@ -27,12 +31,27 @@ public class UITextField extends UIElement {
         this.updateFunction = updateFunction;
     }
 
+    public void setMinWidth(int minWidth) { this.minWidth = minWidth; }
+
 
     public void setText(String s) { this.text = new StringBuilder(s == null ? "" : s); }
-    public void setTextFromValue(Object value) { this.text = new StringBuilder(String.valueOf(value)); }
+    public void setTextFromValue(Object value) { 
+        String unroundedString = String.valueOf(value);
+        int unroundedLength = unroundedString.length();
+        
+        if (value instanceof Number) {
+            this.text = new StringBuilder(String.format("%." + numericalRounding + "f", ((Number) value).doubleValue()));
+            if (this.text.length() > unroundedLength) {
+                this.text = new StringBuilder(unroundedString);
+            }
+        } else {
+            this.text = new StringBuilder(unroundedString);
+        }
+    }
     public String getText() { return text.toString(); }
     public boolean isFocused() { return focused; }
     public void setOnCommit(Runnable onCommit) { this.onCommit = onCommit; }
+    public void setNumericalRounding(int numericalRounding) { this.numericalRounding = numericalRounding; }
 
     @Override
     public boolean handleMousePress(double mouseX, double mouseY) {
@@ -101,7 +120,7 @@ public class UITextField extends UIElement {
         int numChars = text.length();
         float textWidth = (numChars <= 0) ? 0 : (numChars * charWidth + (numChars-1) * spacing);
         this.height = rowHeight;
-        this.width = textWidth+PADDING*2;
+        this.width = Math.max(textWidth+PADDING*2, minWidth*charWidth);
         this.xRenderOffset = 0.0f;
         this.yRenderOffset = -verticalPad;
     }

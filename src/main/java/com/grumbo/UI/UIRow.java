@@ -13,12 +13,14 @@ public class UIRow extends UIElement {
     public UIRow(ArrayList<UIElement> elements) {
         super();
         this.elements = elements;
-
     }
 
     public ArrayList<UIElement> getElements() {
         return elements;
     }
+
+
+
 
     public boolean getForceUpdate() {
         boolean forceUpdate = false;

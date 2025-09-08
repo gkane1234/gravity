@@ -8,6 +8,7 @@ import org.joml.Vector3f;
 import com.grumbo.UI.*;
 
 public class Property<T> {
+    public static final int DEFAULT_ROUNDING = 3;
     private String name;
     private T value;
     private T defaultValue;
@@ -17,21 +18,33 @@ public class Property<T> {
     private boolean isNumeric;
     private boolean editable = true;
     private String typeName; // e.g., "int", "double", "float", "boolean", "color", "doubleArray", "vector3f", "string"
-    
+    private int numericalRounding;
     // Cached UI row
     private UIRow editorRow;
     private T cachedValue;
     
     // Constructors
-    public Property(String name, T value, T defaultValue) {
+
+    public Property(String name, T value, T defaultValue, int numericalRounding) {
         this.name = name;
         this.value = value;
         this.defaultValue = defaultValue;
         this.isNumeric = isNumericType(value);
+        if (isNumeric) {
+            this.numericalRounding = numericalRounding;
+        }
     }
-    
+
+
+    public Property(String name, T value, T defaultValue) {
+        this(name, value, defaultValue, DEFAULT_ROUNDING);
+    }
+
     public Property(String name, T value, T defaultValue, T minValue, T maxValue) {
         this(name, value, defaultValue);
+        if (!isNumericType(value)) {
+            throw new IllegalArgumentException("Value is not a numeric type");
+        }
         this.minValue = minValue;
         this.maxValue = maxValue;
         validateAndSet(value);
@@ -42,6 +55,24 @@ public class Property<T> {
         this.validator = validator;
         validateAndSet(value);
     }
+
+    public Property(String name, T value, T defaultValue, T minValue, T maxValue, int numericalRounding) {
+        this(name, value, defaultValue, numericalRounding);
+        if (!isNumericType(value)) {
+            throw new IllegalArgumentException("Value is not a numeric type");
+        }
+        this.minValue = minValue;
+        this.maxValue = maxValue;
+        validateAndSet(value);
+    }
+    
+    public Property(String name, T value, T defaultValue, Predicate<T> validator, int numericalRounding) {
+        this(name, value, defaultValue, numericalRounding);
+        this.validator = validator;
+        validateAndSet(value);
+    }
+
+
     
     // Getters and setters
     public String getName() { return name; }
@@ -369,6 +400,8 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tf = new UITextField(String.valueOf((Object) value));
+        tf.setNumericalRounding(numericalRounding);
+        tf.setMinWidth(10);
         tf.setOnCommit(() -> {
             try {
                 double parsed = Double.parseDouble(tf.getText().trim());
@@ -409,6 +442,8 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tf = new UITextField(String.valueOf((Object) value));
+        tf.setNumericalRounding(numericalRounding);
+        tf.setMinWidth(10);
         tf.setOnCommit(() -> {
             try {
                 float parsed = Float.parseFloat(tf.getText().trim());
@@ -464,6 +499,7 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tf = new UITextField(String.valueOf((Object) value));
+        tf.setMinWidth(10);
         tf.setOnCommit(() -> {
             Settings.getInstance().setValue(name, tf.getText());
             Settings.getInstance().saveSettings();
