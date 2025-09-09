@@ -54,7 +54,7 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this); 
         this.planets = planets;
         this.initialbodiesContained = planets.size();
-        float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
+        float[][] bounds = new float[][] {{-30000, -30000, -30000}, {30000, 30000, 30000}};
 
         this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
@@ -66,7 +66,7 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this);
         this.planets = planets;
         this.commandQueue = new ConcurrentLinkedQueue<>();
-        float[][] bounds = new float[][] {{-100000, -100000, -100000}, {100000, 100000, 100000}};
+        float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
         this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
@@ -180,9 +180,9 @@ public class GPUSimulation {
 
     public static ArrayList<Planet> createBoxSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
-        float[] xRange = {-40, 40};
-        float[] yRange = {-40, 40};
-        float[] zRange = {-40, 40};
+        float[] xRange = {-40000, 40000};
+        float[] yRange = {-40000, 40000};
+        float[] zRange = {-40000, 40000};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};

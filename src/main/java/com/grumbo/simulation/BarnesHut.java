@@ -38,6 +38,7 @@ public class BarnesHut {
     private Uniform<Float> restitutionUniform;
     private Uniform<Boolean> collisionUniform;
     private Uniform<Integer> passShiftUniform;
+    private Uniform<Boolean> firstPassUniform;
 
     // Uniform local variables
     private int passShift;
@@ -69,19 +70,19 @@ public class BarnesHut {
     private SSBO FIXED_BODIES_OUT_SSBO;
     private SSBO SWAPPING_BODIES_IN_SSBO;
     private SSBO SWAPPING_BODIES_OUT_SSBO;
-    private SSBO MORTON_IN_SSBO;
-    private SSBO INDEX_IN_SSBO;
-    private SSBO CURRENT_MORTON_IN_SSBO;
-    private SSBO CURRENT_MORTON_OUT_SSBO;
-    private SSBO CURRENT_INDEX_IN_SSBO;
-    private SSBO CURRENT_INDEX_OUT_SSBO;
+    private SSBO FIXED_MORTON_IN_SSBO;
+    private SSBO FIXED_INDEX_IN_SSBO;
+    private SSBO SWAPPING_MORTON_IN_SSBO;
+    private SSBO SWAPPING_MORTON_OUT_SSBO;
+    private SSBO SWAPPING_INDEX_IN_SSBO;
+    private SSBO SWAPPING_INDEX_OUT_SSBO;
     private SSBO NODES_SSBO;
     private SSBO VALUES_SSBO;
     private SSBO WG_HIST_SSBO;
     private SSBO WG_SCANNED_SSBO;
     private SSBO BUCKET_TOTALS_SSBO;
-    private SSBO MORTON_OUT_SSBO;
-    private SSBO INDEX_OUT_SSBO;
+    private SSBO FIXED_MORTON_OUT_SSBO;
+    private SSBO FIXED_INDEX_OUT_SSBO;
     private SSBO WORK_QUEUE_SSBO;
     private SSBO MERGE_QUEUE_SSBO;
     private SSBO DEBUG_SSBO;
@@ -110,6 +111,8 @@ public class BarnesHut {
     private GPUSimulation gpuSimulation;
     private float[][] bounds;
 
+    private boolean firstPass = true;
+
     public BarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
         this.gpuSimulation = gpuSimulation;
         this.debug = debug;
@@ -119,22 +122,32 @@ public class BarnesHut {
     public void step() {
         //System.out.println(FIXED_BODIES_IN_SSBO.getHeader());
         renderingCheck();
-        resetQueues();
-        partitionDeadBodies();
-        checkMortonCodes(MORTON_IN_SSBO, true);
-        generateMortonCodes();
-        checkMortonCodes(MORTON_IN_SSBO, true);
 
-        initializeSwappingMortonBuffers();
+        resetQueues(true);
+
+
+        partitionDeadBodies();
+
+
+        swapMortonBuffers();
+        resetQueues(false);
+        System.out.println(Arrays.toString(DEBUG_SSBO.getHeaderAsInts()));
+        generateMortonCodes();
+        System.out.println("Morton codes generated");
+        checkMortonCodes(SWAPPING_MORTON_IN_SSBO, true);
+        checkMortonCodes(SWAPPING_MORTON_OUT_SSBO, true);
+
         radixSort();
-        checkMortonCodes(CURRENT_MORTON_IN_SSBO, true);
+        System.out.println("Radix sort completed");
+        checkMortonCodes(SWAPPING_MORTON_IN_SSBO, false);
+        checkMortonCodes(SWAPPING_MORTON_OUT_SSBO, false);
         buildBinaryRadixTree();
-        debugTree();
+
         computeCOMAndLocation();
-        System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), 2));
-        //System.out.println(FIXED_BODIES_IN_SSBO.getData(0, 10));
+
         computeForce();
         mergeBodies();
+
         swapBodyBuffers();
 
             if (debug) {
@@ -169,15 +182,15 @@ public class BarnesHut {
         }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
-        MORTON_IN_SSBO = new SSBO(SSBO.MORTON_IN_SSBO_BINDING, () -> {
+        FIXED_MORTON_IN_SSBO = new SSBO(SSBO.FIXED_MORTON_IN_SSBO_BINDING, () -> {
             return gpuSimulation.numBodies() * Long.BYTES;
-        }, "MORTON_IN_SSBO", 1, new VariableType[] { VariableType.UINT64 });
-        ssbos.put(MORTON_IN_SSBO.getName(), MORTON_IN_SSBO);
+        }, "FIXED_MORTON_IN_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        ssbos.put(FIXED_MORTON_IN_SSBO.getName(), FIXED_MORTON_IN_SSBO);
 
-        INDEX_IN_SSBO = new SSBO(SSBO.INDEX_IN_SSBO_BINDING, () -> {
+        FIXED_INDEX_IN_SSBO = new SSBO(SSBO.FIXED_INDEX_IN_SSBO_BINDING, () -> {
             return gpuSimulation.numBodies() * Integer.BYTES;
-        }, "INDEX_IN_SSBO", 1, new VariableType[] { VariableType.UINT });
-        ssbos.put(INDEX_IN_SSBO.getName(), INDEX_IN_SSBO);
+        }, "FIXED_INDEX_IN_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(FIXED_INDEX_IN_SSBO.getName(), FIXED_INDEX_IN_SSBO);
 
         NODES_SSBO = new SSBO(SSBO.NODES_SSBO_BINDING, () -> {
             return (2 * gpuSimulation.numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
@@ -204,15 +217,15 @@ public class BarnesHut {
         }, "BUCKET_TOTALS_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(BUCKET_TOTALS_SSBO.getName(), BUCKET_TOTALS_SSBO);
 
-        MORTON_OUT_SSBO = new SSBO(SSBO.MORTON_OUT_SSBO_BINDING, () -> {
+        FIXED_MORTON_OUT_SSBO = new SSBO(SSBO.FIXED_MORTON_OUT_SSBO_BINDING, () -> {
             return gpuSimulation.numBodies() * Long.BYTES;
-        }, "MORTON_OUT_SSBO", 1, new VariableType[] { VariableType.UINT64 });
-        ssbos.put(MORTON_OUT_SSBO.getName(), MORTON_OUT_SSBO);
+        }, "FIXED_MORTON_OUT_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        ssbos.put(FIXED_MORTON_OUT_SSBO.getName(), FIXED_MORTON_OUT_SSBO);
 
-        INDEX_OUT_SSBO = new SSBO(SSBO.INDEX_OUT_SSBO_BINDING, () -> {
+        FIXED_INDEX_OUT_SSBO = new SSBO(SSBO.FIXED_INDEX_OUT_SSBO_BINDING, () -> {
             return gpuSimulation.numBodies() * Integer.BYTES;
-        }, "INDEX_OUT_SSBO", 1, new VariableType[] { VariableType.UINT });
-        ssbos.put(INDEX_OUT_SSBO.getName(), INDEX_OUT_SSBO);
+        }, "FIXED_INDEX_OUT_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(FIXED_INDEX_OUT_SSBO.getName(), FIXED_INDEX_OUT_SSBO);
 
         WORK_QUEUE_SSBO = new SSBO(SSBO.WORK_QUEUE_SSBO_BINDING, () -> {
             return (4 + gpuSimulation.numBodies()) * Integer.BYTES;
@@ -234,25 +247,7 @@ public class BarnesHut {
             ssbo.createBuffer();
         }
 
-        // Create Swapping SSBOs
-        SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
-        SWAPPING_BODIES_IN_SSBO.setName("SWAPPING_BODIES_IN_SSBO");
-        ssbos.put(SWAPPING_BODIES_IN_SSBO.getName(), SWAPPING_BODIES_IN_SSBO);
-        SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
-        SWAPPING_BODIES_OUT_SSBO.setName("SWAPPING_BODIES_OUT_SSBO");
-        ssbos.put(SWAPPING_BODIES_OUT_SSBO.getName(), SWAPPING_BODIES_OUT_SSBO);
-        CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
-        CURRENT_MORTON_IN_SSBO.setName("CURRENT_MORTON_IN_SSBO");
-        ssbos.put(CURRENT_MORTON_IN_SSBO.getName(), CURRENT_MORTON_IN_SSBO);
-        CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
-        CURRENT_MORTON_OUT_SSBO.setName("CURRENT_MORTON_OUT_SSBO");
-        ssbos.put(CURRENT_MORTON_OUT_SSBO.getName(), CURRENT_MORTON_OUT_SSBO);
-        CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
-        CURRENT_INDEX_IN_SSBO.setName("CURRENT_INDEX_IN_SSBO");
-        ssbos.put(CURRENT_INDEX_IN_SSBO.getName(), CURRENT_INDEX_IN_SSBO);
-        CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
-        CURRENT_INDEX_OUT_SSBO.setName("CURRENT_INDEX_OUT_SSBO");
-        ssbos.put(CURRENT_INDEX_OUT_SSBO.getName(), CURRENT_INDEX_OUT_SSBO);
+        initializeSwappingBuffers();
     }
 
     private void initComputeUniforms() {
@@ -293,6 +288,9 @@ public class BarnesHut {
         collisionUniform = new Uniform<Boolean>("collision", () -> {
             return false;
         });
+        firstPassUniform = new Uniform<Boolean>("firstPass", () -> {
+            return firstPass;
+        });
     }
 
     private void initComputeShaders() {
@@ -303,7 +301,7 @@ public class BarnesHut {
         });
         initKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "INDEX_IN_SSBO"
+            "SWAPPING_INDEX_IN_SSBO"
         });
         initKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -314,9 +312,9 @@ public class BarnesHut {
         });
         mortonKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "MORTON_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "INDEX_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
 
         });
         mortonKernel.setXWorkGroupsFunction(() -> {
@@ -332,8 +330,9 @@ public class BarnesHut {
             "WG_HIST_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
-            "INDEX_IN_SSBO",
-            "MORTON_IN_SSBO"
+            "SWAPPING_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "DEBUG_SSBO"
         });
         deadCountKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -349,8 +348,8 @@ public class BarnesHut {
             "WG_SCANNED_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "DEBUG_SSBO",
-            "INDEX_IN_SSBO",
-            "MORTON_IN_SSBO"
+            "SWAPPING_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
         });
         deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return 1;
@@ -364,10 +363,11 @@ public class BarnesHut {
             "VALUES_SSBO",
             "WG_SCANNED_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "INDEX_IN_SSBO",
-            "MORTON_IN_SSBO",
-            "MORTON_OUT_SSBO",
-            "INDEX_OUT_SSBO"
+            "SWAPPING_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "SWAPPING_MORTON_OUT_SSBO",
+            "SWAPPING_INDEX_OUT_SSBO",
+            "DEBUG_SSBO"
         });
         deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -381,8 +381,8 @@ public class BarnesHut {
         });
         radixSortHistogramKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
             "WG_HIST_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
@@ -440,12 +440,12 @@ public class BarnesHut {
 
         radixSortScatterKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
             "WG_SCANNED_SSBO",
             "BUCKET_TOTALS_SSBO",
-            "CURRENT_MORTON_OUT_SSBO",
-            "CURRENT_INDEX_OUT_SSBO",
+            "SWAPPING_MORTON_OUT_SSBO",
+            "SWAPPING_INDEX_OUT_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
 
@@ -461,11 +461,11 @@ public class BarnesHut {
         radixSortDeadScatterKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
             "WG_SCANNED_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "CURRENT_MORTON_OUT_SSBO",
-            "CURRENT_INDEX_OUT_SSBO"
+            "SWAPPING_MORTON_OUT_SSBO",
+            "SWAPPING_INDEX_OUT_SSBO"
         });
         radixSortDeadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -479,8 +479,8 @@ public class BarnesHut {
         
         buildBinaryRadixTreeKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
             "NODES_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
@@ -503,8 +503,8 @@ public class BarnesHut {
             "VALUES_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "NODES_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
             "WORK_QUEUE_SSBO",
         });
 
@@ -515,7 +515,7 @@ public class BarnesHut {
         resetKernel = new ComputeShader("KERNEL_RESET", this);
 
         resetKernel.setUniforms(new Uniform[] {
-
+            firstPassUniform
         });
 
         resetKernel.setSSBOs(new String[] {
@@ -563,7 +563,7 @@ public class BarnesHut {
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
             "NODES_SSBO",
-            "INDEX_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
             "MERGE_QUEUE_SSBO",
         });
 
@@ -594,8 +594,8 @@ public class BarnesHut {
 
         debugKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "CURRENT_MORTON_IN_SSBO",
-            "CURRENT_INDEX_IN_SSBO",
+            "SWAPPING_MORTON_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "DEBUG_SSBO",
         });
@@ -617,11 +617,12 @@ public class BarnesHut {
         }
     }
 
-    private void resetQueues() {
+    private void resetQueues(boolean first) {
         long resetStartTime = 0;
         if (debug) {
             resetStartTime = System.nanoTime();
         }
+        firstPass = first;
         resetKernel.run();
         if (debug) {
             checkGLError("resetQueues");
@@ -737,10 +738,7 @@ public class BarnesHut {
 
             swapMortonBuffers();
         }
-        // After final pass, sorted data is in currentMortonIn/currentIndexIn
-        // Update our "current" buffers to point to the final sorted data
-        MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_IN_SSBO.getBufferLocation());
-        INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_IN_SSBO.getBufferLocation());
+
         if (debug) {
             radixSortTime = radixSortHistogramTime + radixSortScanParallelTime + radixSortScanExclusiveTime + radixSortScatterTime;
         }
@@ -802,6 +800,28 @@ public class BarnesHut {
         mergeBodiesKernel.run();
     }
 
+    private void initializeSwappingBuffers() {
+        // Create Swapping SSBOs
+        SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
+        SWAPPING_BODIES_IN_SSBO.setName("SWAPPING_BODIES_IN_SSBO");
+        ssbos.put(SWAPPING_BODIES_IN_SSBO.getName(), SWAPPING_BODIES_IN_SSBO);
+        SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
+        SWAPPING_BODIES_OUT_SSBO.setName("SWAPPING_BODIES_OUT_SSBO");
+        ssbos.put(SWAPPING_BODIES_OUT_SSBO.getName(), SWAPPING_BODIES_OUT_SSBO);
+        SWAPPING_MORTON_IN_SSBO = FIXED_MORTON_IN_SSBO;
+        SWAPPING_MORTON_IN_SSBO.setName("SWAPPING_MORTON_IN_SSBO");
+        ssbos.put(SWAPPING_MORTON_IN_SSBO.getName(), SWAPPING_MORTON_IN_SSBO);
+        SWAPPING_MORTON_OUT_SSBO = FIXED_MORTON_OUT_SSBO;
+        SWAPPING_MORTON_OUT_SSBO.setName("SWAPPING_MORTON_OUT_SSBO");
+        ssbos.put(SWAPPING_MORTON_OUT_SSBO.getName(), SWAPPING_MORTON_OUT_SSBO);
+        SWAPPING_INDEX_IN_SSBO = FIXED_INDEX_IN_SSBO;
+        SWAPPING_INDEX_IN_SSBO.setName("SWAPPING_INDEX_IN_SSBO");
+        ssbos.put(SWAPPING_INDEX_IN_SSBO.getName(), SWAPPING_INDEX_IN_SSBO);
+        SWAPPING_INDEX_OUT_SSBO = FIXED_INDEX_OUT_SSBO;
+        SWAPPING_INDEX_OUT_SSBO.setName("SWAPPING_INDEX_OUT_SSBO");
+        ssbos.put(SWAPPING_INDEX_OUT_SSBO.getName(), SWAPPING_INDEX_OUT_SSBO);
+    }
+
     private void swapBodyBuffers() {
         // Swap source and destination buffers for next iteration
         int tmpIn = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
@@ -809,22 +829,14 @@ public class BarnesHut {
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
     }
 
-    private void initializeSwappingMortonBuffers() {
-        // Current input/output morton and index buffers
-        CURRENT_MORTON_IN_SSBO.setBufferLocation(MORTON_IN_SSBO.getBufferLocation());
-        CURRENT_INDEX_IN_SSBO.setBufferLocation(INDEX_IN_SSBO.getBufferLocation());
-        CURRENT_MORTON_OUT_SSBO.setBufferLocation(MORTON_OUT_SSBO.getBufferLocation());
-        CURRENT_INDEX_OUT_SSBO.setBufferLocation(INDEX_OUT_SSBO.getBufferLocation());
-    }
-
     private void swapMortonBuffers() {
         // Swap input/output buffers for next pass
-        int tempMortonIn = CURRENT_MORTON_IN_SSBO.getBufferLocation();
-        int tempIndexIn = CURRENT_INDEX_IN_SSBO.getBufferLocation();
-        CURRENT_MORTON_IN_SSBO.setBufferLocation(CURRENT_MORTON_OUT_SSBO.getBufferLocation());
-        CURRENT_INDEX_IN_SSBO.setBufferLocation(CURRENT_INDEX_OUT_SSBO.getBufferLocation());
-        CURRENT_MORTON_OUT_SSBO.setBufferLocation(tempMortonIn);
-        CURRENT_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
+        int tempMortonIn = SWAPPING_MORTON_IN_SSBO.getBufferLocation();
+        int tempIndexIn = SWAPPING_INDEX_IN_SSBO.getBufferLocation();
+        SWAPPING_MORTON_IN_SSBO.setBufferLocation(SWAPPING_MORTON_OUT_SSBO.getBufferLocation());
+        SWAPPING_INDEX_IN_SSBO.setBufferLocation(SWAPPING_INDEX_OUT_SSBO.getBufferLocation());
+        SWAPPING_MORTON_OUT_SSBO.setBufferLocation(tempMortonIn);
+        SWAPPING_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
     }
 
     public SSBO getOutputSSBO() {
@@ -891,10 +903,10 @@ public class BarnesHut {
 
         SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
         SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
-        CURRENT_MORTON_IN_SSBO = MORTON_IN_SSBO;
-        CURRENT_INDEX_IN_SSBO = INDEX_IN_SSBO;
-        CURRENT_MORTON_OUT_SSBO = MORTON_OUT_SSBO;
-        CURRENT_INDEX_OUT_SSBO = INDEX_OUT_SSBO;
+        SWAPPING_MORTON_IN_SSBO = FIXED_MORTON_IN_SSBO;
+        SWAPPING_INDEX_IN_SSBO = FIXED_INDEX_IN_SSBO;
+        SWAPPING_MORTON_OUT_SSBO = FIXED_MORTON_OUT_SSBO;
+        SWAPPING_INDEX_OUT_SSBO = FIXED_INDEX_OUT_SSBO;
     }
 
     /* --------- Cleanup --------- */
@@ -1024,7 +1036,7 @@ public class BarnesHut {
     private void debugMortonCodes() {
         
         // Read morton codes from GPU buffer
-        MORTON_IN_SSBO.bind();
+        FIXED_MORTON_IN_SSBO.bind();
         ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         LongBuffer mortonData = mortonBuffer.asLongBuffer();
         HashSet<Long> mortonSet = new HashSet<>();
@@ -1048,11 +1060,11 @@ public class BarnesHut {
     }
     
     private void debugRadixSort() {
-    MORTON_IN_SSBO.bind();
+    FIXED_MORTON_IN_SSBO.bind();
     ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
     IntBuffer mortonData = mortonBuffer.asIntBuffer();
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    INDEX_IN_SSBO.bind();
+    SWAPPING_INDEX_IN_SSBO.bind();
     ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
     IntBuffer indexData = indexBuffer.asIntBuffer();
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -1068,11 +1080,11 @@ public class BarnesHut {
     ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
     IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    MORTON_OUT_SSBO.bind();
+    FIXED_MORTON_OUT_SSBO.bind();
     ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
     IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    INDEX_OUT_SSBO.bind();
+    FIXED_INDEX_OUT_SSBO.bind();
     ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
     IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -1093,7 +1105,7 @@ public class BarnesHut {
     private void debugSorting() {
         System.out.println("=== RADIX SORT RESULTS ===");
             // Read sorted Morton codes
-            MORTON_IN_SSBO.bind();
+            FIXED_MORTON_IN_SSBO.bind();
             ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer mortonData = mortonBuffer.asIntBuffer();
             System.out.println("Sorted Morton codes:");
@@ -1109,7 +1121,7 @@ public class BarnesHut {
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             
             // Read sorted body indices
-            INDEX_OUT_SSBO.bind();
+            FIXED_INDEX_OUT_SSBO.bind();
             ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer indexData = indexBuffer.asIntBuffer();
             System.out.println("Sorted body indices:");

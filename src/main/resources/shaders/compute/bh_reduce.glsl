@@ -79,7 +79,8 @@ void propagateNodesKernel()
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
             if (prev == 1u) {
-                items[workIdx] = parentIdx;
+                uint idx = atomicAdd(tail, 1u);
+                items[idx] = parentIdx;
             }
         }
         workIdx += totalThreads;

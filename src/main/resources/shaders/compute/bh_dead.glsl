@@ -1,10 +1,10 @@
-
 uint aliveHistSize()    { return numWorkGroups * NUM_BUCKETS; }
 uint aliveScannedSize() { return numWorkGroups * NUM_BUCKETS; }
 uint deadHistOffset()   { return aliveHistSize(); }
 uint deadScannedOffset(){ return aliveScannedSize(); }
 
 shared uint deadFlags[WG_SIZE];
+shared uint aliveFlags[WG_SIZE];
 bool outOfBounds(Body b) {
     return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
            b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
@@ -22,16 +22,22 @@ void deadCountKernel() {
     if (lid == 0u) {
         wgHist[wgId + deadHistOffset()] = 0u;
     }
-    if (alive&& outOfBounds(srcB.bodies[bodyIdx])) {
+
+    
+    if (alive && outOfBounds(srcB.bodies[bodyIdx])) {
         dead = true;
 
     }
 
-    deadFlags[lid] = dead ? 1u : 0u;
+
     // this makes sure that the body is set to empty correctly on the old buffer
     if (dead) {
-        dstB.bodies[bodyIdx] = EMPTY_BODY;
+       srcB.bodies[bodyIdx] = EMPTY_BODY;
+       dstB.bodies[bodyIdx] = EMPTY_BODY;
     }
+
+    deadFlags[lid] = dead ? 1u : 0u;
+    //floatDebug[lid] = float(srcB.bodies[bodyIdx].posMass.w);
     barrier();
 
     if (lid == 0u) {
@@ -57,7 +63,7 @@ void deadExclusiveScanKernel() {
             wgScanned[wg+ deadScannedOffset()] = sum;
             sum += v;
         }
-        sim.numBodies -= sum;
+        sim.justDied += sum;
     }
     
 }
@@ -81,7 +87,7 @@ void deadScatterKernel() {
     else {
         deadFlags[lid] = 0u;
     }
-    
+    aliveFlags[lid] = isAlive ? 1u : 0u;
 
     barrier();
     uint localDeadRank = 0u;
@@ -90,16 +96,23 @@ void deadScatterKernel() {
             localDeadRank++;
         }
     }
-
-    uint localAliveRank = lid - localDeadRank;
+    uint localAliveRank = 0u;
+    for (uint i = 0u; i < lid; ++i) {
+        if (aliveFlags[i] == 1u) {
+            localAliveRank++;
+        }
+    }
 
     if (isDead) {
-        uint dstIndex = sim.numBodies + wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
+        uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
+        uintDebug[wgScanned[wgId+ deadScannedOffset()] + localDeadRank] = dstIndex;
         indexOut[dstIndex]  = bodyIdx;
-        mortonOut[dstIndex] = DEAD_VALUE;
+        //sim.numBodies sets where the dead bodies start, so we dont need to set the dead value
+        //mortonOut[dstIndex] = DEAD_VALUE;
     }
     else if (isAlive) {
         uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId+ deadScannedOffset()] + localAliveRank;
         indexOut[dstIndex]  = bodyIdx;
+        //mortonOut[dstIndex] = 10101010ul;
     }
 }

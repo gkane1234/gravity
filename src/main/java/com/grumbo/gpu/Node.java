@@ -112,8 +112,10 @@ public class Node {
     public static String getNodes(IntBuffer buffer, int startIndex, int endIndex) {
         Node[] nodes = fromBuffer(buffer, startIndex, endIndex);
         StringBuilder sb = new StringBuilder();
+        int index = startIndex;
         for (Node node : nodes) {
-            sb.append(node.toString()).append("\n");
+            sb.append(index).append(": ").append(node.toString()).append("\n");
+            index++;
         }
         return sb.toString();
     }

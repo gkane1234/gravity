@@ -14,15 +14,15 @@ public class SSBO {
         // SSBO Bindings
     public static final int BODIES_IN_SSBO_BINDING = 0;
     public static final int BODIES_OUT_SSBO_BINDING = 1;
-    public static final int MORTON_IN_SSBO_BINDING = 2;
-    public static final int INDEX_IN_SSBO_BINDING = 3;
+    public static final int FIXED_MORTON_IN_SSBO_BINDING = 2;
+    public static final int FIXED_INDEX_IN_SSBO_BINDING = 3;
     public static final int NODES_SSBO_BINDING = 4;
     public static final int VALUES_SSBO_BINDING = 5;
     public static final int WG_HIST_SSBO_BINDING = 6;
     public static final int WG_SCANNED_SSBO_BINDING = 7;
     public static final int BUCKET_TOTALS_SSBO_BINDING = 8;
-    public static final int MORTON_OUT_SSBO_BINDING = 9;
-    public static final int INDEX_OUT_SSBO_BINDING = 10;
+    public static final int FIXED_MORTON_OUT_SSBO_BINDING = 9;
+    public static final int FIXED_INDEX_OUT_SSBO_BINDING = 10;
     public static final int WORK_QUEUE_SSBO_BINDING = 11;
     public static final int MERGE_QUEUE_SSBO_BINDING = 12;
     public static final int DEBUG_SSBO_BINDING = 13;

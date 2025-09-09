@@ -41,14 +41,14 @@ struct Node {
     uint parentId;
 };
 
-layout(std430, binding = 0) readonly buffer  BodiesIn  {  Body bodies[]; } srcB;
+layout(std430, binding = 0) buffer  BodiesIn  {  Body bodies[]; } srcB;
 
 layout(std430, binding = 1) buffer BodiesOut {  Body bodies[]; } dstB;
 
 layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
-layout(std430, binding = 5) buffer Values { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; AABB bounds; } sim;
+layout(std430, binding = 5) buffer Values { uint numBodies; uint initialNumBodies; uint justDied; uint pad1; AABB bounds; } sim;
 // first half is for alive values second for dead values
 layout(std430, binding = 6) buffer WGHist      { uint wgHist[];      };
 // first half is for alive values second for dead values

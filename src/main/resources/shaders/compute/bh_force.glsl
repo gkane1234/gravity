@@ -23,6 +23,8 @@ void computeForce()
 
     uint bodyIdx = index[gid];
 
+    uintDebug[gid] = bodyIdx;
+
     Body body = srcB.bodies[bodyIdx];
 
     uint stack[64];
