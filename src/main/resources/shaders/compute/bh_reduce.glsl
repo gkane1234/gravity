@@ -25,6 +25,7 @@ void initLeafNodesKernel()
     }
 }
 // Each pass of this kernel propagates COM and AABB one level up the tree
+//TODO: make this work in one pass
 void propagateNodesKernel()
 {
     uint threadId = gl_GlobalInvocationID.x;
@@ -35,7 +36,6 @@ void propagateNodesKernel()
             atomicAdd(uintDebug[0], 1u);
         }
     }
-
 
     uint workIdx = threadId;
     while (workIdx < tail) {
@@ -81,6 +81,7 @@ void propagateNodesKernel()
             if (prev == 1u) {
                 uint idx = atomicAdd(tail, 1u);
                 items[idx] = parentIdx;
+
             }
         }
         workIdx += totalThreads;

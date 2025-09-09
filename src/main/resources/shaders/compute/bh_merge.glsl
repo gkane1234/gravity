@@ -18,7 +18,7 @@ Body mergeBodies(Body body1, Body body2) {
     mergedBody.color = (body1.color*body1.posMass.w+body2.color*body2.posMass.w)/newMass;
     return mergedBody;
 }
-
+//TODO: make this parallel
 void mergeBodiesKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid > 0) return;

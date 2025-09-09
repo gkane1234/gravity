@@ -47,14 +47,15 @@ public class GPUSimulation {
 
     public GPUSimulation() {
 
-        ArrayList<Planet> planets = createBoxSimulation();
+        ArrayList<Planet> planets = createSeveralDisksAroundAnotherDiskSimulation();
         Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
         boolean debug = true;
 
         this.openGlWindow = new OpenGLWindow(this); 
         this.planets = planets;
         this.initialbodiesContained = planets.size();
-        float[][] bounds = new float[][] {{-30000, -30000, -30000}, {30000, 30000, 30000}};
+        float boundSize = 500_000;
+        float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
         this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
@@ -112,9 +113,9 @@ public class GPUSimulation {
         float[] stellarDensityRange = {5f, 15f};
         float[] mRange = {100, 1200};
         float[] densityRange = {1f, 1f};
-        float[] centerX = {0, 300000};
-        float[] centerY = {0, 300000};
-        float[] centerZ = {0, 300000};
+        float[] centerX = {-300000, 300000};
+        float[] centerY = {-300000, 300000};
+        float[] centerZ = {-300000, 300000};
         float[] relativeVelocityX = {-10, 10};
         float[] relativeVelocityY = {-10, 10};
         float[] relativeVelocityZ = {-10, 10};
@@ -308,6 +309,10 @@ public class GPUSimulation {
     // Expose nodes SSBO for regions rendering
     public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
         return barnesHut.getNodesSSBO();
+    }
+
+    public com.grumbo.gpu.SSBO barnesHutValuesSSBO() {
+        return barnesHut.getValuesSSBO();
     }
 
 

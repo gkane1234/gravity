@@ -24,7 +24,7 @@ public class BarnesHut {
     private static final int NUM_RADIX_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
 
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 128;
+    private static final int PROPAGATE_NODES_ITERATIONS = 64;
     private boolean debug;
 
     // Uniforms
@@ -106,6 +106,7 @@ public class BarnesHut {
     private long propagateNodesTime;
     private long buildTreeTime;
     private long computeForceTime;
+    private long mergeBodiesTime;
 
     public String debugString;
     private GPUSimulation gpuSimulation;
@@ -131,16 +132,10 @@ public class BarnesHut {
 
         swapMortonBuffers();
         resetQueues(false);
-        System.out.println(Arrays.toString(DEBUG_SSBO.getHeaderAsInts()));
         generateMortonCodes();
-        System.out.println("Morton codes generated");
-        checkMortonCodes(SWAPPING_MORTON_IN_SSBO, true);
-        checkMortonCodes(SWAPPING_MORTON_OUT_SSBO, true);
-
+        
         radixSort();
-        System.out.println("Radix sort completed");
-        checkMortonCodes(SWAPPING_MORTON_IN_SSBO, false);
-        checkMortonCodes(SWAPPING_MORTON_OUT_SSBO, false);
+       
         buildBinaryRadixTree();
 
         computeCOMAndLocation();
@@ -153,6 +148,7 @@ public class BarnesHut {
             if (debug) {
             debugString = printProfiling();
         }
+
     }
 
     /* --------- Initialization --------- */
@@ -797,7 +793,15 @@ public class BarnesHut {
     }
 
     private void mergeBodies() {
+        if (debug) {
+            mergeBodiesTime = System.nanoTime();
+        }
         mergeBodiesKernel.run();
+        if (debug) {
+            checkGLError("mergeBodies");
+            glFinish();
+            mergeBodiesTime = System.nanoTime() - mergeBodiesTime;
+        }
     }
 
     private void initializeSwappingBuffers() {
@@ -847,6 +851,9 @@ public class BarnesHut {
         return NODES_SSBO;
     }
 
+    public SSBO getValuesSSBO() {
+        return VALUES_SSBO;
+    }
     private int numGroups() {
         return (gpuSimulation.numBodies() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
     }
@@ -929,7 +936,7 @@ public class BarnesHut {
         }
     }
     private String printProfiling() {
-        long totalTime = mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime;
+        long totalTime = mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime + mergeBodiesTime;
         long percentRendering = (renderingTime * 100) / totalTime;
         long percentReset = (resetTime * 100) / totalTime;
         long percentMorton = (mortonTime * 100) / totalTime;
@@ -947,7 +954,7 @@ public class BarnesHut {
         long percentInitLeaves = (initLeavesTime * 100) / totalTime;
         long percentPropagateNodes = (propagateNodesTime * 100) / totalTime;
         long percentComputeForce = (computeForceTime * 100) / totalTime;
-
+        long percentMergeBodies = (mergeBodiesTime * 100) / totalTime;
         final long oneMillion = 1_000_000;
         return renderingTime/oneMillion + " ms (" + percentRendering + "%)" +":Rendering\n" + 
                resetTime/oneMillion + " ms (" + percentReset + "%)" +":Reset\n" + 
@@ -966,6 +973,7 @@ public class BarnesHut {
                "\t" + initLeavesTime/oneMillion + " ms (" + percentInitLeaves + "%)" +":Init Leaves\n" +
                "\t" + propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":Propagate Nodes\n" +
                computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
+               mergeBodiesTime/oneMillion + " ms (" + percentMergeBodies + "%)" +":Merge Bodies\n" +
                totalTime/oneMillion + " ms" +":Total\n";
     }
 

@@ -20,7 +20,7 @@ struct Node {
 layout(std430, binding = 4) readonly buffer Nodes {
 	Node nodes[];
 };
-layout(std430, binding = 0) readonly buffer BodiesHeader { 
+layout(std430, binding = 5) readonly buffer Values { 
 	uint numBodies;
 	uint initialNumBodies;
 };

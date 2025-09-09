@@ -175,7 +175,7 @@ public class Render {
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
                 default: break;
             }
-            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO(), bodiesOutSSBO);
+            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
         }
 
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
@@ -250,7 +250,7 @@ public class Render {
             glUseProgram(0);
         }
 
-        public void renderRegions(SSBO NodesSSBO, SSBO bodiesOutSSBO) {
+        public void renderRegions(SSBO NodesSSBO, SSBO ValuesSSBO) {
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -263,11 +263,7 @@ public class Render {
             
             glUniform2i(uMinMaxDepthLoc, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
 
-            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-                SSBO.BODIES_IN_SSBO_BINDING,
-                bodiesOutSSBO.getBufferLocation(),
-                0,
-                16*Float.BYTES);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, ValuesSSBO.getBufferLocation());
 
             glBindVertexArray(regionsVao);
             int instanceCount = Math.max(0, gpuSimulation.numBodies() - 1);

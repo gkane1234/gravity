@@ -61,10 +61,10 @@ void computeForce()
                 //         body.posMass.xyz -= correction;
                 //     }
                 // } else 
-                if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < index[nodeIdx])) {
-                    uint slot = atomicAdd(mergeQueueTail, 1u);
-                    mergeQueue[slot] = uvec2(bodyIdx , index[nodeIdx]);
-                }
+                // if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < index[nodeIdx])) {
+                //     uint slot = atomicAdd(mergeQueueTail, 1u);
+                //     mergeQueue[slot] = uvec2(bodyIdx , index[nodeIdx]);
+                // }
             }
         }
         else if (acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
