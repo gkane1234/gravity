@@ -1,3 +1,4 @@
+
 // Force computation and merging
 bool acceptanceCriterion(float longestRadius, float invDist, float thetaVal)
 

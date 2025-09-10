@@ -42,9 +42,7 @@ struct Node {
 };
 
 layout(std430, binding = 0) buffer  BodiesIn  {  Body bodies[]; } srcB;
-
 layout(std430, binding = 1) buffer BodiesOut {  Body bodies[]; } dstB;
-
 layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
 layout(std430, binding = 3) buffer Indices    { uint index[]; };
 layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
@@ -64,7 +62,7 @@ layout(std430, binding = 13) buffer Debug { uint uintDebug[100]; float floatDebu
 
 
 
-const uint64_t DEAD_VALUE = 0xFFFFFFFFFFFFFFFFul;
+const uvec2 DEAD_VALUE = uvec2(0xFFFFFFFFu, 0xFFFFFFFFu);
 
 AABB updateAABB(AABB a, AABB b) {
     AABB result;

@@ -27,27 +27,27 @@ public class Render {
     public boolean showRegions = false;
 
     // Render Programs
-    private int renderProgram; // points program
+    private int pointsProgram; // points program
     private int impostorProgram; // point-sprite impostor spheres
     private int sphereProgram;   // instanced mesh spheres
     private int regionsProgram; // regions
     
     //Render Uniforms
     private int vao; // for points and impostors
-    private int uMvpLocation;           // for points
-    private int uModelViewLocationImpostor;   // for impostors
-    private int uMvpLocationSphere;     // for mesh spheres
-    private int uSphereRadiusScaleLoc;  // mass->radius scale
-    private int uCameraPosLocSphere;
-    private int uImpostorPointScaleLoc; // impostor scale (world radius scale)
-    private int uImpostorCameraPosLoc;
-    private int uImpostorCameraFrontLoc;
-    private int uImpostorFovYLoc;
-    private int uImpostorAspectLoc;
-    private int uImpostorPassLoc;
-    private int uImpostorProjLoc;
-    private int uMvpLocationRegions;
-    private int uMinMaxDepthLoc;
+    private int uPointsMvpLocation;           // for points
+    private int uImpostorModelViewLocation;   // for impostors
+    private int uSphereMvpLocation;     // for mesh spheres
+    private int uSphereRadiusScaleLocation;  // mass->radius scale
+    private int uSphereCameraPosLocation;
+    private int uImpostorPointScaleLocation; // impostor scale (world radius scale)
+    private int uImpostorCameraPosLocation;
+    private int uImpostorCameraFrontLocation;
+    private int uImpostorFovYLocation;
+    private int uImpostorAspectLocation;
+    private int uImpostorPassLocation;
+    private int uImpostorProjLocation;
+    private int uRegionsMvpLocation;
+    private int uRegionsMinMaxDepthLocation;
 
     private int regionsVao;
     private int regionsVbo;
@@ -76,89 +76,74 @@ public class Render {
         this.debug = debug;
     }
 
-    public void init() {
-        // Create render shader (points)
-        renderProgram = glCreateProgram();
+
+    private void createProgram(String renderScheme, int program) {
         int vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vs, getVertexShaderSource());
+        glShaderSource(vs, getVertexShaderSource(renderScheme));
         glCompileShader(vs);
         checkShader(vs);
         int fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fs, getFragmentShaderSource());
+        glShaderSource(fs, getFragmentShaderSource(renderScheme));
         glCompileShader(fs);
         checkShader(fs);
-        glAttachShader(renderProgram, vs);
-        glAttachShader(renderProgram, fs);
-        glLinkProgram(renderProgram);
-        checkProgram(renderProgram);
+        glAttachShader(program, vs);
+        glAttachShader(program, fs);
+        glLinkProgram(program);
+        checkProgram(program);
+
+    }
+
+    public void init() {
+        // Create points render program
+        pointsProgram = glCreateProgram();
+        createProgram("points", pointsProgram);
 
         // Cache uniform locations
-        uMvpLocation = glGetUniformLocation(renderProgram, "uMVP");
+        uPointsMvpLocation = glGetUniformLocation(pointsProgram, "uMVP");
 
-        // Create impostor program
+        // Create impostor render program
         impostorProgram = glCreateProgram();
-        int ivs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(ivs, getImpostorVertexShaderSource());
-        glCompileShader(ivs);
-        checkShader(ivs);
-        int ifs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(ifs, getImpostorFragmentShaderSource());
-        glCompileShader(ifs);
-        checkShader(ifs);
-        glAttachShader(impostorProgram, ivs);
-        glAttachShader(impostorProgram, ifs);
-        glLinkProgram(impostorProgram);
-        checkProgram(impostorProgram);
-        uModelViewLocationImpostor = glGetUniformLocation(impostorProgram, "uModelView");
-        uImpostorPointScaleLoc = glGetUniformLocation(impostorProgram, "uPointScale");
-        uImpostorCameraPosLoc = glGetUniformLocation(impostorProgram, "uCameraPos");
-        uImpostorCameraFrontLoc = glGetUniformLocation(impostorProgram, "uCameraFront");
-        uImpostorFovYLoc = glGetUniformLocation(impostorProgram, "uFovY");
-        uImpostorAspectLoc = glGetUniformLocation(impostorProgram, "uAspect");
-        uImpostorPassLoc = glGetUniformLocation(impostorProgram, "uPass");
-        uImpostorProjLoc = glGetUniformLocation(impostorProgram, "uProj");
+        createProgram("impostor", impostorProgram);
 
-        // Create mesh sphere program
+        // Cache uniform locations
+        uImpostorModelViewLocation = glGetUniformLocation(impostorProgram, "uModelView");
+        uImpostorPointScaleLocation = glGetUniformLocation(impostorProgram, "uPointScale");
+        uImpostorCameraPosLocation = glGetUniformLocation(impostorProgram, "uCameraPos");
+        uImpostorCameraFrontLocation = glGetUniformLocation(impostorProgram, "uCameraFront");
+        uImpostorFovYLocation = glGetUniformLocation(impostorProgram, "uFovY");
+        uImpostorAspectLocation = glGetUniformLocation(impostorProgram, "uAspect");
+        uImpostorPassLocation = glGetUniformLocation(impostorProgram, "uPass");
+        uImpostorProjLocation = glGetUniformLocation(impostorProgram, "uProj");
+
+        // Create mesh sphere render program
         sphereProgram = glCreateProgram();
-        int svs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(svs, getSphereVertexShaderSource());
-        glCompileShader(svs);
-        checkShader(svs);
-        int sfs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(sfs, getSphereFragmentShaderSource());
-        glCompileShader(sfs);
-        checkShader(sfs);
-        glAttachShader(sphereProgram, svs);
-        glAttachShader(sphereProgram, sfs);
-        glLinkProgram(sphereProgram);
-        checkProgram(sphereProgram);
-        uMvpLocationSphere = glGetUniformLocation(sphereProgram, "uMVP");
-        uSphereRadiusScaleLoc = glGetUniformLocation(sphereProgram, "uRadiusScale");
-        uCameraPosLocSphere = glGetUniformLocation(sphereProgram, "uCameraPos");
+        createProgram("sphere", sphereProgram);
+
+        // Cache uniform locations
+        uSphereMvpLocation = glGetUniformLocation(sphereProgram, "uMVP");
+        uSphereRadiusScaleLocation = glGetUniformLocation(sphereProgram, "uRadiusScale");
+        uSphereCameraPosLocation = glGetUniformLocation(sphereProgram, "uCameraPos");
+
+        // Enable point size
         glEnable(GL_PROGRAM_POINT_SIZE);
+
         // Initialize sphere mesh VAO/VBO/IBO
         vao = glGenVertexArrays();
         rebuildSphereMesh();
 
         // Initialize regions program
         regionsProgram = glCreateProgram();
-        int rvs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(rvs, getRegionsVertexShaderSource());
-        glCompileShader(rvs);
-        checkShader(rvs);
-        int rfs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(rfs, getRegionsFragmentShaderSource());
-        glCompileShader(rfs);
-        checkShader(rfs);
-        glAttachShader(regionsProgram, rvs);
-        glAttachShader(regionsProgram, rfs);
-        glLinkProgram(regionsProgram);
-        checkProgram(regionsProgram);
-        uMvpLocationRegions = glGetUniformLocation(regionsProgram, "uMVP");
-        uMinMaxDepthLoc = glGetUniformLocation(regionsProgram, "uMinMaxDepth");
+        createProgram("regions", regionsProgram);
+
+        // Cache uniform locations
+        uRegionsMvpLocation = glGetUniformLocation(regionsProgram, "uMVP");
+        uRegionsMinMaxDepthLocation = glGetUniformLocation(regionsProgram, "uMinMaxDepth");
+
+        // Initialize regions VAO/VBO/EBO
         regionsVao = glGenVertexArrays();
         regionsVbo = glGenBuffers();
         regionsEbo = glGenBuffers();
+
         rebuildRegionsMesh();
 
     }
@@ -189,7 +174,7 @@ public class Render {
     
         public void renderPoints(SSBO bodiesOutSSBO     ) {
             // Do not clear or swap; caller owns window
-            glUseProgram(renderProgram);
+            glUseProgram(pointsProgram);
             // MVP will be sent by caller before rendering
             bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(vao);
@@ -222,13 +207,13 @@ public class Render {
 
         private void renderImpostorSpheresPass(SSBO bodiesOutSSBO, int pass) {
             glUseProgram(impostorProgram);
-            glUniform1f(uImpostorPointScaleLoc, impostorPointScale);
-            glUniform3f(uImpostorCameraPosLoc, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
-            glUniform3f(uImpostorCameraFrontLoc, Settings.getInstance().getCameraFront().x, Settings.getInstance().getCameraFront().y, Settings.getInstance().getCameraFront().z);
-            glUniform1f(uImpostorFovYLoc, (float)Math.toRadians(Settings.getInstance().getFov()));
-            glUniform1i(uImpostorPassLoc, pass);
+            glUniform1f(uImpostorPointScaleLocation, impostorPointScale);
+            glUniform3f(uImpostorCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
+            glUniform3f(uImpostorCameraFrontLocation, Settings.getInstance().getCameraFront().x, Settings.getInstance().getCameraFront().y, Settings.getInstance().getCameraFront().z);
+            glUniform1f(uImpostorFovYLocation, (float)Math.toRadians(Settings.getInstance().getFov()));
+            glUniform1i(uImpostorPassLocation, pass);
             float aspect = (float)Settings.getInstance().getWidth() / (float)Settings.getInstance().getHeight();
-            glUniform1f(uImpostorAspectLoc, aspect);
+            glUniform1f(uImpostorAspectLocation, aspect);
             // cameraToClipMatrix is set by caller via setCameraToClip
             bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(vao);
@@ -241,9 +226,9 @@ public class Render {
             glUseProgram(sphereProgram);
             bindWithCorrectOffset(bodiesOutSSBO);
             glBindVertexArray(sphereVao);
-            glUniform1f(uSphereRadiusScaleLoc, sphereRadiusScale);
+            glUniform1f(uSphereRadiusScaleLocation, sphereRadiusScale);
             // Distance/color uniforms
-            glUniform3f(uCameraPosLocSphere, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
+            glUniform3f(uSphereCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
             int instanceCount = Math.min(gpuSimulation.numBodies(), maxMeshInstances);
             glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
             glBindVertexArray(0);
@@ -261,7 +246,7 @@ public class Render {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
             // Start after leaves
             
-            glUniform2i(uMinMaxDepthLoc, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
+            glUniform2i(uRegionsMinMaxDepthLocation, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
 
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, ValuesSSBO.getBufferLocation());
 
@@ -310,77 +295,43 @@ public class Render {
 
     public void setMvp(java.nio.FloatBuffer mvp4x4ColumnMajor) {
         // Called by the window each frame to set camera transform 
-        glUseProgram(renderProgram);
-        glUniformMatrix4fv(uMvpLocation, false, mvp4x4ColumnMajor);
-        glUseProgram(0);
+        glUseProgram(pointsProgram);
+        glUniformMatrix4fv(uPointsMvpLocation, false, mvp4x4ColumnMajor);
         glUseProgram(sphereProgram);
-        glUniformMatrix4fv(uMvpLocationSphere, false, mvp4x4ColumnMajor);
-        glUseProgram(0);
+        glUniformMatrix4fv(uSphereMvpLocation, false, mvp4x4ColumnMajor);
         glUseProgram(regionsProgram);
-        glUniformMatrix4fv(uMvpLocationRegions, false, mvp4x4ColumnMajor);
+        glUniformMatrix4fv(uRegionsMvpLocation, false, mvp4x4ColumnMajor);
         glUseProgram(0);
     }
     
     public void setCameraToClip(java.nio.FloatBuffer cameraToClip4x4ColumnMajor) {
         // Mirror MVP handling: set on impostor program when provided
         glUseProgram(impostorProgram);
-        glUniformMatrix4fv(uImpostorProjLoc, false, cameraToClip4x4ColumnMajor);
+        glUniformMatrix4fv(uImpostorProjLocation, false, cameraToClip4x4ColumnMajor);
         glUseProgram(0);
     }
 
     public void setModelView(java.nio.FloatBuffer modelView4x4ColumnMajor) {
         glUseProgram(impostorProgram);
-        glUniformMatrix4fv(uModelViewLocationImpostor, false, modelView4x4ColumnMajor);
+        glUniformMatrix4fv(uImpostorModelViewLocation, false, modelView4x4ColumnMajor);
         glUseProgram(0);
     }
 
     /* --------- SHADERS --------- */
 
-    private String getVertexShaderSource() {
+    private String getVertexShaderSource(String renderScheme) {
         try {
-            return Files.readString(Paths.get("src/main/resources/shaders/points/vertexshader.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/render/" + renderScheme + "/"+ renderScheme + ".vert"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read vertex shader: " + e.getMessage());
         }
     }
 
-    private String getFragmentShaderSource() {
+    private String getFragmentShaderSource(String renderScheme) {
         try {
-            return Files.readString(Paths.get("src/main/resources/shaders/points/fragmentshader.glsl"));
+            return Files.readString(Paths.get("src/main/resources/shaders/render/" + renderScheme + "/"+ renderScheme + ".frag"));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read fragment shader: " + e.getMessage());
-        }
-    }
-
-    private String getImpostorVertexShaderSource() {
-        try {
-            return Files.readString(Paths.get("src/main/resources/shaders/imposter/impostor_vertex.glsl"));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read impostor vertex shader: " + e.getMessage());
-        }
-    }
-
-    private String getImpostorFragmentShaderSource() {
-        try {
-            return Files.readString(Paths.get("src/main/resources/shaders/imposter/impostor_fragment.glsl"));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read impostor fragment shader: " + e.getMessage());
-        }
-    }
-
-    private String getSphereVertexShaderSource() {
-        try {
-            return Files.readString(Paths.get("src/main/resources/shaders/spheres/sphere_vertex.glsl"));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read sphere vertex shader: " + e.getMessage());
-        }
-    }
-
-    private String getSphereFragmentShaderSource() {
-        try {
-            return Files.readString(Paths.get("src/main/resources/shaders/spheres/sphere_fragment.glsl"));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read sphere fragment shader: " + e.getMessage());
         }
     }
 
@@ -544,24 +495,10 @@ public class Render {
     
     
         }
-        private String getRegionsVertexShaderSource() {
-            try {
-                return Files.readString(Paths.get("src/main/resources/shaders/regions/regions_vertex.glsl"));
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to read regions vertex shader: " + e.getMessage());
-            }
-        }
-        private String getRegionsFragmentShaderSource() {
-            try {
-                return Files.readString(Paths.get("src/main/resources/shaders/regions/regions_fragment.glsl"));
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to read regions fragment shader: " + e.getMessage());
-            }
-        }
 
     /* --------- Cleanup --------- */
     public void cleanup() {
-        if (renderProgram != 0) glDeleteProgram(renderProgram);
+        if (pointsProgram != 0) glDeleteProgram(pointsProgram);
         if (impostorProgram != 0) glDeleteProgram(impostorProgram);
         if (sphereProgram != 0) glDeleteProgram(sphereProgram);
         

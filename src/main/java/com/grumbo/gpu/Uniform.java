@@ -2,6 +2,8 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 
+import java.util.Arrays;
+
 public class Uniform<T> {
 
     // uniform float softening;
@@ -17,6 +19,9 @@ public class Uniform<T> {
     private String name;
     private valueFunction<T> value;
     private boolean unsigned = false;
+
+
+    private static final Class<?>[] ALLOWED_TYPES = new Class<?>[] { Integer.class, Float.class, Boolean.class, Long.class };
     public interface valueFunction<T> {
         T getValue();
     }
@@ -25,6 +30,13 @@ public class Uniform<T> {
         this.name = name;
         this.value = value;
         this.unsigned = unsigned;
+        if (value != null && value.getValue() != null) {
+            Class<?> actualType = value.getValue().getClass();
+            if (!Arrays.asList(ALLOWED_TYPES).contains(actualType)) {
+                throw new IllegalArgumentException("Invalid type: " + actualType);
+            }
+        }
+        
     }
 
     public Uniform(String name, valueFunction<T> value) {

@@ -1,3 +1,5 @@
+
+
 uint aliveHistSize()    { return numWorkGroups * NUM_BUCKETS; }
 uint aliveScannedSize() { return numWorkGroups * NUM_BUCKETS; }
 uint deadHistOffset()   { return aliveHistSize(); }

@@ -1,17 +1,18 @@
 #version 430
 #extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_shading_language_include : enable
 
-#include "bh_common.glsl"
-#include "bh_init.glsl"
-#include "bh_morton.glsl"
-#include "bh_radix.glsl"
-#include "bh_tree.glsl"
-#include "bh_reduce.glsl"
-#include "bh_force.glsl"
-#include "bh_debug.glsl"
-#include "bh_merge.glsl"
-#include "bh_reset.glsl"
-#include "bh_dead.glsl"
+#include "bh_common.comp"
+#include "bh_init.comp"
+#include "bh_morton.comp"
+#include "bh_radix.comp"
+#include "bh_tree.comp"
+#include "bh_reduce.comp"
+#include "bh_force.comp"
+#include "bh_debug.comp"
+#include "bh_merge.comp"
+#include "bh_reset.comp"
+#include "bh_dead.comp"
 
 void main()
 {

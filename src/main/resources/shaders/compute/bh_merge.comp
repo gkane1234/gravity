@@ -1,3 +1,4 @@
+
 Body mergeBodies(Body body1, Body body2) {
     Body mergedBody;    
     float newMass = body1.posMass.w + body2.posMass.w;
@@ -21,8 +22,8 @@ Body mergeBodies(Body body1, Body body2) {
 //TODO: make this parallel
 void mergeBodiesKernel() {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid > 0) return;
-    for (uint i = 0; i < mergeQueueTail; i++) {
+    if (gid > 0u) return;
+    for (uint i = 0u; i < mergeQueueTail; i++) {
         
         uvec2 bodies = mergeQueue[i];
         Body body1 = dstB.bodies[bodies.x];
