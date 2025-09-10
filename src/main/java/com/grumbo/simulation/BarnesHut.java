@@ -768,6 +768,7 @@ public class BarnesHut {
 
         for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
             propagateNodesKernel.run();
+            System.out.println(Arrays.toString(DEBUG_SSBO.getHeaderAsInts()));
 
         }
         

@@ -1,3 +1,5 @@
+// #extension GL_ARB_shading_language_include : enable
+// #include "bh_common.comp"
 // Bottom-up reduction for COM and AABB
 
 // Sets the proper values for the leaf nodes
@@ -5,6 +7,11 @@
 void initLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
+
+    if (gid == 0) {
+        uintDebug[0]=0u;
+        uintDebug[50]=0u;
+    }
     if (gid >= sim.numBodies) return;
 
     uint bodyIdx = index[gid];
@@ -37,11 +44,11 @@ void propagateNodesKernel()
         }
     }
 
-    uint workIdx = threadId;
+    uint workIdx = threadId-totalThreads;
     while (workIdx < tail) {
+        workIdx += totalThreads;
         uint nodeIdx = items[workIdx];
         if (nodes[nodeIdx].readyChildren >= 3u) {
-            workIdx += totalThreads;
             continue;
         }
 
@@ -49,14 +56,11 @@ void propagateNodesKernel()
         uint leftChild = nodes[nodeIdx].childA;
         uint rightChild = nodes[nodeIdx].childB;
         if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
-            workIdx += totalThreads;
-
             continue;
 
             
         }
         if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
-            workIdx += totalThreads;
             continue;
         }
         vec4 leftCOM = nodes[leftChild].comMass;
@@ -84,6 +88,8 @@ void propagateNodesKernel()
 
             }
         }
-        workIdx += totalThreads;
+
+        //uintDebug[50]+=1u;
+        
     }
 }
