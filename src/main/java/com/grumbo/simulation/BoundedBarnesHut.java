@@ -36,7 +36,8 @@ public class BoundedBarnesHut {
     // Simulation params
     //To change these, you need to also change their definitions in the compute shader
     private static final int WORK_GROUP_SIZE = 256;
-    private static final int NUM_RADIX_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
+    private static final int RADIX_BITS = 4;
+    private static final int NUM_RADIX_BUCKETS = 2^RADIX_BITS; // 16
 
     // These can be freely changed here
     private static final int PROPAGATE_NODES_ITERATIONS = 512;
@@ -774,7 +775,7 @@ public class BoundedBarnesHut {
     }
 
     private void radixSort() {
-        int numPasses = (int)Math.ceil(63.0 / NUM_RADIX_BUCKETS);
+        int numPasses = (int)Math.ceil(63.0 / 4.0);
         
         radixSortHistogramTime = 0;
         radixSortScanParallelTime = 0;
