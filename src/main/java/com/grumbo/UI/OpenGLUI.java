@@ -23,6 +23,8 @@ public class OpenGLUI {
 
     private SettingsPane settingsPane;
     public boolean showCrosshair = false;
+
+    private int currentBodies = 0;
     public class KeyEvent {
         public int key;
         private Runnable pressAction;
@@ -101,7 +103,8 @@ public class OpenGLUI {
         settingsPane = new SettingsPane();
         initKeyEvents();
         setupCallbacks();
-        
+
+        currentBodies = openGlWindow.gpuSimulation.currentBodies();
 
     }
 
@@ -149,9 +152,10 @@ public class OpenGLUI {
             }
         },false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {currentBodies = openGlWindow.gpuSimulation.currentBodies();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F7, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
     }
 
@@ -403,7 +407,7 @@ public class OpenGLUI {
         // Draw text in white
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
         font.drawText(fpsText, x, y);
-        //font.drawText("Bodies: " + openGlWindow.gpuSimulation.currentBodies(), x, y + textHeight);
+        font.drawText("Bodies: " + currentBodies, x, y + textHeight);
         
         // Re-enable depth testing
         glEnable(GL_DEPTH_TEST);

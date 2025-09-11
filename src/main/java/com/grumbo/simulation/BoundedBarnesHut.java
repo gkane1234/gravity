@@ -37,10 +37,10 @@ public class BoundedBarnesHut {
     //To change these, you need to also change their definitions in the compute shader
     private static final int WORK_GROUP_SIZE = 256;
     private static final int RADIX_BITS = 4;
-    private static final int NUM_RADIX_BUCKETS = 2^RADIX_BITS; // 16
+    private static final int NUM_RADIX_BUCKETS = (int)Math.pow(2, RADIX_BITS); // 16 when RADIX_BITS=4
 
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 512;
+    private static final int PROPAGATE_NODES_ITERATIONS = 64;
 
 
     // Uniforms
@@ -63,24 +63,22 @@ public class BoundedBarnesHut {
 
     // Compute Shaders
     private List<ComputeShader> computeShaders;
-    private ComputeShader initKernel;
-    private ComputeShader mortonKernel;
-    private ComputeShader deadCountKernel;
-    private ComputeShader deadExclusiveScanKernel;
-    private ComputeShader deadScatterKernel;
-    private ComputeShader radixSortHistogramKernel;
-    private ComputeShader radixSortParallelScanKernel;
-    private ComputeShader radixSortExclusiveScanKernel;
-    private ComputeShader radixSortDeadExclusiveScanKernel;
-    private ComputeShader radixSortScatterKernel;
-    private ComputeShader radixSortDeadScatterKernel;
-    private ComputeShader buildBinaryRadixTreeKernel;
-    private ComputeShader initLeavesKernel;
-    private ComputeShader resetKernel;
-    private ComputeShader propagateNodesKernel;
-    private ComputeShader computeForceKernel;
-    private ComputeShader mergeBodiesKernel;
-    private ComputeShader debugKernel;
+    private ComputeShader initKernel; // bh_init.comp
+    private ComputeShader resetKernel; // bh_reset.comp
+    private ComputeShader mortonKernel; // bh_morton.comp
+    private ComputeShader deadCountKernel; // bh_dead.comp
+    private ComputeShader deadExclusiveScanKernel; // bh_dead.comp
+    private ComputeShader deadScatterKernel; // bh_dead.comp
+    private ComputeShader radixSortHistogramKernel; // bh_radix.comp
+    private ComputeShader radixSortParallelScanKernel; // bh_radix.comp
+    private ComputeShader radixSortExclusiveScanKernel; // bh_radix.comp
+    private ComputeShader radixSortScatterKernel; // bh_radix.comp
+    private ComputeShader buildBinaryRadixTreeKernel; // bh_tree.comp
+    private ComputeShader initLeavesKernel; // bh_reduce.comp
+    private ComputeShader propagateNodesKernel; // bh_reduce.comp
+    private ComputeShader computeForceKernel; // bh_force.comp
+    private ComputeShader mergeBodiesKernel; // bh_merge.comp
+    private ComputeShader debugKernel; // bh_debug.comp
 
     // SSBOs
     public Map<String, SSBO> ssbos;
@@ -220,12 +218,12 @@ public class BoundedBarnesHut {
         //These are the fixed SSBOs that point to the bodies in and out buffers.
         //They are intialized with the data from the planets list.
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
-            return packPlanets(gpuSimulation.getPlanets());
+            return Body.packPlanets(gpuSimulation.getPlanets());
         }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
 
         FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
-            return packPlanets(gpuSimulation.getPlanets());
+            return Body.packPlanets(gpuSimulation.getPlanets());
         }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
@@ -317,7 +315,19 @@ public class BoundedBarnesHut {
 
 
     }
+    /**
+     * Reinitialize the compute SSBOs and swapping buffers.
+     */
+    public void reInitComputeSSBOsAndSwappingBuffers() {
+        for (SSBO ssbo : ssbos.values()) {
+            ssbo.createBufferData();
+        }
+        initComputeSwappingBuffers();
+    }
 
+    /**
+     * Initialize the uniforms. These are defined in bh_common.comp for the most part.
+     */
     private void initComputeUniforms() {
         uniforms = new HashMap<>();
         uniforms.put("numWorkGroups", numWorkGroupsUniform);
@@ -373,6 +383,9 @@ public class BoundedBarnesHut {
 
     }
 
+    /**
+     * Initialize the compute shaders. The names are defined in bh_main.comp. For more information on the shaders, see the glsl code in the shaders folder.
+     */
     private void initComputeShaders() {
 
         computeShaders = new ArrayList<>();
@@ -498,19 +511,6 @@ public class BoundedBarnesHut {
             return NUM_RADIX_BUCKETS;
         });
         computeShaders.add(radixSortExclusiveScanKernel);
-        radixSortDeadExclusiveScanKernel = new ComputeShader("KERNEL_RADIX_DEAD_EXCLUSIVE_SCAN", this);
-        radixSortDeadExclusiveScanKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        radixSortDeadExclusiveScanKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "WG_HIST_SSBO",
-            "WG_SCANNED_SSBO"
-        });
-        radixSortDeadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
-            return 1;
-        });
-        computeShaders.add(radixSortDeadExclusiveScanKernel);
         radixSortScatterKernel = new ComputeShader("KERNEL_RADIX_SCATTER", this);
 
         radixSortScatterKernel.setUniforms(new Uniform[] {
@@ -534,23 +534,6 @@ public class BoundedBarnesHut {
         });
         computeShaders.add(radixSortScatterKernel); 
 
-        radixSortDeadScatterKernel = new ComputeShader("KERNEL_RADIX_DEAD_SCATTER", this);
-        radixSortDeadScatterKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        radixSortDeadScatterKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "WG_SCANNED_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_MORTON_OUT_SSBO",
-            "SWAPPING_INDEX_OUT_SSBO"
-        });
-        radixSortDeadScatterKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(radixSortDeadScatterKernel);
 
         buildBinaryRadixTreeKernel = new ComputeShader("KERNEL_BUILD_BINARY_RADIX_TREE", this);
         buildBinaryRadixTreeKernel.setUniforms(new Uniform[] {
@@ -690,7 +673,9 @@ public class BoundedBarnesHut {
     }
 
     /* --------- Barnes-Hut --------- */
-
+    /**
+     * Check the time taken to render the simulation. Which takes place after the algorithm is run, and can be done by waiting for glFinish() before running the algorithm again.
+     */
     private void renderingTimeCheck() {
         if (debug) {
             renderingTime = System.nanoTime();
@@ -701,6 +686,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Reset the values for the next iteration. In bh_reset.comp
+     */
     private void resetValues() {
         long resetStartTime = 0;
         if (debug) {
@@ -715,6 +703,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Decrement the number of dead bodies from the total number of bodies. In bh_reset.comp
+     */
     private void decrementDeadBodies() {
         long resetStartTime = 0;
         if (debug) {
@@ -729,6 +720,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Partition the dead bodies to the end of the array. In bh_dead.comp
+     */
     private void partitionDeadBodies() {
         long deadCountStartTime = 0;
         long deadExclusiveScanStartTime = 0;
@@ -760,6 +754,10 @@ public class BoundedBarnesHut {
         }
 
     }
+
+    /**
+     * Generate the morton codes for the alive bodies. In bh_morton.comp
+     */
     private void generateMortonCodes() {
         if (debug) {
             mortonTime = System.nanoTime();
@@ -774,6 +772,9 @@ public class BoundedBarnesHut {
 
     }
 
+    /**
+     * Radix sort the morton codes. In bh_radix.comp
+     */
     private void radixSort() {
         int numPasses = (int)Math.ceil(63.0 / 4.0);
         
@@ -842,6 +843,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Build the binary radix tree. In bh_tree.comp
+     */
     private void buildBinaryRadixTree() {
         if (debug) {
             buildTreeTime = System.nanoTime();
@@ -854,6 +858,9 @@ public class BoundedBarnesHut {
         }
     }
     
+    /**
+     * Compute the center of mass and location of the nodes in the tree. In bh_reduce_more_efficient.comp
+     */
     private void computeCOMAndLocation() {
         if (debug) {
             initLeavesTime = System.nanoTime();
@@ -895,6 +902,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Compute the force on each body using the tree. In bh_force.comp
+     */
     private void computeForce() {
         if (debug) {
             computeForceTime = System.nanoTime();
@@ -908,6 +918,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Merge the bodies, leaving empty bodies where they are. In bh_merge.comp
+     */
     private void mergeBodies() {
         if (debug) {
             mergeBodiesTime = System.nanoTime();
@@ -920,6 +933,9 @@ public class BoundedBarnesHut {
         }
     }
 
+    /**
+     * Initialize the compute swapping buffers.
+     */
     private void initComputeSwappingBuffers() {
         // Create Swapping SSBOs.
         // These are used as a double buffer for bodies 
@@ -944,7 +960,10 @@ public class BoundedBarnesHut {
         SWAPPING_INDEX_OUT_SSBO.setName("SWAPPING_INDEX_OUT_SSBO");
         ssbos.put(SWAPPING_INDEX_OUT_SSBO.getName(), SWAPPING_INDEX_OUT_SSBO);
     }
-
+    
+    /**
+     * Swap the body buffers.
+     */
     private void swapBodyBuffers() {
         // Swap source and destination buffers for next iteration
         int tmpIn = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
@@ -952,6 +971,9 @@ public class BoundedBarnesHut {
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
     }
 
+    /**
+     * Swap the morton and index buffers.
+     */
     private void swapMortonAndIndexBuffers() {
         // Swap input/output buffers for next pass of radix sort and the one pass of dead body paritioning.
         int tempMortonIn = SWAPPING_MORTON_IN_SSBO.getBufferLocation();
@@ -962,39 +984,42 @@ public class BoundedBarnesHut {
         SWAPPING_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
     }
 
+    /**
+     * Get the output body buffer.
+     */
     public SSBO getOutputSSBO() {
         return SWAPPING_BODIES_IN_SSBO;
     }
 
+    /**
+     * Get the nodes buffer.
+     */
     public SSBO getNodesSSBO() {
         return NODES_SSBO;
     }
 
+    /**
+     * Get the values buffer.
+     */
     public SSBO getValuesSSBO() {
         return VALUES_SSBO;
     }
+
+    /**
+     * Get the number of work groups required for the given number of bodies.
+     */
     private int numGroups() {
         return (gpuSimulation.numBodies() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
     }
 
-    public ByteBuffer packPlanets(List<Planet> planets) {
-        // Packs planet data to float buffer: pos(x,y,z), mass, vel(x,y,z), pad, color(r,g,b,a)
-        int numBodies = planets.size();
-        
-        ByteBuffer buf = BufferUtils.createByteBuffer((numBodies * Body.STRUCT_SIZE)*4+Body.HEADER_SIZE);
-        for (int i = 0; i < numBodies; i++) {
-            Planet p = planets.get(i);
-            buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
-            buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
-            java.awt.Color c = p.getColor();
-            float cr = c != null ? (c.getRed() / 255f) : 1.0f;
-            float cg = c != null ? (c.getGreen() / 255f) : 1.0f;
-            float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
-            buf.putFloat(cr).putFloat(cg).putFloat(cb).putFloat(1.0f);
-        }
-        buf.flip();
-        return buf;
-    }
+    /**
+     * Pack the planet data to a float buffer.
+     */
+
+
+    /**
+     * Pack the values to a float buffer.
+     */
     public ByteBuffer packValues() {
 
         //layout(std430, binding = 5) buffer Values { uint numBodies; uint initialNumBodies; uint pad0; uint pad1; AABB bounds; } sim;
@@ -1009,34 +1034,22 @@ public class BoundedBarnesHut {
         return buf;
     }
 
+    /**
+     * Upload the planet data to the GPU.
+     */
     public void uploadPlanetsData(List<Planet> newPlanets) {
         // Assumes buffers are already correctly sized
-        ByteBuffer data = packPlanets(newPlanets);
+        ByteBuffer data = Body.packPlanets(newPlanets);
         glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_WRITE_ONLY);
         glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
         SSBO.unBind();
     }
 
-    public void resizeBuffersAndUpload(List<Planet> newPlanets) {
-        // Resizes SSBOs to fit new count, then uploads
-
-
-        
-        // Resize Barnes-Hut auxiliary buffers
-        for (SSBO ssbo : ssbos.values()) {
-            ssbo.createBufferData();
-        }
-
-        SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
-        SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
-        SWAPPING_MORTON_IN_SSBO = FIXED_MORTON_IN_SSBO;
-        SWAPPING_INDEX_IN_SSBO = FIXED_INDEX_IN_SSBO;
-        SWAPPING_MORTON_OUT_SSBO = FIXED_MORTON_OUT_SSBO;
-        SWAPPING_INDEX_OUT_SSBO = FIXED_INDEX_OUT_SSBO;
-    }
 
     /* --------- Cleanup --------- */
-
+    /**
+     * Cleanup the compute shaders and SSBOs.
+     */
     public void cleanup() {
         for (ComputeShader shader : computeShaders) {
             shader.delete();
@@ -1048,12 +1061,19 @@ public class BoundedBarnesHut {
 
     /* --------- Debugging --------- */
 
+    /**
+     * Check for OpenGL errors.
+     */
     private void checkGLError(String operation) {
         int error = glGetError();
         if (error != GL_NO_ERROR) {
             System.err.println("OpenGL Error after " + operation + ": " + error);
         }
     }
+
+    /**
+     * Print the profiling information.
+     */
     private String printProfiling() {
         long totalTime = mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime + mergeBodiesTime;
         long percentRendering = (renderingTime * 100) / totalTime;
@@ -1097,6 +1117,9 @@ public class BoundedBarnesHut {
     }
 
 
+    /**
+     * Check the morton codes debug.
+     */
     private void checkMortonCodes(SSBO mortonBuffer, boolean print) {
         boolean correctPartitioning = true;
         boolean correctSorting = true;
@@ -1128,6 +1151,9 @@ public class BoundedBarnesHut {
         System.out.println("Morton Codes are correctly sorted: " + correctSorting);
     }
 
+    /**
+     * Debug the morton codes.
+     */
     private void debugMortonCodes() {
         
         // Read morton codes from GPU buffer
@@ -1154,49 +1180,55 @@ public class BoundedBarnesHut {
         SSBO.unBind();
     }
     
+    /**
+     * Debug the radix sort.
+     */
     private void debugRadixSort() {
-    FIXED_MORTON_IN_SSBO.bind();
-    ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer mortonData = mortonBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    SWAPPING_INDEX_IN_SSBO.bind();
-    ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer indexData = indexBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    WG_HIST_SSBO.bind();
-    ByteBuffer wgHistBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer wgHistData = wgHistBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    WG_SCANNED_SSBO.bind();
-    ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    BUCKET_TOTALS_SSBO.bind();
-    ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    FIXED_MORTON_OUT_SSBO.bind();
-    ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    FIXED_INDEX_OUT_SSBO.bind();
-    ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-    IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    for (int i = 0; i < Math.min(10, gpuSimulation.numBodies()); i++) {
-        int morton = mortonData.capacity() > i ? mortonData.get(i) : -1;   
-        int index = indexData.capacity() > i ? indexData.get(i) : -1;
-        int wgHist = wgHistData.capacity() > i ? wgHistData.get(i) : -1;
-        int wgScanned = wgScannedData.capacity() > i ? wgScannedData.get(i) : -1;
-        int bucketTotals = bucketTotalsData.capacity() > i ? bucketTotalsData.get(i) : -1;
-        int mortonOut = mortonOutData.capacity() > i ? mortonOutData.get(i) : -1;
-        int indexOut = indexOutData.capacity() > i ? indexOutData.get(i) : -1;
-        System.out.printf("  [%d]: morton=%d index=%d wgHist=%d wgScanned=%d bucketTotals=%d mortonOut=%d indexOut=%d\n", i, morton, index, wgHist, wgScanned, bucketTotals, mortonOut, indexOut);
+        FIXED_MORTON_IN_SSBO.bind();
+        ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer mortonData = mortonBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        SWAPPING_INDEX_IN_SSBO.bind();
+        ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer indexData = indexBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        WG_HIST_SSBO.bind();
+        ByteBuffer wgHistBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer wgHistData = wgHistBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        WG_SCANNED_SSBO.bind();
+        ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        BUCKET_TOTALS_SSBO.bind();
+        ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        FIXED_MORTON_OUT_SSBO.bind();
+        ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        FIXED_INDEX_OUT_SSBO.bind();
+        ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        for (int i = 0; i < Math.min(10, gpuSimulation.numBodies()); i++) {
+            int morton = mortonData.capacity() > i ? mortonData.get(i) : -1;   
+            int index = indexData.capacity() > i ? indexData.get(i) : -1;
+            int wgHist = wgHistData.capacity() > i ? wgHistData.get(i) : -1;
+            int wgScanned = wgScannedData.capacity() > i ? wgScannedData.get(i) : -1;
+            int bucketTotals = bucketTotalsData.capacity() > i ? bucketTotalsData.get(i) : -1;
+            int mortonOut = mortonOutData.capacity() > i ? mortonOutData.get(i) : -1;
+            int indexOut = indexOutData.capacity() > i ? indexOutData.get(i) : -1;
+            System.out.printf("  [%d]: morton=%d index=%d wgHist=%d wgScanned=%d bucketTotals=%d mortonOut=%d indexOut=%d\n", i, morton, index, wgHist, wgScanned, bucketTotals, mortonOut, indexOut);
+        }
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
     }
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-}
-
+    /**
+     * Debug the radix sort.
+     */
     private void debugSorting() {
         System.out.println("=== RADIX SORT RESULTS ===");
             // Read sorted Morton codes
@@ -1230,6 +1262,9 @@ public class BoundedBarnesHut {
 
     }
 
+    /**
+     * Debug the tree.
+     */
     private void debugTree() {
         
         // Debug: Output buffer data
@@ -1318,6 +1353,9 @@ public class BoundedBarnesHut {
             NODES_SSBO.unbind();
     }
 
+    /**
+     * Verify the tree structure.
+     */
     private void verifyTreeStructure(IntBuffer nodeData, int numLeaves, int totalNodes) {
         System.out.println("\n=== TREE STRUCTURE VERIFICATION ===");
         
@@ -1485,6 +1523,4 @@ public class BoundedBarnesHut {
             rootCount, totalNodes, numLeaves, totalNodes - numLeaves);
         System.out.println("=== END VERIFICATION ===\n");
     }
-    
-    
 }

@@ -32,12 +32,8 @@ void main()
     radixParallelScanKernel();
 #elif defined(KERNEL_RADIX_EXCLUSIVE_SCAN)
     radixExclusiveScanKernel();
-#elif defined(KERNEL_RADIX_DEAD_EXCLUSIVE_SCAN)
-    deadExclusiveScanKernel();
 #elif defined(KERNEL_RADIX_SCATTER)
     radixScatterKernel();
-#elif defined(KERNEL_RADIX_DEAD_SCATTER)
-    deadScatterKernel();
 #elif defined(KERNEL_BUILD_BINARY_RADIX_TREE)
     buildBinaryRadixTreeKernel();
 #elif defined(KERNEL_INIT_LEAVES)

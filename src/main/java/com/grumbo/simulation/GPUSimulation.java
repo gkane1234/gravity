@@ -287,10 +287,10 @@ public class GPUSimulation {
     }
 
     public int currentBodies() { //Note: this is EXTREMELY slow.
-        if (boundedBarnesHut == null || boundedBarnesHut.getOutputSSBO() == null) {
+        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null) {
             return 0;
         }
-        return boundedBarnesHut.getOutputSSBO().getHeaderAsInts()[0];
+        return boundedBarnesHut.getValuesSSBO().getHeaderAsInts()[0];
         
     }
 
@@ -319,9 +319,12 @@ public class GPUSimulation {
     public void uploadPlanetsData(List<Planet> planets) {
         boundedBarnesHut.uploadPlanetsData(planets);
     }
+
     public void resizeBuffersAndUpload(List<Planet> planets) {
-        boundedBarnesHut.resizeBuffersAndUpload(planets);
+        this.planets = new ArrayList<>(planets);
+        boundedBarnesHut.reInitComputeSSBOsAndSwappingBuffers();
     }
+
 
     public String getPerformanceText() {
         return boundedBarnesHut.debugString;

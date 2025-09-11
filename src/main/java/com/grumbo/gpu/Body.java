@@ -2,6 +2,11 @@ package com.grumbo.gpu;
 
 import java.util.Arrays;
 import java.nio.IntBuffer;
+import java.nio.ByteBuffer;
+import java.util.List;
+import com.grumbo.simulation.Planet;
+import org.lwjgl.BufferUtils;
+
 /**
  * Java Analog to the Body struct in the shader code:
  * struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
@@ -64,6 +69,28 @@ public class Body {
             color[i] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COLOR_OFFSET + i));
         }
         return new Body(posMass, velDensity, color);
+    }
+    /**
+     * Packs planet data to a float buffer.
+     * @param planets the planets to pack
+     * @return the float buffer
+     */
+    public static ByteBuffer packPlanets(List<Planet> planets) {
+        int numBodies = planets.size();
+        
+        ByteBuffer buf = BufferUtils.createByteBuffer((numBodies * STRUCT_SIZE)*4+HEADER_SIZE);
+        for (int i = 0; i < numBodies; i++) {
+            Planet p = planets.get(i);
+            buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
+            buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
+            java.awt.Color c = p.getColor();
+            float cr = c != null ? (c.getRed() / 255f) : 1.0f;
+            float cg = c != null ? (c.getGreen() / 255f) : 1.0f;
+            float cb = c != null ? (c.getBlue() / 255f) : 1.0f;
+            buf.putFloat(cr).putFloat(cg).putFloat(cb).putFloat(1.0f);
+        }
+        buf.flip();
+        return buf;
     }
 
     /**
