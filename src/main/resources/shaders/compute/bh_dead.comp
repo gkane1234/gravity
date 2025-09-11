@@ -107,14 +107,11 @@ void deadScatterKernel() {
 
     if (isDead) {
         uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
-        //uintDebug[wgScanned[wgId+ deadScannedOffset()] + localDeadRank] = dstIndex;
         indexOut[dstIndex]  = bodyIdx;
-        //sim.numBodies sets where the dead bodies start, so we dont need to set the dead value
-        //mortonOut[dstIndex] = DEAD_VALUE;
+
     }
     else if (isAlive) {
         uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId+ deadScannedOffset()] + localAliveRank;
         indexOut[dstIndex]  = bodyIdx;
-        //mortonOut[dstIndex] = 10101010ul;
     }
 }

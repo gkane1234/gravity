@@ -3,6 +3,7 @@
 // =============================================================
 
 layout(local_size_x = 256) in;
+const uint WG_SIZE = 256u;
 uniform float softening;
 uniform float theta;
 uniform float dt;
@@ -16,11 +17,9 @@ uniform bool mergeToggle;
 
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
-const uint WG_SIZE = 256u;
+
 //Softening values can cause slowdowns
 const float SOFTENING = 0.1;
-
-
 
 struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
 
@@ -61,10 +60,6 @@ layout(std430, binding = 14) buffer WorkQueue2 { uint headB; uint tailB; uint ac
 layout(std430, binding = 15) buffer BodyLocks { uint bodyLocks[]; };
 
 
-
-
-
-const uvec2 DEAD_VALUE = uvec2(0xFFFFFFFFu, 0xFFFFFFFFu);
 
 AABB updateAABB(AABB a, AABB b) {
     AABB result;

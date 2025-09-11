@@ -26,7 +26,7 @@ void initLeafNodesKernel()
     nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
-    nodes[gid].readyChildren = 3u;
+    nodes[gid].readyChildren = 0xFFFFFFFFu;
     nodes[gid].nodeDepth = 0u;
 
     uint parentIdx = nodes[gid].parentId;
@@ -44,7 +44,7 @@ void propagateNodesKernel()
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0u) {
-        if (nodes[sim.initialNumBodies].readyChildren != 3u) {
+        if (nodes[sim.initialNumBodies].readyChildren != 0xFFFFFFFFu) {
             //atomicAdd(uintDebug[0], 1u);
 
         }
@@ -65,7 +65,7 @@ void propagateNodesKernel()
     while (selector == 0u ? (workIdx < tail) : (workIdx < tailB)) {
         
         uint nodeIdx = selector == 0u ? items[workIdx] : itemsB[workIdx];
-        if (nodes[nodeIdx].readyChildren >= 3u) {
+        if (nodes[nodeIdx].readyChildren == 0xFFFFFFFFu) {
             workIdx = selector == 0u ? atomicAdd(head, 1u) : atomicAdd(headB, 1u);
             continue;
         }
@@ -97,7 +97,7 @@ void propagateNodesKernel()
         AABB newAABB = updateAABB(leftAABB, rightAABB);
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
         nodes[nodeIdx].aabb = newAABB;
-        nodes[nodeIdx].readyChildren = 3u;
+        nodes[nodeIdx].readyChildren = 0xFFFFFFFFu;
         nodes[nodeIdx].nodeDepth = 1u+max(nodes[leftChild].nodeDepth, nodes[rightChild].nodeDepth);
         uint parentIdx = nodes[nodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {

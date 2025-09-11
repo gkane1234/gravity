@@ -18,7 +18,7 @@ import com.grumbo.record.Recording;
 
 public class GPUSimulation {
     
-    private BarnesHut barnesHut;
+    private BoundedBarnesHut boundedBarnesHut;
     private Render render;
     private OpenGLWindow openGlWindow;
 
@@ -57,7 +57,7 @@ public class GPUSimulation {
         float boundSize = 350_000;
         float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
-        this.barnesHut = new BarnesHut(this,debug,bounds);
+        this.boundedBarnesHut = new BoundedBarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.commandQueue = new ConcurrentLinkedQueue<>();
@@ -68,7 +68,7 @@ public class GPUSimulation {
         this.planets = planets;
         this.commandQueue = new ConcurrentLinkedQueue<>();
         float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
-        this.barnesHut = new BarnesHut(this,debug,bounds);
+        this.boundedBarnesHut = new BoundedBarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.initialbodiesContained = planets.size();
@@ -219,7 +219,7 @@ public class GPUSimulation {
 
     private void init() {
         openGlWindow.init();
-        barnesHut.init();
+        boundedBarnesHut.init();
         render.init();
     }
 
@@ -235,18 +235,18 @@ public class GPUSimulation {
     public void step() {
         processCommands();
         if (state == State.RUNNING) {
-            barnesHut.step();
-            render.render(barnesHut.getOutputSSBO(), state);
+            boundedBarnesHut.step();
+            render.render(boundedBarnesHut.getOutputSSBO(), state);
             captureIfRecording();
         }
 
         if (state == State.PAUSED) {
-            render.render(barnesHut.getOutputSSBO(), state);
+            render.render(boundedBarnesHut.getOutputSSBO(), state);
         }
 
         if (state == State.FRAME_ADVANCE) {
-            barnesHut.step();
-            render.render(barnesHut.getOutputSSBO(), state);
+            boundedBarnesHut.step();
+            render.render(boundedBarnesHut.getOutputSSBO(), state);
             captureIfRecording();
             state = State.PAUSED;
         }
@@ -287,10 +287,10 @@ public class GPUSimulation {
     }
 
     public int currentBodies() { //Note: this is EXTREMELY slow.
-        if (barnesHut == null || barnesHut.getOutputSSBO() == null) {
+        if (boundedBarnesHut == null || boundedBarnesHut.getOutputSSBO() == null) {
             return 0;
         }
-        return barnesHut.getOutputSSBO().getHeaderAsInts()[0];
+        return boundedBarnesHut.getOutputSSBO().getHeaderAsInts()[0];
         
     }
 
@@ -308,23 +308,23 @@ public class GPUSimulation {
 
     // Expose nodes SSBO for regions rendering
     public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
-        return barnesHut.getNodesSSBO();
+        return boundedBarnesHut.getNodesSSBO();
     }
 
     public com.grumbo.gpu.SSBO barnesHutValuesSSBO() {
-        return barnesHut.getValuesSSBO();
+        return boundedBarnesHut.getValuesSSBO();
     }
 
 
     public void uploadPlanetsData(List<Planet> planets) {
-        barnesHut.uploadPlanetsData(planets);
+        boundedBarnesHut.uploadPlanetsData(planets);
     }
     public void resizeBuffersAndUpload(List<Planet> planets) {
-        barnesHut.resizeBuffersAndUpload(planets);
+        boundedBarnesHut.resizeBuffersAndUpload(planets);
     }
 
     public String getPerformanceText() {
-        return barnesHut.debugString;
+        return boundedBarnesHut.debugString;
     }
 
     public void toggleRegions() {
@@ -354,7 +354,7 @@ public class GPUSimulation {
     /* --------- Cleanup --------- */
     public void cleanupEmbedded() {
 
-        barnesHut.cleanup();
+        boundedBarnesHut.cleanup();
         render.cleanup();
         // Minimal cleanup of GL objects created in embedded mode
         if (isRecording) {

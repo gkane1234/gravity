@@ -1,9 +1,12 @@
 package com.grumbo.gpu;
 
-import static org.lwjgl.opengl.GL43C.*;
-
-import java.util.Arrays;
-
+/**
+ * Uniform class for creating uniforms to be uploaded to the GPU.
+ * The generic type T must be of VariableType.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class Uniform<T> {
 
     // uniform float softening;
@@ -16,61 +19,66 @@ public class Uniform<T> {
     // uniform bool collision;
     // uniform uint numWorkGroups; // number of workgroups dispatched for histogram/scatter
     // uniform uint passShift;
+    // Name of the uniform
     private String name;
-    private valueFunction<T> value;
-    private boolean unsigned = false;
-
-
-    private static final Class<?>[] ALLOWED_TYPES = new Class<?>[] { Integer.class, Float.class, Boolean.class, Long.class };
-    public interface valueFunction<T> {
+    // Function to get the value of the uniform
+    private ValueFunction<T> value;
+    private VariableType type;
+    /**
+     * Function to get the value of the uniform
+     * @param <T> the type of the value
+     */
+    public interface ValueFunction<T> {
         T getValue();
     }
 
-    public Uniform(String name, valueFunction<T> value, boolean unsigned) {
+    /**
+     * Constructor for the Uniform class
+     * @param name the name of the uniform
+     * @param value the function to get the value of the uniform
+     * @param unsigned whether the uniform is unsigned
+     */
+    public Uniform(String name, ValueFunction<T> value, VariableType type) {
         this.name = name;
+        this.type = type;
         this.value = value;
-        this.unsigned = unsigned;
-        if (value != null && value.getValue() != null) {
-            Class<?> actualType = value.getValue().getClass();
-            if (!Arrays.asList(ALLOWED_TYPES).contains(actualType)) {
-                throw new IllegalArgumentException("Invalid type: " + actualType);
-            }
+
+        T sample = value.getValue();
+        if (!type.javaClass.isInstance(sample)) {
+            throw new IllegalArgumentException(
+                "Uniform type mismatch: " + type.javaClass.getSimpleName() + " != " + sample.getClass().getSimpleName());
         }
         
     }
-
-    public Uniform(String name, valueFunction<T> value) {
-        this(name, value, false);
-    }
-    
-    public void setValue(valueFunction<T> value) {
+    /**
+     * Sets the value of the uniform
+     * @param value the function to get the value of the uniform
+     */
+    public void setValue(ValueFunction<T> value) {
         this.value = value;
     }
 
+    /**
+     * Gets the value of the uniform
+     * @return the value of the uniform
+     */
     public T getValue() {
         return value.getValue();
     }
 
+    /**
+     * Gets the name of the uniform
+     * @return the name of the uniform
+     */
     public String getName() {
         return name;
     }
 
-    public boolean isUnsigned() {
-        return unsigned;
-    }
-
+    /**
+     * Uploads the uniform to the shader.
+     * @param program the program to upload the uniform to
+     */
     public void uploadToShader(int program) {
-        //System.out.println("Uploading " + name + " to shader " + program + " with value " + getValue());
-        if (getValue().getClass().equals(Integer.class)) {
-            if (unsigned) {
-                glUniform1ui(glGetUniformLocation(program, name), (Integer) getValue());
-            } else {
-                glUniform1i(glGetUniformLocation(program, name), (Integer) getValue());
-            }
-        } else if (getValue().getClass().equals(Float.class)) {
-            glUniform1f(glGetUniformLocation(program, name), (Float) getValue());
-        } else if (getClass().equals(Boolean.class)) {
-            glUniform1i(glGetUniformLocation(program, name), (Boolean) getValue() ? 1 : 0);
-        }
+        type.uploadToShader(program, name, getValue());
     }
 }

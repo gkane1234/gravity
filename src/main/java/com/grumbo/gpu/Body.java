@@ -80,7 +80,10 @@ public class Body {
         }
         return bodiesString;
     }
-
+    /**
+     * Returns a string representation of the body
+     * @return the string representation of the body
+     */
     @Override
     public String toString() {
         return "Body [posMass=" + Arrays.toString(posMass) + ", velDensity=" + Arrays.toString(velDensity) + ", color=" + Arrays.toString(color) + "]";

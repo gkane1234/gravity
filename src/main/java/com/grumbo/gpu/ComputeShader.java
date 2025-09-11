@@ -7,7 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import com.grumbo.simulation.BarnesHut;
+import com.grumbo.simulation.BoundedBarnesHut;
 
 /**
  * ComputeShader is a class that represents a compute shader program.
@@ -21,7 +21,7 @@ public class ComputeShader {
     private Uniform<?>[] uniforms;
     private String[] ssboNames;
     private xWorkGroupsFunction xWorkGroupsFunction;
-    private BarnesHut barnesHut;
+    private BoundedBarnesHut BoundedBarnesHut;
 
     /**
      * xWorkGroupsFunction is a function that returns the number of work groups to dispatch.
@@ -37,9 +37,9 @@ public class ComputeShader {
      * @param uniforms the uniforms to upload to the shader
      * @param ssboNames the SSBOs to bind to the shader
      * @param xWorkGroupsFunction the function that returns the number of work groups to dispatch
-     * @param barnesHut the BarnesHut simulation object
+     * @param BoundedBarnesHut the BoundedBarnesHut simulation object
      */
-    public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BarnesHut barnesHut) {
+    public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BoundedBarnesHut BoundedBarnesHut) {
         this.program = program;
         this.computeShader = glCreateShader(GL_COMPUTE_SHADER);
         glShaderSource(computeShader, getSource(kernelName));
@@ -51,17 +51,17 @@ public class ComputeShader {
         this.uniforms = uniforms;
         this.ssboNames = ssboNames;
         this.xWorkGroupsFunction = xWorkGroupsFunction;
-        this.barnesHut = barnesHut;
+        this.BoundedBarnesHut = BoundedBarnesHut;
     }
 
     /**
      * Constructor for the ComputeShader class.
      * This constructor creates a new program and attaches the compute shader to it.
      * @param kernelName the name of the kernel to run (defined in the compute shader)
-     * @param barnesHut the BarnesHut simulation object
+     * @param BoundedBarnesHut the BoundedBarnesHut simulation object
      */
-    public ComputeShader(String kernelName, BarnesHut barnesHut) {
-        this(glCreateProgram(), kernelName, null, null, null, barnesHut);
+    public ComputeShader(String kernelName, BoundedBarnesHut BoundedBarnesHut) {
+        this(glCreateProgram(), kernelName, null, null, null, BoundedBarnesHut);
     }
 
     /**
@@ -71,7 +71,7 @@ public class ComputeShader {
     public void debug(int numOutputs) {
         for (String ssboName : ssboNames) {
             System.out.println(ssboName + ":");
-            System.out.println(barnesHut.ssbos.get(ssboName).getData(0, numOutputs));
+            System.out.println(BoundedBarnesHut.ssbos.get(ssboName).getData(0, numOutputs));
         }
     }
 
@@ -118,7 +118,7 @@ public class ComputeShader {
         if (ssboNames != null) {
             for (String ssboName : ssboNames) {
 
-                barnesHut.ssbos.get(ssboName).bind();
+                BoundedBarnesHut.ssbos.get(ssboName).bind();
             }
         }
         
@@ -246,6 +246,12 @@ public class ComputeShader {
         return out.toString();
     }
 
+    /**
+     * Inserts the define after the version and extension lines in order to load the appropriate compute shader.
+     * @param shaderSource the shader source to insert the define after
+     * @param defineValue the define to insert (e.g. KERNEL_INIT)
+     * @return the shader source with the define inserted
+     */
     private static String insertDefineAfterVersion(String shaderSource, String defineValue) {
         // Insert the define after the initial preamble (#version and any #extension lines)
         int insertPos = 0;

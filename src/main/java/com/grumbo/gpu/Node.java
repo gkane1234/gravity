@@ -4,6 +4,14 @@ import java.util.Arrays;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 
+/**
+ * Java Analog to the Node struct in the shader code:
+ * struct Node { vec4 comMass; vec3 aabbMin; vec3 aabbMax; uint childA; uint childB; uint nodeDepth; uint bodiesContained; uint readyChildren; uint parentId; };
+ * 
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class Node {
 
     // struct Node {
@@ -12,9 +20,9 @@ public class Node {
     //     vec3 aabbMax;
     //     uint childA;       // left child index
     //     uint childB;       // right child index
-    //     uint nodeDepth;    // optional: leaf body index or start
-    //     uint bodiesContained;    // optional: number of bodies in leaf
-    //     uint readyChildren; // atomic counter: 0, 1, or 2
+    //     uint nodeDepth;    // leaf body index or start
+    //     uint bodiesContained;    // number of bodies in leaf
+    //     uint readyChildren; // atomic counter representing the number of ready children. It is set to 0xFFFFFFFF once the node has been processed.
     //     uint parentId;     // parent node index (0xFFFFFFFF for root)
     //   };
     // -----
@@ -46,8 +54,21 @@ public class Node {
     public int readyChildren;
     public int parentId;
     public boolean isLeaf;
-
+    /**
+     * Constructor for the Node class.
+     * @param comMass the center of mass of the node (x,y,z,mass)
+     * @param aabbMin the minimum point of the node's axis-aligned bounding box
+     * @param aabbMax the maximum point of the node's axis-aligned bounding box
+     * @param childA the index of the left child node
+     * @param childB the index of the right child node
+     * @param nodeDepth the height of the node in the tree (the distance from its furthest leaf node)
+     * @param bodiesContained the number of bodies contained in the node
+     * @param readyChildren the number of ready children of the node
+     * @param parentId the index of the parent node
+     * @param isLeaf whether the node is a leaf node
+     */
     public Node(float[] comMass, float[] aabbMin, float[] aabbMax, int childA, int childB, int nodeDepth, int bodiesContained, int readyChildren, int parentId, boolean isLeaf) {
+
         this.comMass = comMass;
         this.aabbMin = aabbMin;
         this.aabbMax = aabbMax;
@@ -59,22 +80,13 @@ public class Node {
         this.parentId = parentId;
         this.isLeaf = isLeaf;
     }
-    public static Node[] fromBuffer(IntBuffer buffer) {
-        int numNodes = buffer.capacity() / STRUCT_SIZE;
-        Node[] nodes = new Node[numNodes];
-        for (int i = 0; i < numNodes; i++) {
-            nodes[i] = new Node(buffer, i);
-        }
-        return nodes;
-    }
-    public static Node[] fromBuffer(IntBuffer buffer, int startIndex, int endIndex) {
-        Node[] nodes = new Node[endIndex - startIndex];
-        for (int i = startIndex; i < endIndex; i++) {
-            nodes[i - startIndex] = new Node(buffer, i);
-        }
-        return nodes;
-    }
 
+    
+    /**
+     * Constructor for the Node class from an int buffer that is taken from the SSBO
+     * @param buffer the buffer to get the node from
+     * @param index the index of the node in the buffer
+     */
     public Node(IntBuffer buffer, int index) {
         this.comMass = new float[4];
         this.aabbMin = new float[3];
@@ -109,6 +121,41 @@ public class Node {
 
     }
 
+    /**
+     * Reads all nodes from an int buffer that is taken from the SSBO
+     * @param buffer the buffer to get the node from
+     * @return the nodes
+     */
+    public static Node[] fromBuffer(IntBuffer buffer) {
+        int numNodes = buffer.capacity() / STRUCT_SIZE;
+        Node[] nodes = new Node[numNodes];
+        for (int i = 0; i < numNodes; i++) {
+            nodes[i] = new Node(buffer, i);
+        }
+        return nodes;
+    }
+    /**
+     * Reads a range of nodes from an int buffer that is taken from the SSBO
+     * @param buffer the buffer to get the nodes from
+     * @param startIndex the index of the first node to read
+     * @param endIndex the index of the last node to read
+     * @return the nodes
+     */
+    public static Node[] fromBuffer(IntBuffer buffer, int startIndex, int endIndex) {
+        Node[] nodes = new Node[endIndex - startIndex];
+        for (int i = startIndex; i < endIndex; i++) {
+            nodes[i - startIndex] = new Node(buffer, i);
+        }
+        return nodes;
+    }
+
+    /**
+     * Returns a string representation of a range of nodes in the buffer
+     * @param buffer the buffer to get the nodes from
+     * @param startIndex the index of the first node to read
+     * @param endIndex the index of the last node to read
+     * @return the string of all the nodes
+     */
     public static String getNodes(IntBuffer buffer, int startIndex, int endIndex) {
         Node[] nodes = fromBuffer(buffer, startIndex, endIndex);
         StringBuilder sb = new StringBuilder();
@@ -120,6 +167,10 @@ public class Node {
         return sb.toString();
     }
 
+    /**
+     * Returns a string representation of the node
+     * @return the string representation of the node
+     */
     @Override
     public String toString() {
         // Highlight problematic nodes
@@ -142,6 +193,12 @@ public class Node {
                 '}' + marker;
     }
 
+    /**
+     * Gets the children of a range of nodes
+     * @param buffer the buffer to get the nodes from
+     * @param nodes the nodes to get the children of
+     * @return the children of the nodes
+     */
     private static ArrayList<Node> getChildren(IntBuffer buffer, ArrayList<Node> nodes) {
         ArrayList<Node> children = new ArrayList<Node>();
         for (Node node : nodes) {
@@ -159,10 +216,22 @@ public class Node {
         return children;
     }
 
+    /**
+     * Gets the volume of the bounding box of a node
+     * @param node the node to get the volume of
+     * @return the volume of the node
+     */
     public static float volume(Node node) {
         return (node.aabbMax[0] - node.aabbMin[0]) * (node.aabbMax[1] - node.aabbMin[1]) * (node.aabbMax[2] - node.aabbMin[2]);
     }
 
+    /**
+     * Gets a string representation of a tree of the nodes in the buffer
+     * @param buffer the buffer to get the nodes from
+     * @param rootIndex the index of the root node
+     * @param layers the number of layers to get
+     * @return the string representation of the tree of the nodes
+     */
     public static String getTree(IntBuffer buffer, int rootIndex, int layers) {
         int layerCount = 0;
         StringBuilder sb = new StringBuilder();
@@ -175,8 +244,6 @@ public class Node {
         sb.append("\n");
 
         nodes.add(new ArrayList<Node>(Arrays.asList(root)));
-
-
 
         while (layerCount < layers) {
 
@@ -191,8 +258,6 @@ public class Node {
 
             layerCount++;
         }
-
-
         return sb.toString();
 
     }

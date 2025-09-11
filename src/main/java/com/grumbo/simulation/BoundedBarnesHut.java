@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Arrays;
-import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
@@ -15,8 +14,24 @@ import java.util.ArrayList;
 
 import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL43C.*;
-
-public class BarnesHut {
+/**
+ * BoundedBarnesHut is the main class for the Barnes-Hut algorithm.
+ * It is responsible for initializing the compute shaders and SSBOs,
+ * and for running the algorithm.
+ * 
+ * The algorithm is implemented entirely in compute shaders, this code just organizes
+ * and runs the compute shaders with the correct uniforms, SSBOs, and number of work groups.
+ * 
+ * After everything is initialzied, the algorithm works broadly in 7 steps:
+ * 1. Parition empty bodies to the end the array (and cull out of bounds bodies)
+ * 2. Generate morton codes for the alive bodies.
+ * 3. Radix sort the morton codes.
+ * 4. Build a binary radix tree using the sotrted morton codes.
+ * 5. Compute the center of mass and location of the nodes in the tree.
+ * 6. Compute the force on each body using the tree.
+ * 7. Merge the bodies, leaving empty bodies where they are.
+ */
+public class BoundedBarnesHut {
 
     // Simulation params
     //To change these, you need to also change their definitions in the compute shader
@@ -25,7 +40,7 @@ public class BarnesHut {
 
     // These can be freely changed here
     private static final int PROPAGATE_NODES_ITERATIONS = 512;
-    private boolean debug;
+
 
     // Uniforms
     public Map<String, Uniform<?>> uniforms;
@@ -38,10 +53,12 @@ public class BarnesHut {
     private Uniform<Float> restitutionUniform;
     private Uniform<Boolean> collisionUniform;
     private Uniform<Integer> passShiftUniform;
-    private Uniform<Integer> firstPassUniform;
+    private Uniform<Integer> resetKernelFirstPassUniform;
 
     // Uniform local variables
-    private int passShift;
+    private int radixSortPassShift;
+    private int COMPropagationPassNumber;
+    private boolean resetKernelFirstPass;
 
     // Compute Shaders
     private List<ComputeShader> computeShaders;
@@ -114,42 +131,60 @@ public class BarnesHut {
     private GPUSimulation gpuSimulation;
     private float[][] bounds;
 
-    private boolean firstPass = true;
 
-    private int passes = 0;
+    private boolean debug;
 
-    public BarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
+    /**
+     * Constructor for BoundedBarnesHut.
+     * @param gpuSimulation The GPU simulation.
+     * @param debug Whether to debug the algorithm. (This slows down the simulation to get accurate timing of each step)
+     * @param bounds The bounds of the simulation.
+     */
+    public BoundedBarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
         this.gpuSimulation = gpuSimulation;
         this.debug = debug;
         this.bounds = bounds;
     }
-    
+
+    /**
+     * Step the simulation.
+     */
     public void step() {
-        //System.out.println(FIXED_BODIES_IN_SSBO.getHeader());
-        renderingCheck();
+        // If debugging, check the time taken to render the simulation. Which takes place after the algorithm is run.
+        if (debug) {
+            renderingTimeCheck();
+        }
+        // Reset various values for the queues and death counting.
+        resetValues();
 
-        resetQueues(true);
-
-
+        // Partition the dead bodies to the end of the array.
         partitionDeadBodies();
 
+        // Swap the morton and index buffers. This is where the bodies were partitioned to.
+        swapMortonAndIndexBuffers();
 
-        swapMortonBuffers();
-        resetQueues(false);
+        // Decrements the number of dead bodies from the total number of bodies.
+        decrementDeadBodies();
+
+        // Generate the morton codes for the alive bodies.
         generateMortonCodes();
         
+        // Radix sort the morton codes. This swaps the morton and index buffers for each radix sort pass.
         radixSort();
-       
-        buildBinaryRadixTree();
 
+        // Build the binary radix tree.
+        buildBinaryRadixTree();
+ 
+        // Compute the center of mass and location of the nodes in the tree.
         computeCOMAndLocation();
 
+        // Compute the force on each body using the tree.
         computeForce();
+
+        // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
 
-        System.out.println("MERGE_QUEUE_SSBO: " + MERGE_QUEUE_SSBO.getHeader());
-        System.out.println("DEBUG_SSBO: " + DEBUG_SSBO.getHeaderAsInts()[97]);
-
+        // Swap the body buffers.
         swapBodyBuffers();
 
             if (debug) {
@@ -159,22 +194,30 @@ public class BarnesHut {
     }
 
     /* --------- Initialization --------- */
-
+    /**
+     * Initialize the compute shaders and SSBOs, and set up the initial index array.
+     */
     public void init() {
         initComputeSSBOs();
+        initComputeSwappingBuffers();
         initComputeUniforms();
         initComputeShaders();
+        // Set up the initial index array.
         initKernel.run();
-
-        //System.out.println(FIXED_BODIES_IN_SSBO.getData(0, 10));
     }
 
+    /**
+     * Initialize the SSBOs.
+     * Gives the SSBOs their correct sizes or data functions, and 
+     * the general layout of the SSBOs.
+     */
     private void initComputeSSBOs() {
         
-        //Create SSBOs
-
+        //this is a list of all the SSBOs that are used in the algorithm.
         ssbos = new HashMap<>();
 
+        //These are the fixed SSBOs that point to the bodies in and out buffers.
+        //They are intialized with the data from the planets list.
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
             return packPlanets(gpuSimulation.getPlanets());
         }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
@@ -185,6 +228,8 @@ public class BarnesHut {
         }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
+        //These are the fixed SSBOs that point to the morton and index buffers.
+        //They are intialized with the correct sizes.
         FIXED_MORTON_IN_SSBO = new SSBO(SSBO.FIXED_MORTON_IN_SSBO_BINDING, () -> {
             return gpuSimulation.numBodies() * Long.BYTES;
         }, "FIXED_MORTON_IN_SSBO", 1, new VariableType[] { VariableType.UINT64 });
@@ -199,27 +244,32 @@ public class BarnesHut {
             return (2 * gpuSimulation.numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
         }, "NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
         ssbos.put(NODES_SSBO.getName(), NODES_SSBO);
-
+        //This is the SSBO that holds values that are used in different shaders
         VALUES_SSBO = new SSBO(SSBO.VALUES_SSBO_BINDING, () -> {
             return packValues();
         }, "VALUES_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(VALUES_SSBO.getName(), VALUES_SSBO);
 
+        //This is the SSBO that holds the histogram of the radix sort.
         WG_HIST_SSBO = new SSBO(SSBO.WG_HIST_SSBO_BINDING, () -> {
             return numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES;
         }, "WG_HIST_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(WG_HIST_SSBO.getName(), WG_HIST_SSBO);
 
+        //This is the SSBO that holds the scanned histogram of the radix sort.
         WG_SCANNED_SSBO = new SSBO(SSBO.WG_SCANNED_SSBO_BINDING, () -> {
             return Integer.BYTES + numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES + Integer.BYTES;
         }, "WG_SCANNED_SSBO", 1, new VariableType[] { VariableType.UINT }, 4, new VariableType[] { VariableType.UINT });
         ssbos.put(WG_SCANNED_SSBO.getName(), WG_SCANNED_SSBO);
 
+        //This is the SSBO that holds the total number of bodies in each bucket of the radix sort.
         BUCKET_TOTALS_SSBO = new SSBO(SSBO.BUCKET_TOTALS_SSBO_BINDING, () -> {
             return NUM_RADIX_BUCKETS * Integer.BYTES * 2;
         }, "BUCKET_TOTALS_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(BUCKET_TOTALS_SSBO.getName(), BUCKET_TOTALS_SSBO);
 
+        //These are the fixed SSBOs that point to the morton and index buffers after the radix sort.
+        //They are intialized with the correct sizes.
         FIXED_MORTON_OUT_SSBO = new SSBO(SSBO.FIXED_MORTON_OUT_SSBO_BINDING, () -> {
             return gpuSimulation.numBodies() * Long.BYTES;
         }, "FIXED_MORTON_OUT_SSBO", 1, new VariableType[] { VariableType.UINT64 });
@@ -230,11 +280,15 @@ public class BarnesHut {
         }, "FIXED_INDEX_OUT_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(FIXED_INDEX_OUT_SSBO.getName(), FIXED_INDEX_OUT_SSBO);
 
+        //This is the SSBO that holds the work queue.
+        //It is intialized with the correct sizes.
         WORK_QUEUE_SSBO = new SSBO(SSBO.WORK_QUEUE_SSBO_BINDING, () -> {
             return (4 + gpuSimulation.numBodies()) * Integer.BYTES;
         }, "WORK_QUEUE_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
         ssbos.put(WORK_QUEUE_SSBO.getName(), WORK_QUEUE_SSBO);
 
+        //This is the SSBO that holds the work queue for the second pass.
+        //It is intialized with the correct sizes.
         WORK_QUEUE_B_SSBO = new SSBO(SSBO.WORK_QUEUE_B_SSBO_BINDING, () -> {
             return (4 + gpuSimulation.numBodies()) * Integer.BYTES;
         }, "WORK_QUEUE_B_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
@@ -257,10 +311,10 @@ public class BarnesHut {
 
         for (SSBO ssbo : ssbos.values()) {
             System.out.println("Creating buffer for " + ssbo.getName());
-            ssbo.createBuffer();
+            ssbo.createBufferData();
         }
 
-        initializeSwappingBuffers();
+
     }
 
     private void initComputeUniforms() {
@@ -274,36 +328,48 @@ public class BarnesHut {
         uniforms.put("restitution", restitutionUniform);
         uniforms.put("collision", collisionUniform);
         uniforms.put("passShift", passShiftUniform);
+        uniforms.put("firstPass", resetKernelFirstPassUniform);
+
         numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
-        }, true);
+        }, VariableType.UINT);
+
         softeningUniform = new Uniform<Float>("softening", () -> {
             return Settings.getInstance().getSoftening();
-        });
+        }, VariableType.FLOAT);
+
         thetaUniform = new Uniform<Float>("theta", () -> {
             return Settings.getInstance().getTheta();
-        });
+        }, VariableType.FLOAT);
+
         dtUniform = new Uniform<Float>("dt", () -> {
             return Settings.getInstance().getDt();
-        });
+        }, VariableType.FLOAT);
+
         elasticityUniform = new Uniform<Float>("elasticity", () -> {
             return (float)Settings.getInstance().getElasticity();
-        });
+        }, VariableType.FLOAT);
+
         densityUniform = new Uniform<Float>("density", () -> {
             return (float)Settings.getInstance().getDensity();
-        });
+        }, VariableType.FLOAT);
+
         restitutionUniform = new Uniform<Float>("restitution", () -> {
             return 0.2f;
-        });
+        }, VariableType.FLOAT);
+
         passShiftUniform = new Uniform<Integer>("passShift", () -> {
-            return passShift;
-        }, true);
+            return radixSortPassShift;
+        }, VariableType.UINT);
+
         collisionUniform = new Uniform<Boolean>("collision", () -> {
             return false;
-        });
-        firstPassUniform = new Uniform<Integer>("firstPass", () -> {
-            return firstPass ? 1 : 0;
-        }, true);
+        }, VariableType.BOOL);
+
+        resetKernelFirstPassUniform = new Uniform<Integer>("firstPass", () -> {
+            return resetKernelFirstPass ? 1 : 0;
+        }, VariableType.UINT);
+
     }
 
     private void initComputeShaders() {
@@ -528,7 +594,7 @@ public class BarnesHut {
         resetKernel = new ComputeShader("KERNEL_RESET", this);
 
         resetKernel.setUniforms(new Uniform[] {
-            firstPassUniform
+            resetKernelFirstPassUniform
         });
 
         resetKernel.setSSBOs(new String[] {
@@ -559,7 +625,7 @@ public class BarnesHut {
         });
         propagateNodesKernel.setXWorkGroupsFunction(() -> {
             //int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((gpuSimulation.numBodies() - 1)));
-            int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((gpuSimulation.numBodies() - 1)/Math.pow(2,passes)));
+            int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((gpuSimulation.numBodies() - 1)/Math.pow(2,COMPropagationPassNumber)));
             int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return workGroups;
         });
@@ -624,30 +690,39 @@ public class BarnesHut {
 
     /* --------- Barnes-Hut --------- */
 
-    private void renderingCheck() {
+    private void renderingTimeCheck() {
         if (debug) {
             renderingTime = System.nanoTime();
+            //If an error occured in rendering it will be caught here.
             checkGLError("rendering");
             glFinish();
             renderingTime = System.nanoTime() - renderingTime;
         }
     }
 
-    private void resetQueues(boolean first) {
+    private void resetValues() {
         long resetStartTime = 0;
         if (debug) {
             resetStartTime = System.nanoTime();
         }
-        firstPass = first;
-        firstPassUniform = new Uniform<Integer>("firstPass", () -> {
-            return firstPass ? 1 : 0;
-        },true);
-        resetKernel.setUniforms(new Uniform[] {
-            firstPassUniform
-        });
+        resetKernelFirstPass = true;
         resetKernel.run();
         if (debug) {
-            checkGLError("resetQueues");
+            checkGLError("resetValuesPass");
+            glFinish();
+            resetTime = System.nanoTime() - resetStartTime;
+        }
+    }
+
+    private void decrementDeadBodies() {
+        long resetStartTime = 0;
+        if (debug) {
+            resetStartTime = System.nanoTime();
+        }
+        resetKernelFirstPass = false;
+        resetKernel.run();
+        if (debug) {
+            checkGLError("decrementDeadBodiesPass");
             glFinish();
             resetTime = System.nanoTime() - resetStartTime;
         }
@@ -699,7 +774,7 @@ public class BarnesHut {
     }
 
     private void radixSort() {
-        int numPasses = (int)Math.ceil(63.0 / 4.0); // 16 passes for 63-bit Morton codes
+        int numPasses = (int)Math.ceil(63.0 / NUM_RADIX_BUCKETS);
         
         radixSortHistogramTime = 0;
         radixSortScanParallelTime = 0;
@@ -711,11 +786,11 @@ public class BarnesHut {
         long radixSortScanExclusiveStartTime = 0;
         long radixSortScatterStartTime = 0;
 
-        passShift = 0;
+        radixSortPassShift = 0;
         
         for (int pass = 0; pass < numPasses; pass++) {
             
-            passShift = pass * 4; // 4 bits per pass
+            radixSortPassShift = pass * 4; // 4 bits per pass
 
             if (debug) {
                 radixSortHistogramStartTime = System.nanoTime();
@@ -725,7 +800,7 @@ public class BarnesHut {
             radixSortHistogramKernel.run();
 
             if (debug) {
-                checkGLError("radixSortHistogram");
+                checkGLError("radixSortHistogramPass" + pass);
                 glFinish();
                 radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
                 radixSortScanParallelStartTime = System.nanoTime();
@@ -734,7 +809,7 @@ public class BarnesHut {
             // Phase 2: Scan
             radixSortParallelScanKernel.run();
             if (debug) {
-                checkGLError("radixSortParallelScan");
+                checkGLError("radixSortParallelScanPass" + pass);
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
                 radixSortScanExclusiveStartTime = System.nanoTime();
@@ -743,7 +818,7 @@ public class BarnesHut {
             radixSortExclusiveScanKernel.run();
 
             if (debug) {
-                checkGLError("radixSortExclusiveScan");
+                checkGLError("radixSortExclusiveScanPass" + pass);
                 glFinish();
                 radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
                 radixSortScatterStartTime = System.nanoTime();
@@ -752,13 +827,13 @@ public class BarnesHut {
             // Phase 3: Scatter
             radixSortScatterKernel.run();
             if (debug) {
-                checkGLError("radixSortScatter");
+                checkGLError("radixSortScatterPass" + pass);
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
             }
             
 
-            swapMortonBuffers();
+            swapMortonAndIndexBuffers();
         }
 
         if (debug) {
@@ -793,7 +868,7 @@ public class BarnesHut {
         }
         int lastThreads = 0;
 
-        for (passes = 0; passes < PROPAGATE_NODES_ITERATIONS; passes++) {
+        for (COMPropagationPassNumber = 0; COMPropagationPassNumber < PROPAGATE_NODES_ITERATIONS; COMPropagationPassNumber++) {
             propagateNodesKernel.run();
             //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
 
@@ -844,13 +919,16 @@ public class BarnesHut {
         }
     }
 
-    private void initializeSwappingBuffers() {
-        // Create Swapping SSBOs
+    private void initComputeSwappingBuffers() {
+        // Create Swapping SSBOs.
+        // These are used as a double buffer for bodies 
         SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
         SWAPPING_BODIES_IN_SSBO.setName("SWAPPING_BODIES_IN_SSBO");
         ssbos.put(SWAPPING_BODIES_IN_SSBO.getName(), SWAPPING_BODIES_IN_SSBO);
         SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
         SWAPPING_BODIES_OUT_SSBO.setName("SWAPPING_BODIES_OUT_SSBO");
+
+        // These exist to do the radix sort and dead body paritioning.
         ssbos.put(SWAPPING_BODIES_OUT_SSBO.getName(), SWAPPING_BODIES_OUT_SSBO);
         SWAPPING_MORTON_IN_SSBO = FIXED_MORTON_IN_SSBO;
         SWAPPING_MORTON_IN_SSBO.setName("SWAPPING_MORTON_IN_SSBO");
@@ -873,8 +951,8 @@ public class BarnesHut {
         SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
     }
 
-    private void swapMortonBuffers() {
-        // Swap input/output buffers for next pass
+    private void swapMortonAndIndexBuffers() {
+        // Swap input/output buffers for next pass of radix sort and the one pass of dead body paritioning.
         int tempMortonIn = SWAPPING_MORTON_IN_SSBO.getBufferLocation();
         int tempIndexIn = SWAPPING_INDEX_IN_SSBO.getBufferLocation();
         SWAPPING_MORTON_IN_SSBO.setBufferLocation(SWAPPING_MORTON_OUT_SSBO.getBufferLocation());
@@ -945,7 +1023,7 @@ public class BarnesHut {
         
         // Resize Barnes-Hut auxiliary buffers
         for (SSBO ssbo : ssbos.values()) {
-            ssbo.createBuffer();
+            ssbo.createBufferData();
         }
 
         SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
@@ -1047,38 +1125,6 @@ public class BarnesHut {
 
         System.out.println("Morton Codes are correctly partitioned: " + correctPartitioning);
         System.out.println("Morton Codes are correctly sorted: " + correctSorting);
-    }
-    
-    private float[][] oldComputeAABB() {
-        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
-        
-        SWAPPING_BODIES_IN_SSBO.bind();
-        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        FloatBuffer bodyData = buffer.asFloatBuffer();
-        
-        for (int i = 0; i < gpuSimulation.numBodies(); i++) {
-            int offset = i * 12; // 12 floats per body (pos+mass, vel+pad, color)
-            float x = bodyData.get(offset + 0);
-            float y = bodyData.get(offset + 1);
-            float z = bodyData.get(offset + 2);
-            
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            minZ = Math.min(minZ, z);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-            maxZ = Math.max(maxZ, z);
-        }
-        
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        SSBO.unBind();
-        
-        float[][] raabb = new float[][] {
-            {minX, minY, minZ},
-            {maxX, maxY, maxZ}
-        };
-        return raabb;
     }
 
     private void debugMortonCodes() {
