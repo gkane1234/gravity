@@ -54,7 +54,7 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this); 
         this.planets = planets;
         this.initialbodiesContained = planets.size();
-        float boundSize = 500_000;
+        float boundSize = 350_000;
         float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
         this.barnesHut = new BarnesHut(this,debug,bounds);
@@ -107,8 +107,8 @@ public class GPUSimulation {
 
     public static ArrayList<Planet> createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 20;
-        int[] numPlanetsRange = {25000, 75000};
+        int numDisks = 10;
+        int[] numPlanetsRange = {250000, 750000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
         float[] mRange = {100, 1200};
@@ -127,7 +127,7 @@ public class GPUSimulation {
         boolean giveOrbitalVelocity = true;
 
 
-        int centerDiskPlanets = 600_000;
+        int centerDiskPlanets = 6_000_000;
         float[] centerDiskRadius = {100, 50000};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};

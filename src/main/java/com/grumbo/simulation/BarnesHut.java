@@ -24,7 +24,7 @@ public class BarnesHut {
     private static final int NUM_RADIX_BUCKETS = 16; // 2^RADIX_BITS where RADIX_BITS=4
 
     // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 64;
+    private static final int PROPAGATE_NODES_ITERATIONS = 512;
     private boolean debug;
 
     // Uniforms
@@ -38,7 +38,7 @@ public class BarnesHut {
     private Uniform<Float> restitutionUniform;
     private Uniform<Boolean> collisionUniform;
     private Uniform<Integer> passShiftUniform;
-    private Uniform<Boolean> firstPassUniform;
+    private Uniform<Integer> firstPassUniform;
 
     // Uniform local variables
     private int passShift;
@@ -84,8 +84,10 @@ public class BarnesHut {
     private SSBO FIXED_MORTON_OUT_SSBO;
     private SSBO FIXED_INDEX_OUT_SSBO;
     private SSBO WORK_QUEUE_SSBO;
+    private SSBO WORK_QUEUE_B_SSBO;
     private SSBO MERGE_QUEUE_SSBO;
     private SSBO DEBUG_SSBO;
+    private SSBO BODY_LOCKS_SSBO;
     
     //Debug variables
     private List<Long> computeShaderDebugTimes;
@@ -113,6 +115,8 @@ public class BarnesHut {
     private float[][] bounds;
 
     private boolean firstPass = true;
+
+    private int passes = 0;
 
     public BarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
         this.gpuSimulation = gpuSimulation;
@@ -142,6 +146,9 @@ public class BarnesHut {
 
         computeForce();
         mergeBodies();
+
+        System.out.println("MERGE_QUEUE_SSBO: " + MERGE_QUEUE_SSBO.getHeader());
+        System.out.println("DEBUG_SSBO: " + DEBUG_SSBO.getHeaderAsInts()[97]);
 
         swapBodyBuffers();
 
@@ -228,8 +235,13 @@ public class BarnesHut {
         }, "WORK_QUEUE_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
         ssbos.put(WORK_QUEUE_SSBO.getName(), WORK_QUEUE_SSBO);
 
+        WORK_QUEUE_B_SSBO = new SSBO(SSBO.WORK_QUEUE_B_SSBO_BINDING, () -> {
+            return (4 + gpuSimulation.numBodies()) * Integer.BYTES;
+        }, "WORK_QUEUE_B_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
+        ssbos.put(WORK_QUEUE_B_SSBO.getName(), WORK_QUEUE_B_SSBO);
+
         MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
-            return Math.max(2*Integer.BYTES, 8+gpuSimulation.numBodies() * 2 * Integer.BYTES);
+            return Math.max(2*Integer.BYTES, 2*Integer.BYTES+gpuSimulation.numBodies() * 2 * Integer.BYTES);
         }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT }, 8, new VariableType[] {VariableType.UINT});
         ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
 
@@ -237,6 +249,11 @@ public class BarnesHut {
             return 100 * Integer.BYTES + 100 * Float.BYTES;
         }, "DEBUG_SSBO", 1, new VariableType[] { VariableType.FLOAT }, 100, new VariableType[] { VariableType.UINT });
         ssbos.put(DEBUG_SSBO.getName(), DEBUG_SSBO);
+
+        BODY_LOCKS_SSBO = new SSBO(SSBO.BODY_LOCKS_SSBO_BINDING, () -> {
+            return gpuSimulation.numBodies() * Integer.BYTES;
+        }, "BODY_LOCKS_SSBO", 1, new VariableType[] { VariableType.UINT });
+        ssbos.put(BODY_LOCKS_SSBO.getName(), BODY_LOCKS_SSBO);
 
         for (SSBO ssbo : ssbos.values()) {
             System.out.println("Creating buffer for " + ssbo.getName());
@@ -284,9 +301,9 @@ public class BarnesHut {
         collisionUniform = new Uniform<Boolean>("collision", () -> {
             return false;
         });
-        firstPassUniform = new Uniform<Boolean>("firstPass", () -> {
-            return firstPass;
-        });
+        firstPassUniform = new Uniform<Integer>("firstPass", () -> {
+            return firstPass ? 1 : 0;
+        }, true);
     }
 
     private void initComputeShaders() {
@@ -535,12 +552,14 @@ public class BarnesHut {
             "VALUES_SSBO",
             "NODES_SSBO",
             "WORK_QUEUE_SSBO",
+            "WORK_QUEUE_B_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "DEBUG_SSBO"
+            
         });
-
         propagateNodesKernel.setXWorkGroupsFunction(() -> {
-            int maxPossibleNodes = gpuSimulation.numBodies() - 1; // Internal nodes
+            //int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((gpuSimulation.numBodies() - 1)));
+            int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((gpuSimulation.numBodies() - 1)/Math.pow(2,passes)));
             int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return workGroups;
         });
@@ -577,9 +596,10 @@ public class BarnesHut {
             "SWAPPING_BODIES_OUT_SSBO",
             "MERGE_QUEUE_SSBO",
             "DEBUG_SSBO",
+            "BODY_LOCKS_SSBO",
         });
         mergeBodiesKernel.setXWorkGroupsFunction(() -> {
-            return 1;
+            return numGroups();
         });
         computeShaders.add(mergeBodiesKernel);
         debugKernel = new ComputeShader("KERNEL_DEBUG", this);
@@ -619,6 +639,12 @@ public class BarnesHut {
             resetStartTime = System.nanoTime();
         }
         firstPass = first;
+        firstPassUniform = new Uniform<Integer>("firstPass", () -> {
+            return firstPass ? 1 : 0;
+        },true);
+        resetKernel.setUniforms(new Uniform[] {
+            firstPassUniform
+        });
         resetKernel.run();
         if (debug) {
             checkGLError("resetQueues");
@@ -765,10 +791,23 @@ public class BarnesHut {
             initLeavesTime = System.nanoTime() - initLeavesTime;
             propagateNodesTime = System.nanoTime();
         }
+        int lastThreads = 0;
 
-        for (int i = 0; i < PROPAGATE_NODES_ITERATIONS; i++) {
+        for (passes = 0; passes < PROPAGATE_NODES_ITERATIONS; passes++) {
             propagateNodesKernel.run();
-            System.out.println(Arrays.toString(DEBUG_SSBO.getHeaderAsInts()));
+            //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
+
+            // System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), gpuSimulation.numBodies(), 10));
+            //System.out.println("Operations last interation:"+passes+" : "  + (workedThreads-lastThreads) + " : using " + Math.max(1,(int)((gpuSimulation.numBodies() - 1)/Math.pow(2, passes))) + "  threads");
+            //System.out.println(WORK_QUEUE_SSBO.getHeader());
+            //System.out.println(WORK_QUEUE_B_SSBO.getHeader());
+            // lastThreads = workedThreads;
+
+            // try {
+            //     System.in.read();
+            // } catch (Exception e) {
+            //     // Ignore exception
+            // }
 
         }
         

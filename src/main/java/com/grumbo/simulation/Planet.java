@@ -116,11 +116,11 @@ public class Planet {
 	
 		// u = normalize(n x a)
 		Vector3f u = new Vector3f(normal).cross(a).normalize();
-		System.out.println("u: " + u.x + ", " + u.y + ", " + u.z);
+		//System.out.println("u: " + u.x + ", " + u.y + ", " + u.z);
 	
 		// v = n x u  (already normalized)
 		Vector3f v = new Vector3f(normal).cross(u);
-		System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
+		//System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
 
 		for (int i=0;i<num;i++) {
 			float r = randomInRange(radius, 1);

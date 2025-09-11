@@ -11,6 +11,8 @@ void initLeafNodesKernel()
     if (gid == 0) {
         uintDebug[0]=0u;
         uintDebug[50]=0u;
+        tail = 0u;
+        head = 0u;
     }
     if (gid >= sim.numBodies) return;
 
@@ -41,14 +43,18 @@ void propagateNodesKernel()
     if (gl_GlobalInvocationID.x == 0) {
         if (nodes[sim.initialNumBodies].readyChildren != 3u) {
             atomicAdd(uintDebug[0], 1u);
+            head = 0u;
         }
     }
 
-    uint workIdx = threadId-totalThreads;
+    memoryBarrierBuffer();
+
+    uint workIdx = atomicAdd(head, 1u);
     while (workIdx < tail) {
-        workIdx += totalThreads;
+        
         uint nodeIdx = items[workIdx];
         if (nodes[nodeIdx].readyChildren >= 3u) {
+            workIdx = atomicAdd(head, 1u);
             continue;
         }
 
@@ -56,11 +62,13 @@ void propagateNodesKernel()
         uint leftChild = nodes[nodeIdx].childA;
         uint rightChild = nodes[nodeIdx].childB;
         if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
+            workIdx = atomicAdd(head, 1u);
             continue;
 
             
         }
         if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+            workIdx = atomicAdd(head, 1u);
             continue;
         }
         vec4 leftCOM = nodes[leftChild].comMass;
@@ -83,13 +91,14 @@ void propagateNodesKernel()
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
             if (prev == 1u) {
-                uint idx = atomicAdd(tail, 1u);
-                items[idx] = parentIdx;
+                items[workIdx] = parentIdx;
 
             }
         }
 
-        //uintDebug[50]+=1u;
+        workIdx = atomicAdd(head, 1u);
+
+        atomicAdd(uintDebug[1], 1u);
         
     }
 }

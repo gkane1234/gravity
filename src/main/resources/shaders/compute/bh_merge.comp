@@ -19,27 +19,42 @@ Body mergeBodies(Body body1, Body body2) {
     mergedBody.color = (body1.color*body1.posMass.w+body2.color*body2.posMass.w)/newMass;
     return mergedBody;
 }
-//TODO: make this parallel
 void mergeBodiesKernel() {
-    uint gid = gl_GlobalInvocationID.x;
-    if (gid > 0u) return;
-    for (uint i = 0u; i < mergeQueueTail; i++) {
-        
-        uvec2 bodies = mergeQueue[i];
-        Body body1 = dstB.bodies[bodies.x];
-        Body body2 = dstB.bodies[bodies.y];
 
-        floatDebug[0]=body1.posMass.w;
-        floatDebug[1]=body2.posMass.w;
-        Body mergedBody = mergeBodies(body1, body2);
-        dstB.bodies[bodies.x] = mergedBody;
-        // when this happens, the body is set to empty on the swapped buffer
-        // BUT it is still alive on the source buffer
-        // After swapping, we need to make sure that at some point we set it to empty.
-        dstB.bodies[bodies.y] = EMPTY_BODY; 
+        uint workIdx = gl_GlobalInvocationID.x;
+        if (workIdx >= mergeQueueTail) return;
 
-        if (isEmpty(body1) || isEmpty(body2)) {
-            continue;
+        uvec2 pair = mergeQueue[workIdx];
+        uint iA = pair.x;
+        uint iB = pair.y;
+
+        if (iA == iB) return; // skip invalid pairs
+
+        // Lock both bodies (order by index to avoid deadlock)
+        uint first  = min(iA, iB);
+        uint second = max(iA, iB);
+
+        if (atomicCompSwap(bodyLocks[first], 0u, 1u) != 0u) {
+            // could not lock first
+            return;
         }
-    }
+        if (atomicCompSwap(bodyLocks[second], 0u, 1u) != 0u) {
+            // release first, then skip
+            bodyLocks[first] = 0u;
+            return;
+        }
+
+        // Both locked
+        Body body1 = dstB.bodies[iA];
+        Body body2 = dstB.bodies[iB];
+
+        if (!isEmpty(body1) && !isEmpty(body2)) {
+            Body merged = mergeBodies(body1, body2);
+            dstB.bodies[iA] = merged;
+            dstB.bodies[iB] = EMPTY_BODY;
+        }
+
+        // Unlock both
+        bodyLocks[first] = 0u;
+        bodyLocks[second] = 0u;
 }

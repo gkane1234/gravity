@@ -26,6 +26,8 @@ public class SSBO {
     public static final int WORK_QUEUE_SSBO_BINDING = 11;
     public static final int MERGE_QUEUE_SSBO_BINDING = 12;
     public static final int DEBUG_SSBO_BINDING = 13;
+    public static final int WORK_QUEUE_B_SSBO_BINDING = 14;
+    public static final int BODY_LOCKS_SSBO_BINDING = 15;
 
 
     private int bufferLocation;

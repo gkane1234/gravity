@@ -7,7 +7,7 @@
 #include "bh_morton.comp"
 #include "bh_radix.comp"
 #include "bh_tree.comp"
-#include "bh_reduce.comp"
+#include "bh_reduce_more_efficient.comp"
 #include "bh_force.comp"
 #include "bh_debug.comp"
 #include "bh_merge.comp"
