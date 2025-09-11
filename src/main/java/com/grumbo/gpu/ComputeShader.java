@@ -21,7 +21,7 @@ public class ComputeShader {
     private Uniform<?>[] uniforms;
     private String[] ssboNames;
     private xWorkGroupsFunction xWorkGroupsFunction;
-    private BoundedBarnesHut BoundedBarnesHut;
+    private BoundedBarnesHut boundedBarnesHut;
 
     /**
      * xWorkGroupsFunction is a function that returns the number of work groups to dispatch.
@@ -39,7 +39,7 @@ public class ComputeShader {
      * @param xWorkGroupsFunction the function that returns the number of work groups to dispatch
      * @param BoundedBarnesHut the BoundedBarnesHut simulation object
      */
-    public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BoundedBarnesHut BoundedBarnesHut) {
+    public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BoundedBarnesHut boundedBarnesHut) {
         this.program = program;
         this.computeShader = glCreateShader(GL_COMPUTE_SHADER);
         glShaderSource(computeShader, getSource(kernelName));
@@ -51,7 +51,7 @@ public class ComputeShader {
         this.uniforms = uniforms;
         this.ssboNames = ssboNames;
         this.xWorkGroupsFunction = xWorkGroupsFunction;
-        this.BoundedBarnesHut = BoundedBarnesHut;
+        this.boundedBarnesHut = boundedBarnesHut;
     }
 
     /**
@@ -60,8 +60,8 @@ public class ComputeShader {
      * @param kernelName the name of the kernel to run (defined in the compute shader)
      * @param BoundedBarnesHut the BoundedBarnesHut simulation object
      */
-    public ComputeShader(String kernelName, BoundedBarnesHut BoundedBarnesHut) {
-        this(glCreateProgram(), kernelName, null, null, null, BoundedBarnesHut);
+    public ComputeShader(String kernelName, BoundedBarnesHut boundedBarnesHut) {
+        this(glCreateProgram(), kernelName, null, null, null, boundedBarnesHut);
     }
 
     /**
@@ -71,7 +71,7 @@ public class ComputeShader {
     public void debug(int numOutputs) {
         for (String ssboName : ssboNames) {
             System.out.println(ssboName + ":");
-            System.out.println(BoundedBarnesHut.ssbos.get(ssboName).getData(0, numOutputs));
+            System.out.println(boundedBarnesHut.ssbos.get(ssboName).getData(0, numOutputs));
         }
     }
 
@@ -118,7 +118,7 @@ public class ComputeShader {
         if (ssboNames != null) {
             for (String ssboName : ssboNames) {
 
-                BoundedBarnesHut.ssbos.get(ssboName).bind();
+                boundedBarnesHut.ssbos.get(ssboName).bind();
             }
         }
         
