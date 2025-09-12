@@ -16,23 +16,41 @@ public class SSBO {
     // Precision for floating point numbers
     private static final int PRECISION = 2; 
 
-    // SSBO Bindings set in bh_common.comp
-    public static final int BODIES_IN_SSBO_BINDING = 0;
-    public static final int BODIES_OUT_SSBO_BINDING = 1;
-    public static final int FIXED_MORTON_IN_SSBO_BINDING = 2;
-    public static final int FIXED_INDEX_IN_SSBO_BINDING = 3;
-    public static final int NODES_SSBO_BINDING = 4;
-    public static final int VALUES_SSBO_BINDING = 5;
-    public static final int WG_HIST_SSBO_BINDING = 6;
-    public static final int WG_SCANNED_SSBO_BINDING = 7;
-    public static final int BUCKET_TOTALS_SSBO_BINDING = 8;
-    public static final int FIXED_MORTON_OUT_SSBO_BINDING = 9;
-    public static final int FIXED_INDEX_OUT_SSBO_BINDING = 10;
-    public static final int WORK_QUEUE_SSBO_BINDING = 11;
-    public static final int MERGE_QUEUE_SSBO_BINDING = 12;
-    public static final int DEBUG_SSBO_BINDING = 13;
-    public static final int WORK_QUEUE_B_SSBO_BINDING = 14;
-    public static final int BODY_LOCKS_SSBO_BINDING = 15;
+    // SSBO Bindings set in bh_common.comp:
+
+    // layout(std430, binding = 0)  buffer Nodes              { Node nodes[]; };
+    // layout(std430, binding = 1)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint pad1; AABB bounds; } sim;
+    // layout(std430, binding = 2)  buffer BodiesIn           { Body bodies[]; } srcB;
+    // layout(std430, binding = 3)  buffer BodiesOut          { Body bodies[]; } dstB;
+    // layout(std430, binding = 4)  buffer MortonIn           { uint64_t mortonIn[]; };
+    // layout(std430, binding = 5)  buffer MortonOut          { uint64_t mortonOut[]; };
+    // layout(std430, binding = 6)  buffer IndexIn            { uint indexIn[]; };
+    // layout(std430, binding = 7)  buffer IndexOut           { uint indexOut[]; };
+    // layout(std430, binding = 8)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
+    // layout(std430, binding = 9)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+    // layout(std430, binding = 10) buffer RadixWGHist        { uint wgHist[];      };
+    // layout(std430, binding = 11) buffer RadixWGScanned     { uint wgScanned[];   };
+    // layout(std430, binding = 12) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
+    // layout(std430, binding = 13) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+    // layout(std430, binding = 14) buffer MergeBodyLocks     { uint bodyLocks[]; };
+    // layout(std430, binding = 15) buffer Debug              { uint uintDebug[100]; float floatDebug[100]; };
+
+    public static final int NODES_SSBO_BINDING = 0;
+    public static final int SIMULATION_VALUES_SSBO_BINDING = 1;
+    public static final int BODIES_IN_SSBO_BINDING = 2;
+    public static final int BODIES_OUT_SSBO_BINDING = 3;
+    public static final int MORTON_IN_SSBO_BINDING = 4;
+    public static final int MORTON_OUT_SSBO_BINDING = 5;
+    public static final int INDEX_IN_SSBO_BINDING = 6;
+    public static final int INDEX_OUT_SSBO_BINDING = 7;
+    public static final int PROPAGATE_WORK_QUEUE_IN_SSBO_BINDING = 8;
+    public static final int PROPAGATE_WORK_QUEUE_OUT_SSBO_BINDING = 9;
+    public static final int RADIX_WG_HIST_SSBO_BINDING = 10;
+    public static final int RADIX_WG_SCANNED_SSBO_BINDING = 11;
+    public static final int RADIX_BUCKET_TOTALS_SSBO_BINDING = 12;
+    public static final int MERGE_QUEUE_SSBO_BINDING = 13;
+    public static final int MERGE_BODY_LOCKS_SSBO_BINDING = 14;
+    public static final int DEBUG_SSBO_BINDING = 15;
 
 
     // Buffer location of the SSBO
@@ -245,6 +263,9 @@ public class SSBO {
     public int[] getHeaderAsInts() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        if (buffer == null) {
+            return null;
+        }
         buffer.order(java.nio.ByteOrder.nativeOrder());
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done

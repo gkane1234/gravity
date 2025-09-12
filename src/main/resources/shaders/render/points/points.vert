@@ -4,7 +4,7 @@ struct Body {
   vec4 velPad;
   vec4 color;
 };
-layout(std430, binding = 0) readonly buffer SrcBodies {
+layout(std430, binding = 2) readonly buffer SrcBodies {
   Body bodies[];
 } srcB;
 uniform mat4 uMVP; // model-view-projection matrix

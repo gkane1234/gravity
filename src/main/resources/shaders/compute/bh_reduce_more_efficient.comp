@@ -11,15 +11,14 @@ void initLeafNodesKernel()
     if (gid == 0) {
         uintDebug[0]=0u;
         uintDebug[50]=0u;
-        tail = 0u;
-        head = 0u;
-        tailB = 0u;
-        headB = 0u;
-        selector = 1u;
+        tailIn = 0u;
+        headIn = 0u;
+        tailOut = 0u;
+        headOut = 0u;
     }
     if (gid >= sim.numBodies) return;
 
-    uint bodyIdx = index[gid];
+    uint bodyIdx = indexIn[gid];
     Body body = srcB.bodies[bodyIdx];
 
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
@@ -32,8 +31,8 @@ void initLeafNodesKernel()
     uint parentIdx = nodes[gid].parentId;
     uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
     if (prev == 1u) {
-        uint idx = atomicAdd(tail, 1u);
-        items[idx] = parentIdx;
+        uint idx = atomicAdd(tailIn, 1u);
+        itemsIn[idx] = parentIdx;
     }
 }
 // Each pass of this kernel propagates COM and AABB one level up the tree
@@ -49,24 +48,19 @@ void propagateNodesKernel()
 
         }
         uintDebug[1] = 0u;
-        selector ^= 1u;
-        head = 0u;
-        headB = 0u;
-        if (selector == 0u) {
-            tailB = 0u;
-        } else {
-            tail = 0u;
-        }
+        headIn = 0u;
+        headOut = 0u;
+        tailOut = 0u;
     }
 
     memoryBarrierBuffer();
    
-    uint workIdx = (selector == 0u ? atomicAdd(head, 1u) : atomicAdd(headB, 1u));
-    while (selector == 0u ? (workIdx < tail) : (workIdx < tailB)) {
+    uint workIdx = atomicAdd(headIn, 1u);
+    while (workIdx < tailIn) {
         
-        uint nodeIdx = selector == 0u ? items[workIdx] : itemsB[workIdx];
+        uint nodeIdx = itemsIn[workIdx];
         if (nodes[nodeIdx].readyChildren == 0xFFFFFFFFu) {
-            workIdx = selector == 0u ? atomicAdd(head, 1u) : atomicAdd(headB, 1u);
+            workIdx = atomicAdd(headIn, 1u);
             continue;
         }
 
@@ -74,13 +68,13 @@ void propagateNodesKernel()
         uint leftChild = nodes[nodeIdx].childA;
         uint rightChild = nodes[nodeIdx].childB;
         if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
-            workIdx = selector == 0u ? atomicAdd(head, 1u) : atomicAdd(headB, 1u);
+            workIdx = atomicAdd(headIn, 1u);
             continue;
 
             
         }
         if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
-            workIdx = selector == 0u ? atomicAdd(head, 1u) : atomicAdd(headB, 1u);
+            workIdx = atomicAdd(headIn, 1u);
             continue;
         }
         vec4 leftCOM = nodes[leftChild].comMass;
@@ -103,18 +97,13 @@ void propagateNodesKernel()
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
             if (prev == 1u) {
-                if (selector == 0u) {
-                    uint idx = atomicAdd(tailB, 1u);
-                    itemsB[idx] = parentIdx;
-                } else {
-                    uint idx = atomicAdd(tail, 1u);
-                    items[idx] = parentIdx;
-                }
+                uint idx = atomicAdd(tailOut, 1u);
+                itemsOut[idx] = parentIdx;
 
             }
         }
 
-        workIdx = selector == 0u ? atomicAdd(head, 1u) : atomicAdd(headB, 1u);
+        workIdx = atomicAdd(headIn, 1u);
 
         //atomicAdd(uintDebug[1], 1u);
         

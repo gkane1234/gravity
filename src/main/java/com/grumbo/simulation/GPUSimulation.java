@@ -45,6 +45,9 @@ public class GPUSimulation {
     private Path recordDir;
     private BufferedWriter recordMetaWriter;
 
+    private int currentBodies = 0;
+    private int justMerged = 0;
+
     public GPUSimulation() {
 
         ArrayList<Planet> planets = createSeveralDisksAroundAnotherDiskSimulation();
@@ -107,7 +110,7 @@ public class GPUSimulation {
 
     public static ArrayList<Planet> createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 10;
+        int numDisks = 12;
         int[] numPlanetsRange = {250000, 750000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
@@ -286,12 +289,27 @@ public class GPUSimulation {
         return planets.size();
     }
 
-    public int currentBodies() { //Note: this is EXTREMELY slow.
-        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null) {
-            return 0;
+
+
+    public void updateCurrentBodies() { //Note: this is EXTREMELY slow.
+
+        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null || boundedBarnesHut.getValuesSSBO().getHeaderAsInts() == null) {
+            currentBodies = numBodies();
+
+            return;
         }
-        return boundedBarnesHut.getValuesSSBO().getHeaderAsInts()[0];
-        
+        int[] header = boundedBarnesHut.getValuesSSBO().getHeaderAsInts();
+        currentBodies = header[0];
+        justMerged = header[3];
+
+    }
+
+    public int currentBodies() { 
+        return currentBodies;
+    }
+
+    public int justMerged() {
+        return justMerged;
     }
 
     public void setMvp(FloatBuffer mvp) {
@@ -328,6 +346,10 @@ public class GPUSimulation {
 
     public String getPerformanceText() {
         return boundedBarnesHut.debugString;
+    }
+
+    public int getSteps() {
+        return boundedBarnesHut.getSteps();
     }
 
     public void toggleRegions() {

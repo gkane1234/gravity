@@ -35,7 +35,7 @@ void encodeMortonKernel()
 
     //change to accept the already alive-dead sorted index array
 
-    uint bodyIdx = index[gid];
+    uint bodyIdx = indexIn[gid];
 
     Body body = srcB.bodies[bodyIdx];
 
@@ -44,7 +44,7 @@ void encodeMortonKernel()
     vec3 extent = max(scene.maxCorner - scene.minCorner, vec3(1e-9)); //can calculate this once now
     vec3 pNorm = (pos - scene.minCorner) / extent;
 
-    morton[gid] = mortonEncode3D(pNorm);
+    mortonIn[gid] = mortonEncode3D(pNorm);
 }
 
 

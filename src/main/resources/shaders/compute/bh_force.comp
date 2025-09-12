@@ -23,7 +23,7 @@ void computeForce()
     if (gid >= sim.numBodies) return;
 
 
-    uint bodyIdx = index[gid];
+    uint bodyIdx = indexIn[gid];
 
     //uintDebug[gid] = bodyIdx;
 
@@ -43,8 +43,8 @@ void computeForce()
         float longestSide = max(extent.x, max(extent.y, extent.z));
         if (node.childA == 0xFFFFFFFFu) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-            if (index[nodeIdx] != bodyIdx) {
-                Body other = srcB.bodies[index[nodeIdx]];
+            if (indexIn[nodeIdx] != bodyIdx) {
+                Body other = srcB.bodies[indexIn[nodeIdx]];
                 float bodyRadius = radius(body);
                 float otherRadius = radius(other);
                 float dist = length(r);
@@ -63,9 +63,9 @@ void computeForce()
                 //         body.posMass.xyz -= correction;
                 //     }
                 // } else 
-                if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < index[nodeIdx])) {
+                if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < indexIn[nodeIdx])) {
                     uint slot = atomicAdd(mergeQueueTail, 1u);
-                    mergeQueue[slot] = uvec2(bodyIdx , index[nodeIdx]);
+                    mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
                 }
             }
         }

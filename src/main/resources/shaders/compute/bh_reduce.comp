@@ -11,12 +11,12 @@ void initLeafNodesKernel()
     if (gid == 0) {
         uintDebug[0]=0u;
         uintDebug[50]=0u;
-        tail = 0u;
-        head = 0u;
+        tailIn = 0u;
+        headIn = 0u;
     }
     if (gid >= sim.numBodies) return;
 
-    uint bodyIdx = index[gid];
+    uint bodyIdx = indexIn[gid];
     Body body = srcB.bodies[bodyIdx];
 
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
@@ -30,7 +30,7 @@ void initLeafNodesKernel()
     uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
     if (prev == 1u) {
         uint idx = atomicAdd(tail, 1u);
-        items[idx] = parentIdx;
+        itemsIn[idx] = parentIdx;
     }
 }
 // Each pass of this kernel propagates COM and AABB one level up the tree
@@ -43,7 +43,7 @@ void propagateNodesKernel()
     if (gl_GlobalInvocationID.x == 0) {
         if (nodes[sim.initialNumBodies].readyChildren != 0xFFFFFFFFu) {
             atomicAdd(uintDebug[0], 1u);
-            head = 0u;
+            headIn = 0u;
         }
     }
 
@@ -52,7 +52,7 @@ void propagateNodesKernel()
     uint workIdx = atomicAdd(head, 1u);
     while (workIdx < tail) {
         
-        uint nodeIdx = items[workIdx];
+        uint nodeIdx = itemsIn[workIdx];
         if (nodes[nodeIdx].readyChildren == 0xFFFFFFFFu) {
             workIdx = atomicAdd(head, 1u);
             continue;
@@ -91,7 +91,7 @@ void propagateNodesKernel()
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
             if (prev == 1u) {
-                items[workIdx] = parentIdx;
+                itemsIn[workIdx] = parentIdx;
 
             }
         }

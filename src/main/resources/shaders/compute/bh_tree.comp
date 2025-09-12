@@ -17,8 +17,8 @@ int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(sim.numBodies) || j >= int(sim.numBodies)) return -1;
     
-    uint64_t mortonI = morton[i];
-    uint64_t mortonJ = morton[j];
+    uint64_t mortonI = mortonIn[i];
+    uint64_t mortonJ = mortonIn[j];
 
     if (mortonI == mortonJ) {
         uint iu = uint(i);

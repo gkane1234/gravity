@@ -20,15 +20,16 @@ Body mergeBodies(Body body1, Body body2) {
     return mergedBody;
 }
 void mergeBodiesKernel() {
-
-        uint workIdx = gl_GlobalInvocationID.x;
-        if (workIdx >= mergeQueueTail) return;
+    for (;;) {
+        // Atomically claim a queue slot
+        uint workIdx = atomicAdd(mergeQueueHead, 1u);
+        if (workIdx >= mergeQueueTail) break;
 
         uvec2 pair = mergeQueue[workIdx];
         uint iA = pair.x;
         uint iB = pair.y;
 
-        if (iA == iB) return; // skip invalid pairs
+        if (iA == iB) continue; // skip invalid pairs
 
         // Lock both bodies (order by index to avoid deadlock)
         uint first  = min(iA, iB);
@@ -36,12 +37,12 @@ void mergeBodiesKernel() {
 
         if (atomicCompSwap(bodyLocks[first], 0u, 1u) != 0u) {
             // could not lock first
-            return;
+            continue;
         }
         if (atomicCompSwap(bodyLocks[second], 0u, 1u) != 0u) {
             // release first, then skip
             bodyLocks[first] = 0u;
-            return;
+            continue;
         }
 
         // Both locked
@@ -52,9 +53,12 @@ void mergeBodiesKernel() {
             Body merged = mergeBodies(body1, body2);
             dstB.bodies[iA] = merged;
             dstB.bodies[iB] = EMPTY_BODY;
+
+            atomicAdd(sim.justMerged, 1u);
         }
 
         // Unlock both
         bodyLocks[first] = 0u;
         bodyLocks[second] = 0u;
+    }
 }

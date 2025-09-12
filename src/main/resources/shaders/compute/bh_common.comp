@@ -1,9 +1,8 @@
 // =============================================================
 // Common definitions, structs, buffers, and helpers for BH
 // =============================================================
-
-layout(local_size_x = 256) in;
-const uint WG_SIZE = 256u;
+layout(local_size_x = 256u) in;
+const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
 uniform float softening;
 uniform float theta;
 uniform float dt;
@@ -39,27 +38,22 @@ struct Node {
     uint readyChildren;
     uint parentId;
 };
-
-layout(std430, binding = 0) buffer  BodiesIn  {  Body bodies[]; } srcB;
-layout(std430, binding = 1) buffer BodiesOut {  Body bodies[]; } dstB;
-layout(std430, binding = 2) buffer MortonKeys { uint64_t morton[]; };
-layout(std430, binding = 3) buffer Indices    { uint index[]; };
-layout(std430, binding = 4) buffer Nodes      { Node nodes[]; };
-layout(std430, binding = 5) buffer Values { uint numBodies; uint initialNumBodies; uint justDied; uint pad1; AABB bounds; } sim;
-// first half is for alive values second for dead values
-layout(std430, binding = 6) buffer WGHist      { uint wgHist[];      };
-// first half is for alive values second for dead values
-layout(std430, binding = 7) buffer WGScanned   { uint wgScanned[];   };
-layout(std430, binding = 8) buffer BucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];  };
-layout(std430, binding = 9) buffer MortonOut   { uint64_t mortonOut[];   };
-layout(std430, binding = 10) buffer IndicesOut  { uint indexOut[];    };
-layout(std430, binding = 11) buffer WorkQueue { uint head; uint tail; uint activeThreads; uint selector; uint items[]; };
-layout(std430, binding = 12) buffer MergeQueue { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
-layout(std430, binding = 13) buffer Debug { uint uintDebug[100]; float floatDebug[100]; };
-layout(std430, binding = 14) buffer WorkQueue2 { uint headB; uint tailB; uint activeThreadsB; uint pad02; uint itemsB[]; };
-layout(std430, binding = 15) buffer BodyLocks { uint bodyLocks[]; };
-
-
+layout(std430, binding = 0)  buffer Nodes              { Node nodes[]; };
+layout(std430, binding = 1)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
+layout(std430, binding = 2)  buffer BodiesIn           { Body bodies[]; } srcB;
+layout(std430, binding = 3)  buffer BodiesOut          { Body bodies[]; } dstB;
+layout(std430, binding = 4)  buffer MortonIn           { uint64_t mortonIn[]; };
+layout(std430, binding = 5)  buffer MortonOut          { uint64_t mortonOut[]; };
+layout(std430, binding = 6)  buffer IndexIn            { uint indexIn[]; };
+layout(std430, binding = 7)  buffer IndexOut           { uint indexOut[]; };
+layout(std430, binding = 8)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
+layout(std430, binding = 9)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+layout(std430, binding = 10) buffer RadixWGHist        { uint wgHist[];      };
+layout(std430, binding = 11) buffer RadixWGScanned     { uint wgScanned[];   };
+layout(std430, binding = 12) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
+layout(std430, binding = 13) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+layout(std430, binding = 14) buffer MergeBodyLocks     { uint bodyLocks[]; };
+layout(std430, binding = 15) buffer Debug              { uint uintDebug[100]; float floatDebug[100]; };
 
 AABB updateAABB(AABB a, AABB b) {
     AABB result;
