@@ -81,10 +81,10 @@ void computeForce()
 
     vec3 newVel = body.velDensity.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
-    dstB.bodies[gid].velDensity.xyz = newVel;
-    dstB.bodies[gid].velDensity.w = body.velDensity.w;
-    dstB.bodies[gid].posMass.xyz = newPos;
-    dstB.bodies[gid].posMass.w = body.posMass.w;
+    dstB.bodies[bodyIdx].velDensity.xyz = newVel;
+    dstB.bodies[bodyIdx].velDensity.w = body.velDensity.w;
+    dstB.bodies[bodyIdx].posMass.xyz = newPos;
+    dstB.bodies[bodyIdx].posMass.w = body.posMass.w;
 
 }
 
