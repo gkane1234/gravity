@@ -202,7 +202,7 @@ public class ComputeShader {
      */
     public static String getSource(String kernelName) {
         String source = insertDefineAfterVersion(getComputeShaderSource(), kernelName);
-        System.out.println(source);
+        //System.out.println(source);
         return source;
     }
 

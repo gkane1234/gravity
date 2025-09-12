@@ -88,9 +88,21 @@ public class OpenGLWindow {
         // Update FPS calculation
         updateFPS();
         openGlUI.drawUI();
+        checkGLError("after openGlUI.drawUI");
         glfwSwapBuffers(window);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glfwPollEvents();
+        checkGLError("after glfwPollEvents");
+    }
+
+        /**
+     * Check for OpenGL errors.
+     */
+    private void checkGLError(String operation) {
+        int error = glGetError();
+        if (error != GL_NO_ERROR) {
+            System.err.println("OpenGL Error after " + operation + ": " + error);
+        }
     }
 
     // Initialization Methods

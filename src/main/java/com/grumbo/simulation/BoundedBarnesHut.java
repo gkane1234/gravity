@@ -240,6 +240,11 @@ public class BoundedBarnesHut {
      */
     public void init() {
         initComputeSSBOs();
+
+
+
+
+
         initComputeSwappingBuffers();
         initComputeUniforms();
         initComputeShaders();
@@ -253,19 +258,31 @@ public class BoundedBarnesHut {
      * the general layout of the SSBOs.
      */
     private void initComputeSSBOs() {
+        // Compute sizes (use long to avoid overflow)
+        long nodesSize = Node.STRUCT_SIZE * Integer.BYTES * (2L * numBodies() - 1L);
+        long maxBlock = glGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
+        System.out.println("Node space left: " + (maxBlock - nodesSize));
+        System.out.println("Max block: " + maxBlock);
+
+        if (nodesSize > maxBlock) {
+
+            throw new RuntimeException("Not enough node space (your simulation is too large) Approximate max bodies: " + (maxBlock / (2*Node.STRUCT_SIZE * Integer.BYTES)));
+        }
+
+        checkGLError("before initComputeSSBOs");
         
         //this is a list of all the SSBOs that are used in the algorithm.
         ssbos = new HashMap<>();
 
         //These are the fixed SSBOs that point to the bodies in and out buffers.
-        //They are intialized with the data from the planets list.
+        System.out.println("numBodies: " + numBodies());
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
-            return Body.packPlanets(gpuSimulation.getPlanets());
+            return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
         }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
 
         FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
-            return Body.packPlanets(gpuSimulation.getPlanets());
+            return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
         }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
@@ -350,10 +367,19 @@ public class BoundedBarnesHut {
         }, "BODY_LOCKS_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(MERGE_BODY_LOCKS_SSBO.getName(), MERGE_BODY_LOCKS_SSBO);
 
+        checkGLError("after initComputeSSBOs");
+
         for (SSBO ssbo : ssbos.values()) {
             System.out.println("Creating buffer for " + ssbo.getName());
             ssbo.createBufferData();
+            checkGLError("after createBufferData for " + ssbo.getName());
         }
+
+        checkGLError("after createBufferData");
+
+        uploadPlanetsData(gpuSimulation.getPlanetGenerator(), FIXED_BODIES_IN_SSBO);
+
+
 
 
     }
@@ -365,7 +391,9 @@ public class BoundedBarnesHut {
             ssbo.createBufferData();
         }
         initComputeSwappingBuffers();
+        uploadPlanetsData(gpuSimulation.getPlanetGenerator(), FIXED_BODIES_IN_SSBO);
     }
+
 
     /**
      * Initialize the uniforms. These are defined in bh_common.comp for the most part.
@@ -436,7 +464,9 @@ public class BoundedBarnesHut {
         });
         initKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "SWAPPING_INDEX_IN_SSBO"
+            "SWAPPING_INDEX_IN_SSBO",
+            "FIXED_BODIES_IN_SSBO",
+            "FIXED_BODIES_OUT_SSBO"
         });
         initKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -1094,13 +1124,27 @@ public class BoundedBarnesHut {
     /**
      * Upload the planet data to the GPU.
      */
-    public void uploadPlanetsData(List<Planet> newPlanets) {
-        // Assumes buffers are already correctly sized
-        ByteBuffer data = Body.packPlanets(newPlanets);
+    public void uploadPlanetsData(PlanetGenerator planetGenerator, SSBO bodiesSSBO) {
 
-        glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_WRITE_ONLY);
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data);
-        SSBO.unBind();
+        checkGLError("before uploadPlanetsData");
+
+        // Assumes buffers are already correctly sized
+        bodiesSSBO.bind();
+    
+        int offset = 0;
+        System.out.println("Uploading planet data");
+        while (planetGenerator.hasNext()) {
+            System.out.println(planetGenerator.planetsGenerated);
+            List<Planet> planets = planetGenerator.nextChunk();
+            ByteBuffer data = Body.packPlanets(planets);
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, data);
+            offset += data.capacity();
+        }
+
+        checkGLError("after uploadPlanetsData");
+
+    
+        bodiesSSBO.unbind();
     }
 
 

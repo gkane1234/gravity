@@ -2,4 +2,5 @@
 void initKernel() {
     uint gid = gl_GlobalInvocationID.x;
     indexIn[gid] = gid;
+    dstB.bodies[gid] = srcB.bodies[gid];
 }

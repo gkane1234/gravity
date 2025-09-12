@@ -162,31 +162,48 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
     }
 
+        /**
+     * Check for OpenGL errors.
+     */
+    private void checkGLError(String operation) {
+        int error = glGetError();
+        if (error != GL_NO_ERROR) {
+            System.err.println("OpenGL Error after " + operation + ": " + error);
+        }
+    }
+
     public void drawUI() {
+        checkGLError("before runKeyFunctions");
         runKeyFunctions();
 
         if (openGlWindow.getState() == GPUSimulation.State.PAUSED) {
             drawFrameAdvanceIndicator();
+            checkGLError("after drawFrameAdvanceIndicator");
         }
 
         // Draw FPS display
         if (showStats) {
             drawStats();
+            checkGLError("after drawStats");
         }
         
         // Draw settings panel
         if (displaySettings) {
             settingsPane.draw(font);
+            checkGLError("after drawSettingsPane");
         }
 
         // Draw profiling info
         if (displayDebug) {
             drawDebugInfo();
+            checkGLError("after drawDebugInfo");
         }
 
         if (showCrosshair) {
             drawCrosshair();
+            checkGLError("after drawCrosshair");
         }
+        checkGLError("after drawUI");
     }
 
     public void updateKeys(int key, int action) {
@@ -473,30 +490,25 @@ public class OpenGLUI {
         int padding = 6;
 
         drawMultiLineText(performanceText, x, y, lineHeight, padding);
-        
-
-
-        
-
     }
 
     private void setUpFor2D() {
-
+        checkGLError("before setUpFor2D");
         // Save current OpenGL state
         glPushMatrix();
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
         glLoadIdentity();
-        
+        checkGLError("saved projection matrix");
         // Set up 2D orthographic projection
         glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
         glLoadIdentity();
-        
+        checkGLError("saved modelview matrix");
         // Disable depth testing for UI elements
         glDisable(GL_DEPTH_TEST);
-
+        checkGLError("disabled depth testing");
     }
 
     private void tearDownFor2D() {
@@ -508,8 +520,9 @@ public class OpenGLUI {
     }
 
     private void drawMultiLineText(String text, int x, int y, int lineHeight, int padding) {
+        checkGLError("before setUpFor2D");
         setUpFor2D();
-        
+        checkGLError("after setUpFor2D");
 
         // Split performance text into lines
         String[] lines = text.split("\n");
@@ -525,12 +538,14 @@ public class OpenGLUI {
 
         // Draw background rectangle
         glColor4f(0.0f, 0.0f, 0.0f, 0.8f); // Semi-transparent black
+        checkGLError("before glBegin");
         glBegin(GL_QUADS);
         glVertex2f(x - padding, y - padding);
         glVertex2f(x + width + padding, y - padding); // 280 pixels wide
         glVertex2f(x + width + padding, y + totalHeight + padding);
         glVertex2f(x - padding, y + totalHeight + padding);
         glEnd();
+        checkGLError("after glBegin");
         
         // Draw text in white
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
@@ -542,8 +557,9 @@ public class OpenGLUI {
                 font.drawText(line, x, y + i * (lineHeight+10));
             } 
         }
-
+        checkGLError("after drawText");
         tearDownFor2D();
+        checkGLError("after tearDownFor2D");
 
     }
         

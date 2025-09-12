@@ -97,6 +97,7 @@ public class Render {
         // Create points render program
         pointsProgram = glCreateProgram();
         createProgram("points", pointsProgram);
+        checkGLError("pointsProgram");
 
         // Cache uniform locations
         uPointsMvpLocation = glGetUniformLocation(pointsProgram, "uMVP");
@@ -104,7 +105,7 @@ public class Render {
         // Create impostor render program
         impostorProgram = glCreateProgram();
         createProgram("impostor", impostorProgram);
-
+        checkGLError("impostorProgram");
         // Cache uniform locations
         uImpostorModelViewLocation = glGetUniformLocation(impostorProgram, "uModelView");
         uImpostorPointScaleLocation = glGetUniformLocation(impostorProgram, "uPointScale");
@@ -118,7 +119,7 @@ public class Render {
         // Create mesh sphere render program
         sphereProgram = glCreateProgram();
         createProgram("sphere", sphereProgram);
-
+        checkGLError("sphereProgram");
         // Cache uniform locations
         uSphereMvpLocation = glGetUniformLocation(sphereProgram, "uMVP");
         uSphereRadiusScaleLocation = glGetUniformLocation(sphereProgram, "uRadiusScale");
@@ -134,7 +135,7 @@ public class Render {
         // Initialize regions program
         regionsProgram = glCreateProgram();
         createProgram("regions", regionsProgram);
-
+ 
         // Cache uniform locations
         uRegionsMvpLocation = glGetUniformLocation(regionsProgram, "uMVP");
         uRegionsMinMaxDepthLocation = glGetUniformLocation(regionsProgram, "uMinMaxDepth");
@@ -146,11 +147,14 @@ public class Render {
 
         rebuildRegionsMesh();
 
+        checkGLError("init");
+
     }
 
         /* --------- Rendering --------- */
 
         public void render(SSBO bodiesOutSSBO, GPUSimulation.State state) {
+            checkGLError("before render");
             if (renderMode == RenderMode.OFF) return;
             getCameraView();
             switch (renderMode) {
@@ -161,6 +165,7 @@ public class Render {
                 default: break;
             }
             if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
+            checkGLError("after render");
         }
 
         private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
@@ -520,4 +525,13 @@ public class Render {
                 System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
             }
         }
+    /**
+     * Check for OpenGL errors.
+     */
+    private void checkGLError(String operation) {
+        int error = glGetError();
+        if (error != GL_NO_ERROR) {
+            System.err.println("OpenGL Error after " + operation + ": " + error);
+        }
+    }
 }

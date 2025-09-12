@@ -19,14 +19,14 @@ public final class GPUCommands {
     }
 
 
-    // Re-upload existing planet data (same size)
-    public static GPUCommand uploadPlanetData(java.util.List<Planet> planets) {
-        return sim -> sim.uploadPlanetsData(planets);
-    }
+    // // Re-upload existing planet data (same size)
+    // public static GPUCommand uploadPlanetData(java.util.List<Planet> planets) {
+    //     return sim -> sim.uploadPlanetsData(planets);
+    // }
 
-    // Resize SSBOs when count changes, then upload
-    public static GPUCommand resizeAndUploadPlanets(java.util.List<Planet> planets) {
-        return sim -> sim.resizeBuffersAndUpload(planets);
-    }
+    // // Resize SSBOs when count changes, then upload
+    // public static GPUCommand resizeAndUploadPlanets(java.util.List<Planet> planets) {
+    //     return sim -> sim.resizeBuffersAndUpload(planets);
+    // }
 
 }
