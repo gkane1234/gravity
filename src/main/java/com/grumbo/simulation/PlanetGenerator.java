@@ -160,7 +160,6 @@ public class PlanetGenerator {
     }
 
     public List<Planet> nextChunk() {
-        System.out.println("Next chunk");
         if (!hasNextFunction.hasNextFunction()) {
             throw new RuntimeException("No more planets");
         }
@@ -168,7 +167,6 @@ public class PlanetGenerator {
         for (int i = 0; i < Math.min(chunkSize, numPlanets - planetsGenerated); i++) {
             ret.add(nextPlanet());
         }
-        System.out.println("Generated " + ret.size() + " planets" + " " + numPlanets + " " + planetsGenerated);
         return ret;
     }
 

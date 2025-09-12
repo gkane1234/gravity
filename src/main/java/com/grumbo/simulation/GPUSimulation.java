@@ -115,7 +115,7 @@ public class GPUSimulation {
     public static PlanetGenerator createSeveralDisksAroundAnotherDiskSimulation() {
 
         int numDisks = 20;
-        int[] numPlanetsRange = {250_000,750_000};
+        int[] numPlanetsRange = {250_000,250_000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
         float[] mRange = {100, 1200};
@@ -134,13 +134,13 @@ public class GPUSimulation {
         boolean giveOrbitalVelocity = true;
 
 
-        int centerDiskPlanets = 600_000;
+        int centerDiskPlanets = 6_000_000;
         float[] centerDiskRadius = {100, 50000};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
         float centerDiskPhi = (float)(Math.PI/2);
-        float centerDiskCenterMass = 100000000f;
-        float centerDiskCenterDensity = 1f;
+        float centerDiskCenterMass = 1000000000f;
+        float centerDiskCenterDensity = 10f;
         float centerDiskAdherenceToPlane = 0.99f;
         float centerDiskOrbitalFactor = 1f;
         boolean centerDiskGiveOrbitalVelocity = true;

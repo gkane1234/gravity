@@ -1132,14 +1132,21 @@ public class BoundedBarnesHut {
         bodiesSSBO.bind();
     
         int offset = 0;
-        System.out.println("Uploading planet data");
+        System.out.print("Uploading planet data:");
+        double percentUploaded = 0;
+        int displayProgress = 25;
         while (planetGenerator.hasNext()) {
-            System.out.println(planetGenerator.planetsGenerated);
+            percentUploaded = (int)((double)planetGenerator.planetsGenerated/planetGenerator.getNumPlanets()*100);
+            if (percentUploaded % displayProgress == 0) {
+                System.out.print(" "+percentUploaded+"%");
+            }
             List<Planet> planets = planetGenerator.nextChunk();
             ByteBuffer data = Body.packPlanets(planets);
             glBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, data);
             offset += data.capacity();
         }
+
+        System.out.println(" 100%");
 
         checkGLError("after uploadPlanetsData");
 
