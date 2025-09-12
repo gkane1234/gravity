@@ -30,7 +30,8 @@ struct AABB {
 
 struct Node {
     vec4 comMass;
-    AABB aabb;
+    //stored as a uint[6] to avoid padding
+    float[6] aabb;
     uint childA;
     uint childB;
     uint nodeDepth;
@@ -68,4 +69,14 @@ bool isEmpty(Body b) {
 
 float radius(Body b) {
     return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+}
+
+// Helper function to convert float[6] to AABB
+AABB getAABB(float[6] aabb) {
+    return AABB(vec3(aabb[0], aabb[1], aabb[2]), vec3(aabb[3], aabb[4], aabb[5]));
+}
+
+// Helper function to convert AABB to uint[6]
+float[6] packAABB(AABB aabb) {
+    return float[6](aabb.minCorner.x, aabb.minCorner.y, aabb.minCorner.z, aabb.maxCorner.x, aabb.maxCorner.y, aabb.maxCorner.z);
 }

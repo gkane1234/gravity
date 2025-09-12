@@ -20,7 +20,8 @@ void initLeafNodesKernel()
     Body body = srcB.bodies[bodyIdx];
 
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
-    nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
+
+    nodes[gid].aabb = packAABB(AABB(body.posMass.xyz, body.posMass.xyz));
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
     nodes[gid].readyChildren = 0xFFFFFFFFu;
@@ -80,11 +81,11 @@ void propagateNodesKernel()
         } else {
             centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
         }
-        AABB leftAABB = nodes[leftChild].aabb;
-        AABB rightAABB = nodes[rightChild].aabb;
+        AABB leftAABB = getAABB(nodes[leftChild].aabb);
+        AABB rightAABB = getAABB(nodes[rightChild].aabb);
         AABB newAABB = updateAABB(leftAABB, rightAABB);
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
-        nodes[nodeIdx].aabb = newAABB;
+        nodes[nodeIdx].aabb = packAABB(newAABB);
         nodes[nodeIdx].readyChildren = 0xFFFFFFFFu;
         nodes[nodeIdx].nodeDepth = 1u+max(nodes[leftChild].nodeDepth, nodes[rightChild].nodeDepth);
         uint parentIdx = nodes[nodeIdx].parentId;

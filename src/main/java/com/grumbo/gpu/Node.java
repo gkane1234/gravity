@@ -16,8 +16,7 @@ public class Node {
 
     // struct Node {
     //     vec4 comMass;      // xyz = center of mass, w = total mass
-    //     vec3 aabbMin;
-    //     vec3 aabbMax;
+    //     float[6] aabb;
     //     uint childA;       // left child index
     //     uint childB;       // right child index
     //     uint nodeDepth;    // leaf body index or start
@@ -28,25 +27,21 @@ public class Node {
     // -----
 
     public static final int COM_MASS_OFFSET = 0;
-    public static final int AABB_MIN_OFFSET = 4;
-    public static final int AABB_MAX_OFFSET = 8;
-    public static final int CHILD_A_OFFSET = 12;
-    public static final int CHILD_B_OFFSET = 13;
-    public static final int FIRST_BODY_OFFSET = 14;
-    public static final int BODY_COUNT_OFFSET = 15;
-    public static final int READY_CHILDREN_OFFSET = 16;
-    public static final int PARENT_ID_OFFSET = 17;
+    public static final int AABB_OFFSET = 4;
+    public static final int CHILD_A_OFFSET = 10;
+    public static final int CHILD_B_OFFSET = 11;
+    public static final int FIRST_BODY_OFFSET = 12;
+    public static final int BODY_COUNT_OFFSET = 13;
+    public static final int READY_CHILDREN_OFFSET = 14;
+    public static final int PARENT_ID_OFFSET = 15;
 
-    public static final int STRUCT_SIZE = 20;
+    public static final int STRUCT_SIZE = 16;
     public static final VariableType[] nodeTypes = new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, 
-        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.PADDING, 
-        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.PADDING, 
-        VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, 
-        VariableType.UINT, VariableType.UINT, VariableType.PADDING, VariableType.PADDING }; 
+        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT,
+        VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT}; 
 
     public float[] comMass;
-    public float[] aabbMin;
-    public float[] aabbMax;
+    public float[] aabb;
     public int childA;
     public int childB;
     public int nodeDepth;
@@ -67,11 +62,10 @@ public class Node {
      * @param parentId the index of the parent node
      * @param isLeaf whether the node is a leaf node
      */
-    public Node(float[] comMass, float[] aabbMin, float[] aabbMax, int childA, int childB, int nodeDepth, int bodiesContained, int readyChildren, int parentId, boolean isLeaf) {
+    public Node(float[] comMass, float[] aabb, int childA, int childB, int nodeDepth, int bodiesContained, int readyChildren, int parentId, boolean isLeaf) {
 
         this.comMass = comMass;
-        this.aabbMin = aabbMin;
-        this.aabbMax = aabbMax;
+        this.aabb = aabb;
         this.childA = childA;
         this.childB = childB;
         this.nodeDepth = nodeDepth;
@@ -89,23 +83,19 @@ public class Node {
      */
     public Node(IntBuffer buffer, int index) {
         this.comMass = new float[4];
-        this.aabbMin = new float[3];
-        this.aabbMax = new float[3];
+        this.aabb = new float[6];
 
         this.comMass[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET));
         this.comMass[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 1));
         this.comMass[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 2));
         this.comMass[3] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 3));
 
-        this.aabbMin[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MIN_OFFSET));
-        this.aabbMin[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MIN_OFFSET + 1));
-        this.aabbMin[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MIN_OFFSET + 2));
-        //padding
-
-        this.aabbMax[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MAX_OFFSET));
-        this.aabbMax[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MAX_OFFSET + 1));
-        this.aabbMax[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_MAX_OFFSET + 2));
-        //padding
+        this.aabb[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_OFFSET));
+        this.aabb[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_OFFSET + 1));
+        this.aabb[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_OFFSET + 2));
+        this.aabb[3] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_OFFSET + 3));
+        this.aabb[4] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_OFFSET + 4));
+        this.aabb[5] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AABB_OFFSET + 5));
 
         this.childA = buffer.get(index * STRUCT_SIZE + CHILD_A_OFFSET);
         this.childB = buffer.get(index * STRUCT_SIZE + CHILD_B_OFFSET);
@@ -114,8 +104,6 @@ public class Node {
 
         this.readyChildren = buffer.get(index * STRUCT_SIZE + READY_CHILDREN_OFFSET);
         this.parentId = buffer.get(index * STRUCT_SIZE + PARENT_ID_OFFSET);
-        //padding
-        //padding
 
         this.isLeaf = index*STRUCT_SIZE<buffer.capacity()/2;
 
@@ -175,15 +163,14 @@ public class Node {
     public String toString() {
         // Highlight problematic nodes
         String marker = "";
-        if (readyChildren < 2) marker += " **STUCK**";
-        if (readyChildren > 3) marker += " **CORRUPTED**";
+        if (readyChildren != -1) marker += " **STUCK**";
+        if (readyChildren > 2) marker += " **CORRUPTED**";
         if (comMass[3] == 0.0f) marker += " **NO_MASS**";
         if (comMass[0] == 0.0f && comMass[1] == 0.0f && comMass[2] == 0.0f && comMass[3] > 0.0f) marker += " **NO_COM**";
         String leafString = isLeaf ? "LEAF" : "INTERNAL";
         return leafString + "{" +
                 "comMass=" + Arrays.toString(comMass) +
-                ", aabbMin=" + Arrays.toString(aabbMin) +
-                ", aabbMax=" + Arrays.toString(aabbMax) +
+                ", aabb=" + Arrays.toString(aabb) +
                 ", childA=" + childA +
                 ", childB=" + childB +
                 ", nodeDepth=" + nodeDepth +
@@ -222,7 +209,7 @@ public class Node {
      * @return the volume of the node
      */
     public static float volume(Node node) {
-        return (node.aabbMax[0] - node.aabbMin[0]) * (node.aabbMax[1] - node.aabbMin[1]) * (node.aabbMax[2] - node.aabbMin[2]);
+        return (node.aabb[3] - node.aabb[0]) * (node.aabb[4] - node.aabb[1]) * (node.aabb[5] - node.aabb[2]);
     }
 
     /**

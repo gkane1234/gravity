@@ -45,7 +45,7 @@ void buildBinaryRadixTreeKernel()
             nodes[headIdx].childB = 0xFFFFFFFFu;
             nodes[headIdx].readyChildren = 1u;
             nodes[headIdx].comMass = vec4(0.0);
-            nodes[headIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
+            nodes[headIdx].aabb = packAABB(AABB(vec3(1e38), vec3(-1e38)));
             nodes[headIdx].nodeDepth = 0u;
             nodes[headIdx].bodiesContained = 0u;
             nodes[0].parentId = sim.initialNumBodies;
@@ -105,7 +105,7 @@ void buildBinaryRadixTreeKernel()
     nodes[internalIdx].childB = rightChild;
     nodes[internalIdx].readyChildren = 0u;
     nodes[internalIdx].comMass = vec4(0.0);
-    nodes[internalIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
+    nodes[internalIdx].aabb = packAABB(AABB(vec3(1e38), vec3(-1e38)));
     nodes[leftChild].parentId = internalIdx;
     nodes[rightChild].parentId = internalIdx;
     nodes[internalIdx].nodeDepth = uint(min(i, j));

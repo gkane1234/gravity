@@ -225,6 +225,7 @@ public class BoundedBarnesHut {
         // Swap the body buffers.
         swapBodyBuffers();
 
+
             if (debug) {
             debugString = printProfiling();
         }
