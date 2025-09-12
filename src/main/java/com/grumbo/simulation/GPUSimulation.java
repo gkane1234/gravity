@@ -114,18 +114,18 @@ public class GPUSimulation {
 
     public static PlanetGenerator createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 50;
+        int numDisks = 20;
         int[] numPlanetsRange = {250_000,750_000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
         float[] mRange = {100, 1200};
         float[] densityRange = {1f, 1f};
-        float[] centerX = {-30000, 30000};
-        float[] centerY = {-30000, 30000};
-        float[] centerZ = {-30000, 30000};
-        float[] relativeVelocityX = {-10, 10};
-        float[] relativeVelocityY = {-10, 10};
-        float[] relativeVelocityZ = {-10, 10};
+        float[] centerX = {-300000, 300000};
+        float[] centerY = {-300000, 300000};
+        float[] centerZ = {-300000, 300000};
+        float[] relativeVelocityX = {-100, 100};
+        float[] relativeVelocityY = {-100, 100};
+        float[] relativeVelocityZ = {-100, 100};
         float[] phiRange = {0, (float)Math.PI};
         float[] centerMassRange = {10000f, 1000000f};
         float[] centerDensityRange = {10f, 10f};

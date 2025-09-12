@@ -513,10 +513,11 @@ public class OpenGLUI {
 
     private void tearDownFor2D() {
         glEnable(GL_DEPTH_TEST);
-        glPopMatrix();
+        glPopMatrix();                   // MODELVIEW
         glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
+        glPopMatrix();                   // PROJECTION
         glMatrixMode(GL_MODELVIEW);
+        glPopMatrix(); 
     }
 
     private void drawMultiLineText(String text, int x, int y, int lineHeight, int padding) {

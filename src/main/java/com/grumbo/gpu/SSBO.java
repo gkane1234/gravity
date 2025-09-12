@@ -2,7 +2,6 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 /**
