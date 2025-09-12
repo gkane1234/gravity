@@ -16,7 +16,6 @@ Body mergeBodies(Body body1, Body body2) {
     mergedBody.posMass.w = newMass;
     mergedBody.velDensity.xyz = (body1.velDensity.xyz * body1.posMass.w + body2.velDensity.xyz * body2.posMass.w) / newMass;
     mergedBody.velDensity.w = (body1.posMass.w+body2.posMass.w)/(body1.posMass.w/body1.velDensity.w+body2.posMass.w/body2.velDensity.w);
-    mergedBody.color = (body1.color*body1.posMass.w+body2.color*body2.posMass.w)/newMass;
     return mergedBody;
 }
 void mergeBodiesKernel() {
