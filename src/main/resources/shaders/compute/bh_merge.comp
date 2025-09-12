@@ -1,0 +1,64 @@
+
+Body mergeBodies(Body body1, Body body2) {
+    Body mergedBody;    
+    float newMass = body1.posMass.w + body2.posMass.w;
+    if (newMass == 0.0) {
+        return EMPTY_BODY;
+    }
+    if (body1.posMass.w == 0.0) {
+        return body2;
+    }
+    if (body2.posMass.w == 0.0) {
+        return body1;
+    }
+    vec3 newPos = (body1.posMass.xyz * body1.posMass.w + body2.posMass.xyz * body2.posMass.w) / newMass;
+    mergedBody.posMass.xyz = newPos;
+    mergedBody.posMass.w = newMass;
+    mergedBody.velDensity.xyz = (body1.velDensity.xyz * body1.posMass.w + body2.velDensity.xyz * body2.posMass.w) / newMass;
+    mergedBody.velDensity.w = (body1.posMass.w+body2.posMass.w)/(body1.posMass.w/body1.velDensity.w+body2.posMass.w/body2.velDensity.w);
+    mergedBody.color = (body1.color*body1.posMass.w+body2.color*body2.posMass.w)/newMass;
+    return mergedBody;
+}
+void mergeBodiesKernel() {
+    for (;;) {
+        // Atomically claim a queue slot
+        uint workIdx = atomicAdd(mergeQueueHead, 1u);
+        if (workIdx >= mergeQueueTail) break;
+
+        uvec2 pair = mergeQueue[workIdx];
+        uint iA = pair.x;
+        uint iB = pair.y;
+
+        if (iA == iB) continue; // skip invalid pairs
+
+        // Lock both bodies (order by index to avoid deadlock)
+        uint first  = min(iA, iB);
+        uint second = max(iA, iB);
+
+        if (atomicCompSwap(bodyLocks[first], 0u, 1u) != 0u) {
+            // could not lock first
+            continue;
+        }
+        if (atomicCompSwap(bodyLocks[second], 0u, 1u) != 0u) {
+            // release first, then skip
+            bodyLocks[first] = 0u;
+            continue;
+        }
+
+        // Both locked
+        Body body1 = dstB.bodies[iA];
+        Body body2 = dstB.bodies[iB];
+
+        if (!isEmpty(body1) && !isEmpty(body2)) {
+            Body merged = mergeBodies(body1, body2);
+            dstB.bodies[iA] = merged;
+            dstB.bodies[iB] = EMPTY_BODY;
+
+            atomicAdd(sim.justMerged, 1u);
+        }
+
+        // Unlock both
+        bodyLocks[first] = 0u;
+        bodyLocks[second] = 0u;
+    }
+}

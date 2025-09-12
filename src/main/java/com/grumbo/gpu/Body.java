@@ -2,7 +2,19 @@ package com.grumbo.gpu;
 
 import java.util.Arrays;
 import java.nio.IntBuffer;
+import java.nio.ByteBuffer;
+import java.util.List;
+import com.grumbo.simulation.Planet;
+import org.lwjgl.BufferUtils;
 
+/**
+ * Java Analog to the Body struct in the shader code:
+ * struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
+ * 
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class Body {
 
     //struct Body { vec4 posMass; vec4 velPad; };
@@ -11,9 +23,7 @@ public class Body {
     public static final int VEL_DENSITY_OFFSET = 4;
 
     public static final int STRUCT_SIZE = 8;
-    public static final int HEADER_SIZE = 16;
-    public static final VariableType[] headerTypes = new VariableType[] { 
-        VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT };
+    public static final int HEADER_SIZE = 0;
 
     private float[] posMass;
     private float[] velDensity;
@@ -22,16 +32,30 @@ public class Body {
         VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, 
         VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT};
 
-
+    /**
+     * Constructor for the Body class.
+     * @param posMass the position and mass of the body (x,y,z,mass)
+     * @param velDensity the velocity and density of the body (xVel,yVel,zVel,density)
+     */
     public Body(float[] posMass, float[] velDensity) {
         this.posMass = posMass;
         this.velDensity = velDensity;
     }
 
+    /**
+     * Returns the generic empty body.
+     * @return a dead body
+     */
     public static Body deadBody() {
         return new Body(new float[4], new float[4]);
     }
 
+    /**
+     * Reads a body from an int buffer that is taken from the SSBO
+     * @param buffer the buffer to get the body from
+     * @param index the index of the body in the buffer
+     * @return the body
+     */
     public static Body fromBuffer(IntBuffer buffer, int index) {
         float[] posMass = new float[4];
         float[] velDensity = new float[4];
@@ -43,7 +67,31 @@ public class Body {
         }
         return new Body(posMass, velDensity);
     }
+    /**
+     * Packs planet data to a float buffer.
+     * @param planets the planets to pack
+     * @return the float buffer
+     */
+    public static ByteBuffer packPlanets(List<Planet> planets) {
+        int numBodies = planets.size();
+        
+        ByteBuffer buf = BufferUtils.createByteBuffer((numBodies * STRUCT_SIZE)*4+HEADER_SIZE);
+        for (int i = 0; i < numBodies; i++) {
+            Planet p = planets.get(i);
+            buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
+            buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
+        }
+        buf.flip();
+        return buf;
+    }
 
+    /**
+     * Returns a string of a range of bodies in the buffer.
+     * @param buffer the buffer to get the bodies from
+     * @param start the start index of the bodies
+     * @param end the end index of the bodies
+     * @return the string of all the bodies
+     */
     public static String getBodies(IntBuffer buffer, int start, int end) {
         String bodiesString = "";
         for (int i = start; i < end; i++) {
@@ -51,7 +99,10 @@ public class Body {
         }
         return bodiesString;
     }
-
+    /**
+     * Returns a string representation of the body
+     * @return the string representation of the body
+     */
     @Override
     public String toString() {
         return "Body [posMass=" + Arrays.toString(posMass) + ", velDensity=" + Arrays.toString(velDensity) + "]";

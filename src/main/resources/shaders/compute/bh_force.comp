@@ -1,3 +1,4 @@
+
 // Force computation and merging
 bool acceptanceCriterion(float longestRadius, float invDist, float thetaVal)
 
@@ -19,13 +20,18 @@ void computeForce()
 {
     vec3 accel = vec3(0.0);
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.initialNumBodies) return;
+    if (gid >= sim.numBodies) return;
 
-    Body body = srcB.bodies[gid];
+
+    uint bodyIdx = indexIn[gid];
+
+    //uintDebug[gid] = bodyIdx;
+
+    Body body = srcB.bodies[bodyIdx];
 
     uint stack[64];
     uint stackSize = 0;
-    stack[stackSize++] = srcB.initialNumBodies;
+    stack[stackSize++] = sim.initialNumBodies;
 
 
     while (stackSize > 0) {
@@ -37,8 +43,8 @@ void computeForce()
         float longestSide = max(extent.x, max(extent.y, extent.z));
         if (node.childA == 0xFFFFFFFFu) {
             accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-            if (index[nodeIdx] != gid) {
-                Body other = srcB.bodies[index[nodeIdx]];
+            if (indexIn[nodeIdx] != bodyIdx) {
+                Body other = srcB.bodies[indexIn[nodeIdx]];
                 float bodyRadius = radius(body);
                 float otherRadius = radius(other);
                 float dist = length(r);
@@ -57,9 +63,9 @@ void computeForce()
                 //         body.posMass.xyz -= correction;
                 //     }
                 // } else 
-                if (MERGING && (dist < bodyRadius + otherRadius) && (gid < index[nodeIdx])) {
+                if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < indexIn[nodeIdx])) {
                     uint slot = atomicAdd(mergeQueueTail, 1u);
-                    mergeQueue[slot] = uvec2(gid , index[nodeIdx]);
+                    mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
                 }
             }
         }

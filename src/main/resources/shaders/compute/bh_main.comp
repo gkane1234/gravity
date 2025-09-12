@@ -1,24 +1,23 @@
 #version 430
 #extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_shading_language_include : enable
 
-#include "bh_common.glsl"
-#include "bh_aabb.glsl"
-#include "bh_morton.glsl"
-#include "bh_radix.glsl"
-#include "bh_tree.glsl"
-#include "bh_reduce.glsl"
-#include "bh_force.glsl"
-#include "bh_debug.glsl"
-#include "bh_merge.glsl"
-#include "bh_reset.glsl"
-#include "bh_dead.glsl"
+#include "bh_common.comp"
+#include "bh_init.comp"
+#include "bh_morton.comp"
+#include "bh_radix.comp"
+#include "bh_tree.comp"
+#include "bh_reduce_more_efficient.comp"
+#include "bh_force.comp"
+#include "bh_debug.comp"
+#include "bh_merge.comp"
+#include "bh_reset.comp"
+#include "bh_dead.comp"
 
 void main()
 {
-#ifdef KERNEL_COMPUTE_AABB
-    computeNewAABBKernel();
-#elif defined(KERNEL_COLLAPSE_AABB)
-    collapseAABBKernel();
+#ifdef KERNEL_INIT
+    initKernel();
 #elif defined(KERNEL_MORTON)
     encodeMortonKernel();
 #elif defined(KERNEL_DEAD_COUNT)
@@ -33,12 +32,8 @@ void main()
     radixParallelScanKernel();
 #elif defined(KERNEL_RADIX_EXCLUSIVE_SCAN)
     radixExclusiveScanKernel();
-#elif defined(KERNEL_RADIX_DEAD_EXCLUSIVE_SCAN)
-    deadExclusiveScanKernel();
 #elif defined(KERNEL_RADIX_SCATTER)
     radixScatterKernel();
-#elif defined(KERNEL_RADIX_DEAD_SCATTER)
-    deadScatterKernel();
 #elif defined(KERNEL_BUILD_BINARY_RADIX_TREE)
     buildBinaryRadixTreeKernel();
 #elif defined(KERNEL_INIT_LEAVES)
@@ -57,5 +52,6 @@ void main()
     // no-op
 #endif
 }
+
 
 

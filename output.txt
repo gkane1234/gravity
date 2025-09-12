@@ -1,0 +1,856 @@
+
+#version 430
+#extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_shading_language_include : enable
+#define KERNEL_DEBUG
+
+// =============================================================
+// Common definitions, structs, buffers, and helpers for BH
+// =============================================================
+layout(local_size_x = 256u) in;
+const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
+uniform float softening;
+uniform float theta;
+uniform float dt;
+uniform float elasticity;
+uniform float density;
+uniform float restitution;
+uniform bool collision;
+uniform uint numWorkGroups;
+uniform uint passShift;
+uniform bool mergeToggle;
+
+const uint RADIX_BITS = 4u;
+const uint NUM_BUCKETS = 1u << RADIX_BITS;
+
+//Softening values can cause slowdowns
+const float SOFTENING = 0.1;
+
+struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
+
+const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0), vec4(0.0));
+struct AABB {
+    vec3 minCorner;
+    vec3 maxCorner;
+};
+
+struct Node {
+    vec4 comMass;
+    AABB aabb;
+    uint childA;
+    uint childB;
+    uint nodeDepth;
+    uint bodiesContained;
+    uint readyChildren;
+    uint parentId;
+};
+layout(std430, binding = 0)  buffer Nodes              { Node nodes[]; };
+layout(std430, binding = 1)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint pad1; AABB bounds; } sim;
+layout(std430, binding = 2)  buffer BodiesIn           { Body bodies[]; } srcB;
+layout(std430, binding = 3)  buffer BodiesOut          { Body bodies[]; } dstB;
+layout(std430, binding = 4)  buffer MortonIn           { uint64_t mortonIn[]; };
+layout(std430, binding = 5)  buffer MortonOut          { uint64_t mortonOut[]; };
+layout(std430, binding = 6)  buffer IndexIn            { uint indexIn[]; };
+layout(std430, binding = 7)  buffer IndexOut           { uint indexOut[]; };
+layout(std430, binding = 8)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
+layout(std430, binding = 9)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+layout(std430, binding = 10) buffer RadixWGHist        { uint wgHist[];      };
+layout(std430, binding = 11) buffer RadixWGScanned     { uint wgScanned[];   };
+layout(std430, binding = 12) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
+layout(std430, binding = 13) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+layout(std430, binding = 14) buffer MergeBodyLocks     { uint bodyLocks[]; };
+layout(std430, binding = 15) buffer Debug              { uint uintDebug[100]; float floatDebug[100]; };
+
+AABB updateAABB(AABB a, AABB b) {
+    AABB result;
+    result.minCorner = min(a.minCorner, b.minCorner);
+    result.maxCorner = max(a.maxCorner, b.maxCorner);
+    return result;
+}
+
+bool isEmpty(Body b) {
+    return b.posMass.w == 0.0;
+}
+
+float radius(Body b) {
+    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+}
+
+
+void initKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    indexIn[gid] = gid;
+}
+
+// Morton encoding kernel
+uint64_t expandBits21(uint v)
+{
+    uint64_t x = uint64_t(v) & 0x1FFFFFul;
+    x = (x | (x << 32)) & 0x1F00000000FFFFul;
+    x = (x | (x << 16)) & 0x1F0000FF0000FFul;
+    x = (x | (x << 8))  & 0x100F00F00F00F00Ful;
+    x = (x | (x << 4))  & 0x10C30C30C30C30C3ul;
+    x = (x | (x << 2))  & 0x1249249249249249ul;
+    return x;
+}
+
+uint64_t morton3D64(uint x, uint y, uint z)
+{
+    return (expandBits21(x) << 2) | (expandBits21(y) << 1) | expandBits21(z);
+}
+
+uint64_t mortonEncode3D(vec3 pNorm)
+{
+    const float MAX_VALUE = 2097151.0;
+    float fx = clamp(floor(pNorm.x * MAX_VALUE), 0.0, MAX_VALUE);
+    float fy = clamp(floor(pNorm.y * MAX_VALUE), 0.0, MAX_VALUE);
+    float fz = clamp(floor(pNorm.z * MAX_VALUE), 0.0, MAX_VALUE);
+    uint xi = uint(floor(fx));
+    uint yi = uint(floor(fy));
+    uint zi = uint(floor(fz));
+    return morton3D64(xi, yi, zi);
+}
+
+
+void encodeMortonKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= sim.numBodies) return;
+
+    //change to accept the already alive-dead sorted index array
+
+    uint bodyIdx = indexIn[gid];
+
+    Body body = srcB.bodies[bodyIdx];
+
+    AABB scene = sim.bounds;
+    vec3 pos = srcB.bodies[bodyIdx].posMass.xyz;
+    vec3 extent = max(scene.maxCorner - scene.minCorner, vec3(1e-9)); //can calculate this once now
+    vec3 pNorm = (pos - scene.minCorner) / extent;
+
+    mortonIn[gid] = mortonEncode3D(pNorm);
+}
+
+
+
+//Alive - Dead partitioning kernels
+//Sorts the morton codes of the alive bodies
+//Dead bodies will be sorted to the end of the array
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+
+shared uint hist[NUM_BUCKETS];
+//Radix sort kernels
+void radixHistogramKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+
+    //reset the histogram for this workgroup
+
+    if (lid < NUM_BUCKETS) hist[lid] = 0u;
+
+    barrier();
+
+    bool inRange = gid < sim.numBodies;
+
+    if (inRange) {
+        uint64_t key = mortonIn[gid];
+        uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
+        atomicAdd(hist[digit], 1u);
+    }
+
+    barrier();
+    //publish the histogram for this workgroup
+    if (lid < NUM_BUCKETS) {
+        wgHist[wgId * NUM_BUCKETS + lid] = hist[lid];
+    }
+}
+//Dispached with (ceil(NUM_RADIX_BUCKETS*NUM_WORK_GROUPS/WORK_GROUP_SIZE),0,0) with NUM_RADIX_BUCKETS = 2^RADIX_BITS where RADIX_BITS=4
+//Histogram is of size NUM_RADIX_BUCKETS * NUM_WORK_GROUPS
+//Want to dispach that many threads to do inclusive sum
+shared uint threadSums[WG_SIZE];
+void radixParallelScanKernel()
+{
+
+    uint lid = gl_LocalInvocationID.x;
+    uint wgid = gl_WorkGroupID.x;
+    uint regionSize = (numWorkGroups + WG_SIZE -1 ) / WG_SIZE;
+
+    uint regionStart = lid*regionSize;
+    uint bucket = wgid;
+
+
+    threadSums[lid]=0;
+
+
+    //inclusive sum of contiguous regions of size ceil(numworkgroups/wgsize)
+    uint regionSum = 0u;
+    for (uint i=0; i<regionSize; i++) {
+        uint nextIndex = bucket+NUM_BUCKETS*(regionStart+i);
+        regionSum+= (nextIndex<NUM_BUCKETS*numWorkGroups) ? wgHist[nextIndex] : 0u;
+    }
+    threadSums[lid]=regionSum;
+    barrier();
+
+
+    //Kogge-Stone inclusive sum of the threadSums
+
+    for (uint offset = 1u; offset < WG_SIZE; offset <<= 1u) {
+        uint add = (lid >= offset) ? threadSums[lid-offset] : 0u;
+        barrier();
+        threadSums[lid]+=add;
+        barrier();
+    }
+
+    uint base = threadSums[lid]-regionSum;
+
+    //Propagate the threadSums to each region and repeat inclusive contiguous sum
+    uint runningTotal = base;
+    for (uint i=0; i<regionSize; i++) {
+        uint nextIndex = bucket+NUM_BUCKETS*(regionStart+i);
+        if (nextIndex < NUM_BUCKETS*numWorkGroups) {
+            wgScanned[nextIndex] = runningTotal;
+            runningTotal+=wgHist[nextIndex];
+        }
+    }
+
+    if (lid == WG_SIZE-1) {
+        bucketTotals[bucket] = threadSums[WG_SIZE-1u];
+    }
+}
+//Dispached with (1,0,0)
+shared uint temp[WG_SIZE];
+void radixExclusiveScanKernel()
+{
+    //load the bucket total for each bucket
+    uint lid = gl_LocalInvocationID.x;
+    uint val = (lid < NUM_BUCKETS) ? bucketTotals[lid] : 0u;
+    temp[lid] = val;
+    barrier();
+
+    //add bucket totals to find the global base using the Kogge-Stone inclusive sum algorithm
+    //adds the one the came before it, then the one two before it, then 4 before it, etc.
+    //done in parallel with the other threads to get inclusive sum
+    for (uint offset = 1u; offset < WG_SIZE; offset <<= 1u) {
+        uint add = 0u;
+        if (lid>=offset) add = temp[lid-offset];
+        barrier();
+        temp[lid]+=add;
+        barrier();
+    }
+
+    //calculate the exclusive sum for this bucket
+    uint exclusive = temp[lid]-val;
+
+    //publish the global base for this bucket
+    if (lid < NUM_BUCKETS) {
+        globalBase[lid] = exclusive;
+    }
+
+}
+
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+shared uint digits[WG_SIZE];
+void radixScatterKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+    //check if body exists
+    bool isActive = (gid < sim.numBodies);
+    //get the morton code for the body
+    uint64_t key = isActive ? mortonIn[gid] : 0ul;
+    //get the digits for the body
+    uint dig = uint((key >> passShift) & (NUM_BUCKETS - 1u));
+    //set the digits
+    digits[lid] = isActive ? dig : 0xFFFFFFFFu;
+    barrier();
+
+    //calculate the local rank for this body (how many repeats before)
+    uint localRank = 0u;
+    for (uint i = 0u; i < lid; ++i) {
+        if (digits[i] == dig) localRank++;
+    }
+    //place the body in the correct position
+    if (isActive) {
+        uint base = globalBase[dig] + wgScanned[wgId * NUM_BUCKETS + dig];
+        uint dstIndex = base + localRank;
+        mortonOut[dstIndex] = key;
+        indexOut[dstIndex]  = indexIn[gid];
+    }
+}
+
+
+
+
+// Binary radix tree build and helpers
+
+uint longestCommonPrefix(uint64_t a, uint64_t b)
+{
+    if (a == b) return 64u;
+    uint64_t x = a ^ b;
+    uint highBits = uint(x >> 32);
+    uint lowBits = uint(x);
+    if (highBits != 0u) {
+        return 31u - findMSB(uint(highBits));
+    } else {
+        return 63u - findMSB(uint(lowBits));
+    }
+}
+
+int safeLCP(int i, int j)
+{
+    if (i < 0 || j < 0 || i >= int(sim.numBodies) || j >= int(sim.numBodies)) return -1;
+
+    uint64_t mortonI = mortonIn[i];
+    uint64_t mortonJ = mortonIn[j];
+
+    if (mortonI == mortonJ) {
+        uint iu = uint(i);
+        uint ju = uint(j);
+        if (iu == ju) {
+            return 64;
+        } else {
+            return 64 + (31 - findMSB(iu ^ ju));
+        }
+    }
+    return int(longestCommonPrefix(mortonI, mortonJ));
+}
+//Builds the binary radix tree by creating internal nodes
+//Also assigns parents to leaves
+void buildBinaryRadixTreeKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= sim.numBodies - 1u) {
+        // For when there is only one body
+        if (gid == 0) {
+            uint headIdx = sim.initialNumBodies;
+            nodes[headIdx].parentId = 0xFFFFFFFFu;
+            nodes[headIdx].childA = 1;
+            nodes[headIdx].childB = 0xFFFFFFFFu;
+            nodes[headIdx].readyChildren = 1u;
+            nodes[headIdx].comMass = vec4(0.0);
+            nodes[headIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
+            nodes[headIdx].nodeDepth = 0u;
+            nodes[headIdx].bodiesContained = 0u;
+            nodes[0].parentId = sim.initialNumBodies;
+
+        }
+        return;
+    }
+
+
+    const int i = int(gid);
+
+    int lcpRight = safeLCP(i, i + 1);
+    int lcpLeft = safeLCP(i, i - 1);
+    int direction = (lcpLeft > lcpRight) ? -1 : 1;
+
+    int deltaMin = safeLCP(i, i - direction);
+    int lmax = 2;
+    while (safeLCP(i, i + direction * lmax) > deltaMin) {
+        lmax *= 2;
+    }
+
+    int l = 0;
+    int t = lmax / 2;
+    while (t > 0) {
+        if (safeLCP(i, i + direction * (l + t)) > deltaMin) {
+            l = l + t;
+        }
+        t /= 2;
+    }
+    int j = i + l * direction;
+
+    int deltaNode = safeLCP(i, j);
+    int s = 0;
+    t = l;
+    while (t>1) {
+        t = (t + 1) / 2;
+        if (safeLCP(i, i + (s + t) * direction) > deltaNode) {
+            s += t;
+        }
+    }
+    int gamma = i + s*direction + min(direction,0);
+
+    uint leftChild, rightChild;
+    if (min(i,j)==gamma) {
+        leftChild = uint(gamma);
+    } else {
+        leftChild = uint(gamma) + sim.initialNumBodies;
+    }
+    if (max(i,j)==gamma+1) {
+        rightChild = uint(gamma+1);
+    } else {
+        rightChild = uint(gamma+1) + sim.initialNumBodies;
+    }
+
+    uint internalIdx = uint(i) + sim.initialNumBodies;
+    nodes[internalIdx].childA = leftChild;
+    nodes[internalIdx].childB = rightChild;
+    nodes[internalIdx].readyChildren = 0u;
+    nodes[internalIdx].comMass = vec4(0.0);
+    nodes[internalIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
+    nodes[leftChild].parentId = internalIdx;
+    nodes[rightChild].parentId = internalIdx;
+    nodes[internalIdx].nodeDepth = uint(min(i, j));
+    nodes[internalIdx].bodiesContained = uint(max(i, j) - min(i, j) + 1);
+    if (i == 0) {
+        nodes[internalIdx].parentId = 0xFFFFFFFFu;
+    }
+}
+
+
+
+// #extension GL_ARB_shading_language_include : enable
+// #include "bh_common.comp"
+// Bottom-up reduction for COM and AABB
+
+// Sets the proper values for the leaf nodes
+// Enqueues internal nodes that have two leaves as children
+void initLeafNodesKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+
+    if (gid == 0) {
+        uintDebug[0]=0u;
+        uintDebug[50]=0u;
+        tailIn = 0u;
+        headIn = 0u;
+        tailOut = 0u;
+        headOut = 0u;
+    }
+    if (gid >= sim.numBodies) return;
+
+    uint bodyIdx = indexIn[gid];
+    Body body = srcB.bodies[bodyIdx];
+
+    nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
+    nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
+    nodes[gid].childA = 0xFFFFFFFFu;
+    nodes[gid].childB = 0xFFFFFFFFu;
+    nodes[gid].readyChildren = 0xFFFFFFFFu;
+    nodes[gid].nodeDepth = 0u;
+
+    uint parentIdx = nodes[gid].parentId;
+    uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+    if (prev == 1u) {
+        uint idx = atomicAdd(tailIn, 1u);
+        itemsIn[idx] = parentIdx;
+    }
+}
+// Each pass of this kernel propagates COM and AABB one level up the tree
+//TODO: make this work in one pass
+void propagateNodesKernel()
+{
+    uint threadId = gl_GlobalInvocationID.x;
+    uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+
+    if (gl_GlobalInvocationID.x == 0u) {
+        if (nodes[sim.initialNumBodies].readyChildren != 0xFFFFFFFFu) {
+            //atomicAdd(uintDebug[0], 1u);
+
+        }
+        uintDebug[1] = 0u;
+        headIn = 0u;
+        headOut = 0u;
+        tailOut = 0u;
+    }
+
+    memoryBarrierBuffer();
+
+    uint workIdx = atomicAdd(headIn, 1u);
+    while (workIdx < tailIn) {
+
+        uint nodeIdx = itemsIn[workIdx];
+        if (nodes[nodeIdx].readyChildren == 0xFFFFFFFFu) {
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+        }
+
+
+        uint leftChild = nodes[nodeIdx].childA;
+        uint rightChild = nodes[nodeIdx].childB;
+        if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+
+
+        }
+        if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+        }
+        vec4 leftCOM = nodes[leftChild].comMass;
+        vec4 rightCOM = nodes[rightChild].comMass;
+        float totalMass = leftCOM.w + rightCOM.w;
+        vec3 centerOfMass;
+        if (totalMass > 0.0) {
+            centerOfMass = (leftCOM.w * leftCOM.xyz + rightCOM.w * rightCOM.xyz) / totalMass;
+        } else {
+            centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
+        }
+        AABB leftAABB = nodes[leftChild].aabb;
+        AABB rightAABB = nodes[rightChild].aabb;
+        AABB newAABB = updateAABB(leftAABB, rightAABB);
+        nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
+        nodes[nodeIdx].aabb = newAABB;
+        nodes[nodeIdx].readyChildren = 0xFFFFFFFFu;
+        nodes[nodeIdx].nodeDepth = 1u+max(nodes[leftChild].nodeDepth, nodes[rightChild].nodeDepth);
+        uint parentIdx = nodes[nodeIdx].parentId;
+        if (parentIdx != 0xFFFFFFFFu) {
+            uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+            if (prev == 1u) {
+                uint idx = atomicAdd(tailOut, 1u);
+                itemsOut[idx] = parentIdx;
+
+            }
+        }
+
+        workIdx = atomicAdd(headIn, 1u);
+
+        //atomicAdd(uintDebug[1], 1u);
+
+    }
+}
+
+
+// Force computation and merging
+bool acceptanceCriterion(float longestRadius, float invDist, float thetaVal)
+
+{
+    // when longestRadius > distance, theta is greater than 1 so we always accept since we could be inside the node
+    // when longestRadius < distance, theta is less than 1 so accept based on the ratio for example:
+    // if theta is 0.5 and longestRadius is 10 and distance is 21, then we accept since 10 / 21 < 0.5
+    return longestRadius * invDist < thetaVal;
+}
+
+float invDist(vec3 r, float soft)
+{
+    float dist2 = dot(r, r) + soft;
+    float inv = inversesqrt(dist2);
+    return inv;
+}
+const bool MERGING = true;
+void computeForce()
+{
+    vec3 accel = vec3(0.0);
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= sim.numBodies) return;
+
+
+    uint bodyIdx = indexIn[gid];
+
+    //uintDebug[gid] = bodyIdx;
+
+    Body body = srcB.bodies[bodyIdx];
+
+    uint stack[64];
+    uint stackSize = 0;
+    stack[stackSize++] = sim.initialNumBodies;
+
+
+    while (stackSize > 0) {
+        uint nodeIdx = stack[--stackSize];
+        Node node = nodes[nodeIdx];
+        vec3 r = node.comMass.xyz - body.posMass.xyz;
+        float oneOverDist = invDist(r, SOFTENING);
+        vec3 extent = node.aabb.maxCorner - node.aabb.minCorner;
+        float longestSide = max(extent.x, max(extent.y, extent.z));
+        if (node.childA == 0xFFFFFFFFu) {
+            accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+            if (indexIn[nodeIdx] != bodyIdx) {
+                Body other = srcB.bodies[indexIn[nodeIdx]];
+                float bodyRadius = radius(body);
+                float otherRadius = radius(other);
+                float dist = length(r);
+                // if (collision && dist < bodyRadius + otherRadius) {
+                //     vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;
+                //     vec3 normal = normalize(r);
+                //     float vImpact = dot(velocityDifference, normal);
+                //     if (vImpact < 0) {
+                //         float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
+                //         float j = (1+elasticity)*mEff*vImpact;
+                //         body.velPad.xyz += normal * j / body.posMass.w;
+                //     }
+                //     float penetration = bodyRadius + otherRadius - dist;
+                //     if (penetration > 0) {
+                //         vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
+                //         body.posMass.xyz -= correction;
+                //     }
+                // } else
+                if (MERGING && (dist < bodyRadius + otherRadius) && (bodyIdx < indexIn[nodeIdx])) {
+                    uint slot = atomicAdd(mergeQueueTail, 1u);
+                    mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
+                }
+            }
+        }
+        else if (acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
+            accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+        }
+        else {
+            stack[stackSize++] = node.childA;
+            stack[stackSize++] = node.childB;
+        }
+    }
+
+
+    vec3 newVel = body.velDensity.xyz + accel * dt;
+    vec3 newPos = body.posMass.xyz + newVel * dt;
+    dstB.bodies[bodyIdx].velDensity.xyz = newVel;
+    dstB.bodies[bodyIdx].velDensity.w = body.velDensity.w;
+    dstB.bodies[bodyIdx].posMass.xyz = newPos;
+    dstB.bodies[bodyIdx].posMass.w = body.posMass.w;
+    dstB.bodies[bodyIdx].color = body.color;
+
+}
+
+
+// Debug kernel
+
+void debugKernel() {
+}
+
+
+Body mergeBodies(Body body1, Body body2) {
+    Body mergedBody;
+    float newMass = body1.posMass.w + body2.posMass.w;
+    if (newMass == 0.0) {
+        return EMPTY_BODY;
+    }
+    if (body1.posMass.w == 0.0) {
+        return body2;
+    }
+    if (body2.posMass.w == 0.0) {
+        return body1;
+    }
+    vec3 newPos = (body1.posMass.xyz * body1.posMass.w + body2.posMass.xyz * body2.posMass.w) / newMass;
+    mergedBody.posMass.xyz = newPos;
+    mergedBody.posMass.w = newMass;
+    mergedBody.velDensity.xyz = (body1.velDensity.xyz * body1.posMass.w + body2.velDensity.xyz * body2.posMass.w) / newMass;
+    mergedBody.velDensity.w = (body1.posMass.w+body2.posMass.w)/(body1.posMass.w/body1.velDensity.w+body2.posMass.w/body2.velDensity.w);
+    mergedBody.color = (body1.color*body1.posMass.w+body2.color*body2.posMass.w)/newMass;
+    return mergedBody;
+}
+void mergeBodiesKernel() {
+
+        uint workIdx = gl_GlobalInvocationID.x;
+        if (workIdx >= mergeQueueTail) return;
+
+        uvec2 pair = mergeQueue[workIdx];
+        uint iA = pair.x;
+        uint iB = pair.y;
+
+        if (iA == iB) return; // skip invalid pairs
+
+        // Lock both bodies (order by index to avoid deadlock)
+        uint first  = min(iA, iB);
+        uint second = max(iA, iB);
+
+        if (atomicCompSwap(bodyLocks[first], 0u, 1u) != 0u) {
+            // could not lock first
+            return;
+        }
+        if (atomicCompSwap(bodyLocks[second], 0u, 1u) != 0u) {
+            // release first, then skip
+            bodyLocks[first] = 0u;
+            return;
+        }
+
+        // Both locked
+        Body body1 = dstB.bodies[iA];
+        Body body2 = dstB.bodies[iB];
+
+        if (!isEmpty(body1) && !isEmpty(body2)) {
+            Body merged = mergeBodies(body1, body2);
+            dstB.bodies[iA] = merged;
+            dstB.bodies[iB] = EMPTY_BODY;
+        }
+
+        // Unlock both
+        bodyLocks[first] = 0u;
+        bodyLocks[second] = 0u;
+}
+
+uniform uint firstPass;
+
+void resetKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid == 0) {
+        if (firstPass==1u) {
+            headIn 0u;
+            tailIn = 0u;
+            mergeQueueTail = 0u;
+            mergeQueueHead = 0u;
+            sim.justDied = 0u;
+        }
+        else {
+            uintDebug[99] = sim.justDied;
+            uintDebug[98] = sim.numBodies;
+            sim.numBodies -= sim.justDied;
+            sim.justDied = 0u;
+
+    }
+        }
+}
+
+
+
+uint aliveHistSize()    { return numWorkGroups * NUM_BUCKETS; }
+uint aliveScannedSize() { return numWorkGroups * NUM_BUCKETS; }
+uint deadHistOffset()   { return aliveHistSize(); }
+uint deadScannedOffset(){ return aliveScannedSize(); }
+
+shared uint deadFlags[WG_SIZE];
+shared uint aliveFlags[WG_SIZE];
+bool outOfBounds(Body b) {
+    return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
+           b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
+           b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
+}
+
+
+void deadCountKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+
+    bool inRange = gid < sim.numBodies;
+    uint bodyIdx = indexIn[gid];
+    bool alive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
+    bool dead = inRange && isEmpty(srcB.bodies[bodyIdx]);
+    if (lid == 0u) {
+        wgHist[wgId + deadHistOffset()] = 0u;
+    }
+
+
+    if (alive && outOfBounds(srcB.bodies[bodyIdx])) {
+        dead = true;
+
+    }
+
+
+    // this makes sure that the body is set to empty correctly on the old buffer
+    if (dead) {
+       srcB.bodies[bodyIdx] = EMPTY_BODY;
+       dstB.bodies[bodyIdx] = EMPTY_BODY;
+    }
+
+    deadFlags[lid] = dead ? 1u : 0u;
+    //floatDebug[lid] = float(srcB.bodies[bodyIdx].posMass.w);
+    barrier();
+
+    if (lid == 0u) {
+        uint sum = 0u;
+        for (uint i = 0u; i < WG_SIZE; ++i) {
+            sum += deadFlags[i];
+        }
+        atomicAdd(wgHist[wgId + deadHistOffset()], sum);
+    }
+    barrier();
+
+}
+
+//Dispached with (1,0,0)
+// Uniforms: numWorkGroups
+// SSBOs: DeadWG, DeadWGScanned
+//Calculates the exclusive sum of the dead bodies per workgroup
+void deadExclusiveScanKernel() {
+    if (gl_LocalInvocationID.x == 0u) {
+        uint sum = 0u;
+        for (uint wg = 0u; wg < numWorkGroups; ++wg) {
+            uint v = wgHist[wg+ deadHistOffset()];
+            wgScanned[wg+ deadScannedOffset()] = sum;
+            sum += v;
+        }
+        sim.justDied += sum;
+    }
+
+}
+
+
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: numWorkGroups
+// SSBOs: DeadWGScanned, BodiesIn, MortonOut, IndicesOut
+void deadScatterKernel() {
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+    uint gid = gl_GlobalInvocationID.x;
+    bool inRange = (gid < sim.numBodies);
+    uint bodyIdx = indexIn[gid];
+    bool isDead  = inRange && isEmpty(srcB.bodies[bodyIdx]);
+    bool isAlive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
+
+    if (isDead) {
+        deadFlags[lid] = 1u;
+    }
+    else {
+        deadFlags[lid] = 0u;
+    }
+    aliveFlags[lid] = isAlive ? 1u : 0u;
+
+    barrier();
+    uint localDeadRank = 0u;
+    for (uint i = 0u; i < lid; ++i) {
+        if (deadFlags[i] == 1u) {
+            localDeadRank++;
+        }
+    }
+    uint localAliveRank = 0u;
+    for (uint i = 0u; i < lid; ++i) {
+        if (aliveFlags[i] == 1u) {
+            localAliveRank++;
+        }
+    }
+
+    if (isDead) {
+        uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
+        indexOut[dstIndex]  = bodyIdx;
+
+    }
+    else if (isAlive) {
+        uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId+ deadScannedOffset()] + localAliveRank;
+        indexOut[dstIndex]  = bodyIdx;
+    }
+}
+
+
+void main()
+{
+#ifdef KERNEL_INIT
+    initKernel();
+#elif defined(KERNEL_MORTON)
+    encodeMortonKernel();
+#elif defined(KERNEL_DEAD_COUNT)
+    deadCountKernel();
+#elif defined(KERNEL_DEAD_EXCLUSIVE_SCAN)
+    deadExclusiveScanKernel();
+#elif defined(KERNEL_DEAD_SCATTER)
+    deadScatterKernel();
+#elif defined(KERNEL_RADIX_HIST)
+    radixHistogramKernel();
+#elif defined(KERNEL_RADIX_PARALLEL_SCAN)
+    radixParallelScanKernel();
+#elif defined(KERNEL_RADIX_EXCLUSIVE_SCAN)
+    radixExclusiveScanKernel();
+#elif defined(KERNEL_RADIX_SCATTER)
+    radixScatterKernel();
+#elif defined(KERNEL_BUILD_BINARY_RADIX_TREE)
+    buildBinaryRadixTreeKernel();
+#elif defined(KERNEL_INIT_LEAVES)
+    initLeafNodesKernel();
+#elif defined(KERNEL_RESET)
+    resetKernel();
+#elif defined(KERNEL_PROPAGATE_NODES)
+    propagateNodesKernel();
+#elif defined(KERNEL_COMPUTE_FORCE)
+    computeForce();
+#elif defined(KERNEL_MERGE)
+    mergeBodiesKernel();
+#elif defined(KERNEL_DEBUG)
+    debugKernel();
+#else
+    // no-op
+#endif
+}

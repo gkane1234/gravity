@@ -1,0 +1,22 @@
+uniform uint firstPass;
+
+void resetKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid == 0) {
+        if (firstPass==1u) {
+            headIn=0u;
+            tailIn = 0u;
+            mergeQueueTail = 0u;
+            mergeQueueHead = 0u;
+            sim.justDied = 0u;
+            sim.justMerged = 0u;
+        }
+        else {
+            uintDebug[99] = sim.justDied;
+            uintDebug[98] = sim.numBodies;
+            sim.numBodies -= sim.justDied;
+            sim.justDied = 0u;
+
+    }
+        }
+}

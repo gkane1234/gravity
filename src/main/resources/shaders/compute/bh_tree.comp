@@ -15,10 +15,10 @@ uint longestCommonPrefix(uint64_t a, uint64_t b)
 
 int safeLCP(int i, int j)
 {
-    if (i < 0 || j < 0 || i >= int(srcB.numBodies) || j >= int(srcB.numBodies)) return -1;
+    if (i < 0 || j < 0 || i >= int(sim.numBodies) || j >= int(sim.numBodies)) return -1;
     
-    uint64_t mortonI = morton[i];
-    uint64_t mortonJ = morton[j];
+    uint64_t mortonI = mortonIn[i];
+    uint64_t mortonJ = mortonIn[j];
 
     if (mortonI == mortonJ) {
         uint iu = uint(i);
@@ -36,10 +36,10 @@ int safeLCP(int i, int j)
 void buildBinaryRadixTreeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies - 1u) {
+    if (gid >= sim.numBodies - 1u) {
         // For when there is only one body
         if (gid == 0) {
-            uint headIdx = srcB.initialNumBodies;
+            uint headIdx = sim.initialNumBodies;
             nodes[headIdx].parentId = 0xFFFFFFFFu;
             nodes[headIdx].childA = 1;
             nodes[headIdx].childB = 0xFFFFFFFFu;
@@ -48,7 +48,7 @@ void buildBinaryRadixTreeKernel()
             nodes[headIdx].aabb = AABB(vec3(1e38), vec3(-1e38));
             nodes[headIdx].nodeDepth = 0u;
             nodes[headIdx].bodiesContained = 0u;
-            nodes[0].parentId = srcB.initialNumBodies;
+            nodes[0].parentId = sim.initialNumBodies;
 
         }
         return;
@@ -92,15 +92,15 @@ void buildBinaryRadixTreeKernel()
     if (min(i,j)==gamma) {
         leftChild = uint(gamma);
     } else {
-        leftChild = uint(gamma) + srcB.initialNumBodies;
+        leftChild = uint(gamma) + sim.initialNumBodies;
     }
     if (max(i,j)==gamma+1) {
         rightChild = uint(gamma+1);
     } else {
-        rightChild = uint(gamma+1) + srcB.initialNumBodies;
+        rightChild = uint(gamma+1) + sim.initialNumBodies;
     }
 
-    uint internalIdx = uint(i) + srcB.initialNumBodies;
+    uint internalIdx = uint(i) + sim.initialNumBodies;
     nodes[internalIdx].childA = leftChild;
     nodes[internalIdx].childB = rightChild;
     nodes[internalIdx].readyChildren = 0u;

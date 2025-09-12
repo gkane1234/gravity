@@ -1,3 +1,5 @@
+// #extension GL_ARB_shading_language_include : enable
+// #include "bh_common.comp"
 // Bottom-up reduction for COM and AABB
 
 // Sets the proper values for the leaf nodes
@@ -5,43 +7,54 @@
 void initLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid >= srcB.numBodies) return;
 
-    uint bodyIdx = index[gid];
+    if (gid == 0) {
+        uintDebug[0]=0u;
+        uintDebug[50]=0u;
+        tailIn = 0u;
+        headIn = 0u;
+    }
+    if (gid >= sim.numBodies) return;
+
+    uint bodyIdx = indexIn[gid];
     Body body = srcB.bodies[bodyIdx];
 
     nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
     nodes[gid].aabb = AABB(body.posMass.xyz, body.posMass.xyz);
     nodes[gid].childA = 0xFFFFFFFFu;
     nodes[gid].childB = 0xFFFFFFFFu;
-    nodes[gid].readyChildren = 3u;
+    nodes[gid].readyChildren = 0xFFFFFFFFu;
     nodes[gid].nodeDepth = 0u;
 
     uint parentIdx = nodes[gid].parentId;
     uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
     if (prev == 1u) {
         uint idx = atomicAdd(tail, 1u);
-        items[idx] = parentIdx;
+        itemsIn[idx] = parentIdx;
     }
 }
 // Each pass of this kernel propagates COM and AABB one level up the tree
+//TODO: make this work in one pass
 void propagateNodesKernel()
 {
     uint threadId = gl_GlobalInvocationID.x;
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0) {
-        if (nodes[srcB.initialNumBodies].readyChildren != 3u) {
+        if (nodes[sim.initialNumBodies].readyChildren != 0xFFFFFFFFu) {
             atomicAdd(uintDebug[0], 1u);
+            headIn = 0u;
         }
     }
 
+    memoryBarrierBuffer();
 
-    uint workIdx = threadId;
+    uint workIdx = atomicAdd(head, 1u);
     while (workIdx < tail) {
-        uint nodeIdx = items[workIdx];
-        if (nodes[nodeIdx].readyChildren >= 3u) {
-            workIdx += totalThreads;
+        
+        uint nodeIdx = itemsIn[workIdx];
+        if (nodes[nodeIdx].readyChildren == 0xFFFFFFFFu) {
+            workIdx = atomicAdd(head, 1u);
             continue;
         }
 
@@ -49,14 +62,13 @@ void propagateNodesKernel()
         uint leftChild = nodes[nodeIdx].childA;
         uint rightChild = nodes[nodeIdx].childB;
         if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
-            workIdx += totalThreads;
-
+            workIdx = atomicAdd(head, 1u);
             continue;
 
             
         }
         if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
-            workIdx += totalThreads;
+            workIdx = atomicAdd(head, 1u);
             continue;
         }
         vec4 leftCOM = nodes[leftChild].comMass;
@@ -73,15 +85,20 @@ void propagateNodesKernel()
         AABB newAABB = updateAABB(leftAABB, rightAABB);
         nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
         nodes[nodeIdx].aabb = newAABB;
-        nodes[nodeIdx].readyChildren = 3u;
+        nodes[nodeIdx].readyChildren = 0xFFFFFFFFu;
         nodes[nodeIdx].nodeDepth = 1u+max(nodes[leftChild].nodeDepth, nodes[rightChild].nodeDepth);
         uint parentIdx = nodes[nodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {
             uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
             if (prev == 1u) {
-                items[workIdx] = parentIdx;
+                itemsIn[workIdx] = parentIdx;
+
             }
         }
-        workIdx += totalThreads;
+
+        workIdx = atomicAdd(head, 1u);
+
+        atomicAdd(uintDebug[1], 1u);
+        
     }
 }

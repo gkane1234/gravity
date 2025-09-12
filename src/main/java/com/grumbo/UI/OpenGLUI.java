@@ -12,7 +12,7 @@ public class OpenGLUI {
 
     private double lastX = Settings.getInstance().getWidth() / 2.0;
     private double lastY = Settings.getInstance().getHeight() / 2.0;    
-    private boolean showFPS = true;
+    private boolean showStats = true;
 
     private boolean firstMouse = true;
     private boolean mouseCaptured = true;
@@ -23,6 +23,13 @@ public class OpenGLUI {
 
     private SettingsPane settingsPane;
     public boolean showCrosshair = false;
+
+    private boolean recordCurrentBodies = false;
+
+    private int lastBodies = 0;
+    private int lastSteps = 0;
+    private int lastDifference = 0;
+
     public class KeyEvent {
         public int key;
         private Runnable pressAction;
@@ -101,7 +108,6 @@ public class OpenGLUI {
         settingsPane = new SettingsPane();
         initKeyEvents();
         setupCallbacks();
-        
 
     }
 
@@ -138,7 +144,7 @@ public class OpenGLUI {
             if (mouseCaptured) {
                 firstMouse = true;
             }},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F1, () -> {showFPS = !showFPS;},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F1, () -> {showStats = !showStats;},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {
             if (openGlWindow.getState() == GPUSimulation.State.PAUSED) {
                 openGlWindow.setState(GPUSimulation.State.RUNNING);
@@ -149,9 +155,10 @@ public class OpenGLUI {
             }
         },false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {recordCurrentBodies = !recordCurrentBodies;},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F7, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
     }
 
@@ -163,8 +170,8 @@ public class OpenGLUI {
         }
 
         // Draw FPS display
-        if (showFPS) {
-            drawFPS();
+        if (showStats) {
+            drawStats();
         }
         
         // Draw settings panel
@@ -360,59 +367,41 @@ public class OpenGLUI {
         }
     }
 
-    private void drawFPS() {
+    private void drawStats() {
         if (font == null || !font.isLoaded()) {
             return; // Skip if font is not available
         }
+
+        boolean newFrame = lastSteps != openGlWindow.gpuSimulation.getSteps();
+
+        if (recordCurrentBodies && newFrame) {
+            openGlWindow.gpuSimulation.updateCurrentBodies();
+
+        }
         
-        // Save current OpenGL state
-        glPushMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
+        // Format stats string
+        int curBodies = openGlWindow.gpuSimulation.currentBodies();
+        int jMerged = openGlWindow.gpuSimulation.justMerged();
+
+        int lostToOutOfBounds = lastDifference - jMerged;
+        String statsText = String.format("FPS: %.1f\nBodies: %d\nMerged: %d\nLost to out of bounds: %d", openGlWindow.getFPS(), curBodies, jMerged, lostToOutOfBounds);
         
-        // Set up 2D orthographic projection
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-        
-        // Disable depth testing for UI elements
-        glDisable(GL_DEPTH_TEST);
-        
-        // Format FPS string
-        String fpsText = String.format("FPS: %.1f", openGlWindow.getFPS());
+
+        if (newFrame) {
+            lastSteps = openGlWindow.gpuSimulation.getSteps();
+            lastDifference = lastBodies - curBodies;
+            lastBodies = curBodies;
+        }
+
+
         
         // Draw FPS in top-left corner with a black background for better readability
         int x = 10;
         int y = 20;
         int padding = 4;
-        
-        // Get text dimensions
-        float textWidth = font.getTextWidth(fpsText);
-        float textHeight = font.getCharHeight();
-        
-        // Draw background rectangle
-        glColor4f(0.0f, 0.0f, 0.0f, 0.7f); // Semi-transparent black
-        glBegin(GL_QUADS);
-        glVertex2f(x - padding, y - padding);
-        glVertex2f(x + textWidth + padding, y - padding);
-        glVertex2f(x + textWidth + padding, y + textHeight + padding);
-        glVertex2f(x - padding, y + textHeight + padding);
-        glEnd();
-        
-        // Draw text in white
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
-        font.drawText(fpsText, x, y);
-        //font.drawText("Bodies: " + openGlWindow.gpuSimulation.currentBodies(), x, y + textHeight);
-        
-        // Re-enable depth testing
-        glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
+        int lineHeight = 16;
+
+        drawMultiLineText(statsText, x, y, lineHeight, padding);
     }
 
     public String getPerformanceText() {
@@ -424,76 +413,20 @@ public class OpenGLUI {
             return;
         }
 
-        // Save current OpenGL state
-        glPushMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Set up 2D orthographic projection
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Disable depth testing for UI elements
-        glDisable(GL_DEPTH_TEST);
-        
         // Draw frame advance indicator in top-right corner
-        String indicatorText = "FRAME ADVANCE MODE";
-        String instructionText = "Press ENTER to advance";
+        String indicatorText = "FRAME ADVANCE MODE\n Press ENTER to advance";
         
-        int x = Settings.getInstance().getWidth() - (int)font.getTextWidth(instructionText) - 20;
+        int x = Settings.getInstance().getWidth() - (int)font.getTextWidth(indicatorText.split("\n")[1]) - 20;
         int y = 20;
         int padding = 4;
-        
-        // Get text dimensions
-        float textWidth = font.getTextWidth(instructionText);
-        float textHeight = font.getCharHeight();
-        
-        // Draw background rectangle
-        glColor4f(0.0f, 0.0f, 0.0f, 0.8f); // Semi-transparent black
-        glBegin(GL_QUADS);
-        glVertex2f(x - padding, y - padding);
-        glVertex2f(x + textWidth + padding, y - padding);
-        glVertex2f(x + textWidth + padding, y + textHeight * 2 + padding);
-        glVertex2f(x - padding, y + textHeight * 2 + padding);
-        glEnd();
-        
-        // Draw indicator text in yellow
-        glColor4f(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
-        font.drawText(indicatorText, x, y);
-        
-        // Draw instruction text in white
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
-        font.drawText(instructionText, x, y + textHeight);
-        
-        // Re-enable depth testing
-        glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
+        int lineHeight = 16;
+
+        drawMultiLineText(indicatorText, x, y, lineHeight, padding);
     }
 
     private void drawCrosshair() {
-        // Save current matrices
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
+        setUpFor2D();
         
-        // Set up 2D orthographic projection for crosshair
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-        
-        // Disable depth testing for crosshair
-        glDisable(GL_DEPTH_TEST);
         
         // Set crosshair color (white)
         glColor3f(1.0f, 1.0f, 1.0f);
@@ -514,20 +447,41 @@ public class OpenGLUI {
         glVertex2f(centerX, centerY + crosshairSize);
         glEnd();
         
-        // Re-enable depth testing
-        //glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
+        tearDownFor2D();
     }
     
     private void drawDebugInfo() {
         String performanceText = openGlWindow.getPerformanceText();
         if (performanceText == null || performanceText.isEmpty()) return;
         
+        
+
+        // Calculate position (right side of screen)
+
+        // Split performance text into lines
+        String[] lines = performanceText.split("\n");
+        float width = 0;
+        for (String line : lines) {
+            if (font.getTextWidth(line) > width) {
+                width = font.getTextWidth(line);
+            }
+        }
+        
+        int x = Settings.getInstance().getWidth() - (int)width - 20; // 400 pixels from right edge
+        int y = 80;
+        int lineHeight = 16;
+        int padding = 6;
+
+        drawMultiLineText(performanceText, x, y, lineHeight, padding);
+        
+
+
+        
+
+    }
+
+    private void setUpFor2D() {
+
         // Save current OpenGL state
         glPushMatrix();
         glMatrixMode(GL_PROJECTION);
@@ -542,9 +496,23 @@ public class OpenGLUI {
         
         // Disable depth testing for UI elements
         glDisable(GL_DEPTH_TEST);
+
+    }
+
+    private void tearDownFor2D() {
+        glEnable(GL_DEPTH_TEST);
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+
+    private void drawMultiLineText(String text, int x, int y, int lineHeight, int padding) {
+        setUpFor2D();
         
+
         // Split performance text into lines
-        String[] lines = performanceText.split("\n");
+        String[] lines = text.split("\n");
         float width = 0;
         for (String line : lines) {
             if (font.getTextWidth(line) > width) {
@@ -552,12 +520,6 @@ public class OpenGLUI {
             }
         }
 
-        // Calculate position (right side of screen)
-        int x = Settings.getInstance().getWidth() - (int)width - 20; // 400 pixels from right edge
-        int y = 80;
-        int lineHeight = 16;
-        int padding = 6;
-        
         // Calculate total height needed
         int totalHeight = lines.length * (lineHeight+10);
 
@@ -580,16 +542,11 @@ public class OpenGLUI {
                 font.drawText(line, x, y + i * (lineHeight+10));
             } 
         }
-        
-        // Re-enable depth testing
-        glEnable(GL_DEPTH_TEST);
-        
-        // Restore matrices
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
+
+        tearDownFor2D();
+
     }
+        
 
     public boolean isFontLoaded() {
         return font != null && font.isLoaded();

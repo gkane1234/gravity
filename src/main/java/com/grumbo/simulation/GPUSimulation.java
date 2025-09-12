@@ -18,7 +18,7 @@ import com.grumbo.record.Recording;
 
 public class GPUSimulation {
     
-    private BarnesHut barnesHut;
+    private BoundedBarnesHut boundedBarnesHut;
     private Render render;
     private OpenGLWindow openGlWindow;
 
@@ -45,6 +45,9 @@ public class GPUSimulation {
     private Path recordDir;
     private BufferedWriter recordMetaWriter;
 
+    private int currentBodies = 0;
+    private int justMerged = 0;
+
     public GPUSimulation() {
 
         ArrayList<Planet> planets = createSeveralDisksAroundAnotherDiskSimulation();
@@ -54,8 +57,10 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this); 
         this.planets = planets;
         this.initialbodiesContained = planets.size();
+        float boundSize = 350_000;
+        float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
-        this.barnesHut = new BarnesHut(this,debug);
+        this.boundedBarnesHut = new BoundedBarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.commandQueue = new ConcurrentLinkedQueue<>();
@@ -65,7 +70,8 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this);
         this.planets = planets;
         this.commandQueue = new ConcurrentLinkedQueue<>();
-        this.barnesHut = new BarnesHut(this,debug);
+        float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
+        this.boundedBarnesHut = new BoundedBarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.initialbodiesContained = planets.size();
@@ -104,15 +110,15 @@ public class GPUSimulation {
 
     public static ArrayList<Planet> createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 20;
-        int[] numPlanetsRange = {25000, 75000};
+        int numDisks = 12;
+        int[] numPlanetsRange = {250000, 750000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
         float[] mRange = {100, 1200};
         float[] densityRange = {1f, 1f};
-        float[] centerX = {0, 300000};
-        float[] centerY = {0, 300000};
-        float[] centerZ = {0, 300000};
+        float[] centerX = {-300000, 300000};
+        float[] centerY = {-300000, 300000};
+        float[] centerZ = {-300000, 300000};
         float[] relativeVelocityX = {-10, 10};
         float[] relativeVelocityY = {-10, 10};
         float[] relativeVelocityZ = {-10, 10};
@@ -124,7 +130,7 @@ public class GPUSimulation {
         boolean giveOrbitalVelocity = true;
 
 
-        int centerDiskPlanets = 600_000;
+        int centerDiskPlanets = 6_000_000;
         float[] centerDiskRadius = {100, 50000};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
@@ -178,9 +184,9 @@ public class GPUSimulation {
 
     public static ArrayList<Planet> createBoxSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
-        float[] xRange = {-4000, 4000};
-        float[] yRange = {-4000, 4000};
-        float[] zRange = {-4000, 4000};
+        float[] xRange = {-40000, 40000};
+        float[] yRange = {-40000, 40000};
+        float[] zRange = {-40000, 40000};
         float[] xVRange = {-0, 0};
         float[] yVRange = {-0, 0};
         float[] zVRange = {-0, 0};
@@ -188,7 +194,7 @@ public class GPUSimulation {
         float[] densityRange = {1, 1};
         Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
         //Planet center2 = new Planet(100,0,0,0,0,0,10);
-        planets = Planet.makeNewRandomBox(1_000_000, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange);
+        planets = Planet.makeNewRandomBox(30, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange);
         planets.add(center);
         //planets.add(center2);
 
@@ -216,7 +222,7 @@ public class GPUSimulation {
 
     private void init() {
         openGlWindow.init();
-        barnesHut.init();
+        boundedBarnesHut.init();
         render.init();
     }
 
@@ -232,18 +238,18 @@ public class GPUSimulation {
     public void step() {
         processCommands();
         if (state == State.RUNNING) {
-            barnesHut.step();
-            render.render(barnesHut.getOutputSSBO(), state);
+            boundedBarnesHut.step();
+            render.render(boundedBarnesHut.getOutputSSBO(), state);
             captureIfRecording();
         }
 
         if (state == State.PAUSED) {
-            render.render(barnesHut.getOutputSSBO(), state);
+            render.render(boundedBarnesHut.getOutputSSBO(), state);
         }
 
         if (state == State.FRAME_ADVANCE) {
-            barnesHut.step();
-            render.render(barnesHut.getOutputSSBO(), state);
+            boundedBarnesHut.step();
+            render.render(boundedBarnesHut.getOutputSSBO(), state);
             captureIfRecording();
             state = State.PAUSED;
         }
@@ -283,12 +289,27 @@ public class GPUSimulation {
         return planets.size();
     }
 
-    public int currentBodies() { //Note: this is EXTREMELY slow.
-        if (barnesHut == null || barnesHut.getOutputSSBO() == null) {
-            return 0;
+
+
+    public void updateCurrentBodies() { //Note: this is EXTREMELY slow.
+
+        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null || boundedBarnesHut.getValuesSSBO().getHeaderAsInts() == null) {
+            currentBodies = numBodies();
+
+            return;
         }
-        return barnesHut.getOutputSSBO().getHeaderAsInts()[0];
-        
+        int[] header = boundedBarnesHut.getValuesSSBO().getHeaderAsInts();
+        currentBodies = header[0];
+        justMerged = header[3];
+
+    }
+
+    public int currentBodies() { 
+        return currentBodies;
+    }
+
+    public int justMerged() {
+        return justMerged;
     }
 
     public void setMvp(FloatBuffer mvp) {
@@ -305,19 +326,30 @@ public class GPUSimulation {
 
     // Expose nodes SSBO for regions rendering
     public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
-        return barnesHut.getNodesSSBO();
+        return boundedBarnesHut.getNodesSSBO();
+    }
+
+    public com.grumbo.gpu.SSBO barnesHutValuesSSBO() {
+        return boundedBarnesHut.getValuesSSBO();
     }
 
 
     public void uploadPlanetsData(List<Planet> planets) {
-        barnesHut.uploadPlanetsData(planets);
-    }
-    public void resizeBuffersAndUpload(List<Planet> planets) {
-        barnesHut.resizeBuffersAndUpload(planets);
+        boundedBarnesHut.uploadPlanetsData(planets);
     }
 
+    public void resizeBuffersAndUpload(List<Planet> planets) {
+        this.planets = new ArrayList<>(planets);
+        boundedBarnesHut.reInitComputeSSBOsAndSwappingBuffers();
+    }
+
+
     public String getPerformanceText() {
-        return barnesHut.debugString;
+        return boundedBarnesHut.debugString;
+    }
+
+    public int getSteps() {
+        return boundedBarnesHut.getSteps();
     }
 
     public void toggleRegions() {
@@ -347,7 +379,7 @@ public class GPUSimulation {
     /* --------- Cleanup --------- */
     public void cleanupEmbedded() {
 
-        barnesHut.cleanup();
+        boundedBarnesHut.cleanup();
         render.cleanup();
         // Minimal cleanup of GL objects created in embedded mode
         if (isRecording) {

@@ -17,10 +17,10 @@ struct Node {
 	uint parentId;
 };
 
-layout(std430, binding = 4) readonly buffer Nodes {
+layout(std430, binding = 0) readonly buffer Nodes {
 	Node nodes[];
 };
-layout(std430, binding = 0) readonly buffer BodiesHeader { 
+layout(std430, binding = 1) readonly buffer SimulationValues { 
 	uint numBodies;
 	uint initialNumBodies;
 };

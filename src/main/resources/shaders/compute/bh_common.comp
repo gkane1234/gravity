@@ -1,0 +1,71 @@
+// =============================================================
+// Common definitions, structs, buffers, and helpers for BH
+// =============================================================
+layout(local_size_x = 256u) in;
+const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
+uniform float softening;
+uniform float theta;
+uniform float dt;
+uniform float elasticity;
+uniform float density;
+uniform float restitution;
+uniform bool collision;
+uniform uint numWorkGroups;
+uniform uint passShift;
+uniform bool mergeToggle;
+
+const uint RADIX_BITS = 4u;
+const uint NUM_BUCKETS = 1u << RADIX_BITS;
+
+//Softening values can cause slowdowns
+const float SOFTENING = 0.1;
+
+struct Body { vec4 posMass; vec4 velDensity; vec4 color; };
+
+const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0), vec4(0.0));
+struct AABB {
+    vec3 minCorner;
+    vec3 maxCorner;
+};
+
+struct Node {
+    vec4 comMass;
+    AABB aabb;
+    uint childA;
+    uint childB;
+    uint nodeDepth;
+    uint bodiesContained;
+    uint readyChildren;
+    uint parentId;
+};
+layout(std430, binding = 0)  buffer Nodes              { Node nodes[]; };
+layout(std430, binding = 1)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
+layout(std430, binding = 2)  buffer BodiesIn           { Body bodies[]; } srcB;
+layout(std430, binding = 3)  buffer BodiesOut          { Body bodies[]; } dstB;
+layout(std430, binding = 4)  buffer MortonIn           { uint64_t mortonIn[]; };
+layout(std430, binding = 5)  buffer MortonOut          { uint64_t mortonOut[]; };
+layout(std430, binding = 6)  buffer IndexIn            { uint indexIn[]; };
+layout(std430, binding = 7)  buffer IndexOut           { uint indexOut[]; };
+layout(std430, binding = 8)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
+layout(std430, binding = 9)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+layout(std430, binding = 10) buffer RadixWGHist        { uint wgHist[];      };
+layout(std430, binding = 11) buffer RadixWGScanned     { uint wgScanned[];   };
+layout(std430, binding = 12) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
+layout(std430, binding = 13) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+layout(std430, binding = 14) buffer MergeBodyLocks     { uint bodyLocks[]; };
+layout(std430, binding = 15) buffer Debug              { uint uintDebug[100]; float floatDebug[100]; };
+
+AABB updateAABB(AABB a, AABB b) {
+    AABB result;
+    result.minCorner = min(a.minCorner, b.minCorner);
+    result.maxCorner = max(a.maxCorner, b.maxCorner);
+    return result;
+}
+
+bool isEmpty(Body b) {
+    return b.posMass.w == 0.0;
+}
+
+float radius(Body b) {
+    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+}
