@@ -9,8 +9,8 @@ void initLeafNodesKernel()
     uint gid = gl_GlobalInvocationID.x;
 
     if (gid == 0) {
-        uintDebug[0]=0u;
-        uintDebug[50]=0u;
+        sim.uintDebug[0]=0u;
+        sim.uintDebug[50]=0u;
         tailIn = 0u;
         headIn = 0u;
     }
@@ -43,7 +43,7 @@ void propagateNodesKernel()
 
     if (gl_GlobalInvocationID.x == 0) {
         if (nodes[sim.initialNumBodies].readyChildren != 0xFFFFFFFFu) {
-            atomicAdd(uintDebug[0], 1u);
+            atomicAdd(sim.uintDebug[0], 1u);
             headIn = 0u;
         }
     }
@@ -99,7 +99,7 @@ void propagateNodesKernel()
 
         workIdx = atomicAdd(head, 1u);
 
-        atomicAdd(uintDebug[1], 1u);
+        atomicAdd(sim.uintDebug[1], 1u);
         
     }
 }

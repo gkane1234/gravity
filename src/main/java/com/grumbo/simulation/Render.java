@@ -248,7 +248,7 @@ public class Render {
             glUseProgram(regionsProgram);
             // Bind nodes SSBO at binding 4
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.INTERNAL_NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
             // Start after leaves
             
             glUniform2i(uRegionsMinMaxDepthLocation, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());

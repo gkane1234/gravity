@@ -82,24 +82,25 @@ public class BoundedBarnesHut {
 
     // SSBOs
 
-    // public static final int NODES_SSBO_BINDING = 0;
-    // public static final int SIMULATION_VALUES_SSBO_BINDING = 1;
-    // public static final int BODIES_IN_SSBO_BINDING = 2;
-    // public static final int BODIES_OUT_SSBO_BINDING = 3;
-    // public static final int MORTON_IN_SSBO_BINDING = 4;
-    // public static final int MORTON_OUT_SSBO_BINDING = 5;
-    // public static final int INDEX_IN_SSBO_BINDING = 6;
-    // public static final int INDEX_OUT_SSBO_BINDING = 7;
-    // public static final int WORK_QUEUE_IN_SSBO_BINDING = 8;
-    // public static final int WORK_QUEUE_OUT_SSBO_BINDING = 9;
-    // public static final int RADIX_WG_HIST_SSBO_BINDING = 10;
-    // public static final int RADIX_WG_SCANNED_SSBO_BINDING = 11;
-    // public static final int RADIX_BUCKET_TOTALS_SSBO_BINDING = 12;
-    // public static final int MERGE_QUEUE_SSBO_BINDING = 13;
-    // public static final int MERGE_BODY_LOCKS_SSBO_BINDING = 14;
-    // public static final int DEBUG_SSBO_BINDING = 15;
+    // layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
+    // layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
+    // layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
+    // layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
+    // layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
+    // layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
+    // layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
+    // layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
+    // layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
+    // layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
+    // layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+    // layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
+    // layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
+    // layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
+    // layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+    // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
     public Map<String, SSBO> ssbos;
-    private SSBO NODES_SSBO;
+    private SSBO LEAF_NODES_SSBO;
+    private SSBO INTERNAL_NODES_SSBO;
     private SSBO SIMULATION_VALUES_SSBO;
     private SSBO FIXED_BODIES_IN_SSBO;
     private SSBO FIXED_BODIES_OUT_SSBO;
@@ -114,7 +115,6 @@ public class BoundedBarnesHut {
     private SSBO RADIX_BUCKET_TOTALS_SSBO;
     private SSBO MERGE_QUEUE_SSBO;
     private SSBO MERGE_BODY_LOCKS_SSBO;
-    private SSBO DEBUG_SSBO;
 
     private SSBO SWAPPING_BODIES_IN_SSBO;
     private SSBO SWAPPING_BODIES_OUT_SSBO;
@@ -222,6 +222,7 @@ public class BoundedBarnesHut {
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
 
+
         // Swap the body buffers.
         swapBodyBuffers();
 
@@ -259,14 +260,14 @@ public class BoundedBarnesHut {
      */
     private void initComputeSSBOs() {
         // Compute sizes (use long to avoid overflow)
-        long nodesSize = Node.STRUCT_SIZE * Integer.BYTES * (2L * numBodies() - 1L);
+        long nodesSize = Node.STRUCT_SIZE * Integer.BYTES * (long) (numBodies());
         long maxBlock = glGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
         System.out.println("Node space left: " + (maxBlock - nodesSize));
         System.out.println("Max block: " + maxBlock);
 
         if (nodesSize > maxBlock) {
 
-            throw new RuntimeException("Not enough node space (your simulation is too large) Approximate max bodies: " + (maxBlock / (2*Node.STRUCT_SIZE * Integer.BYTES)));
+            throw new RuntimeException("Not enough node space (your simulation is too large: " + numBodies() + ") Approximate max bodies: " + (maxBlock / (Node.STRUCT_SIZE * Integer.BYTES)));
         }
 
         checkGLError("before initComputeSSBOs");
@@ -298,10 +299,16 @@ public class BoundedBarnesHut {
         }, "FIXED_INDEX_IN_SSBO", 1, new VariableType[] { VariableType.UINT });
         ssbos.put(FIXED_INDEX_IN_SSBO.getName(), FIXED_INDEX_IN_SSBO);
 
-        NODES_SSBO = new SSBO(SSBO.NODES_SSBO_BINDING, () -> {
-            return (2 * numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
-        ssbos.put(NODES_SSBO.getName(), NODES_SSBO);
+        LEAF_NODES_SSBO = new SSBO(SSBO.LEAF_NODES_SSBO_BINDING, () -> {
+            return numBodies() * Node.STRUCT_SIZE * Integer.BYTES;
+        }, "LEAF_NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
+        ssbos.put(LEAF_NODES_SSBO.getName(), LEAF_NODES_SSBO);
+
+        INTERNAL_NODES_SSBO = new SSBO(SSBO.INTERNAL_NODES_SSBO_BINDING, () -> {
+            return (numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
+        }, "INTERNAL_NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
+        ssbos.put(INTERNAL_NODES_SSBO.getName(), INTERNAL_NODES_SSBO);
+
         //This is the SSBO that holds values that are used in different shaders
         SIMULATION_VALUES_SSBO = new SSBO(SSBO.SIMULATION_VALUES_SSBO_BINDING, () -> {
             return packValues();
@@ -342,25 +349,20 @@ public class BoundedBarnesHut {
         //It is intialized with the correct sizes.
         FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_IN_SSBO_BINDING, () -> {
             return (4 + numBodies()) * Integer.BYTES;
-        }, "WORK_QUEUE_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
+        }, "FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
         ssbos.put(FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO.getName(), FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO);
 
         //This is the SSBO that holds the work queue for the second pass.
         //It is intialized with the correct sizes.
         FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_OUT_SSBO_BINDING, () -> {
             return (4 + numBodies()) * Integer.BYTES;
-        }, "WORK_QUEUE_B_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
+        }, "FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
         ssbos.put(FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO.getName(), FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO);
 
         MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
             return Math.max(2*Integer.BYTES, 2*Integer.BYTES+numBodies() * 2 * Integer.BYTES);
         }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT }, 8, new VariableType[] {VariableType.UINT});
         ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
-
-        DEBUG_SSBO = new SSBO(SSBO.DEBUG_SSBO_BINDING, () -> {
-            return 100 * Integer.BYTES + 100 * Float.BYTES;
-        }, "DEBUG_SSBO", 1, new VariableType[] { VariableType.FLOAT }, 100, new VariableType[] { VariableType.UINT });
-        ssbos.put(DEBUG_SSBO.getName(), DEBUG_SSBO);
 
         MERGE_BODY_LOCKS_SSBO = new SSBO(SSBO.MERGE_BODY_LOCKS_SSBO_BINDING, () -> {
             return numBodies() * Integer.BYTES;
@@ -497,7 +499,6 @@ public class BoundedBarnesHut {
             "SWAPPING_BODIES_OUT_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
             "SWAPPING_MORTON_IN_SSBO",
-            "DEBUG_SSBO"
         });
         deadCountKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -512,7 +513,6 @@ public class BoundedBarnesHut {
             "WG_HIST_SSBO",
             "WG_SCANNED_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "DEBUG_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
             "SWAPPING_MORTON_IN_SSBO",
         });
@@ -532,7 +532,6 @@ public class BoundedBarnesHut {
             "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_MORTON_OUT_SSBO",
             "SWAPPING_INDEX_OUT_SSBO",
-            "DEBUG_SSBO"
         });
         deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -616,7 +615,8 @@ public class BoundedBarnesHut {
             "VALUES_SSBO",
             "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
-            "NODES_SSBO",
+            "INTERNAL_NODES_SSBO",
+            "LEAF_NODES_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
 
@@ -637,10 +637,11 @@ public class BoundedBarnesHut {
         initLeavesKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "NODES_SSBO",
+            "INTERNAL_NODES_SSBO",
+            "LEAF_NODES_SSBO",
             "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
-            "WORK_QUEUE_SSBO",
+            "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
         });
 
         initLeavesKernel.setXWorkGroupsFunction(() -> {
@@ -655,7 +656,7 @@ public class BoundedBarnesHut {
 
         resetKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "WORK_QUEUE_SSBO",
+            "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
             "MERGE_QUEUE_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO"
@@ -672,11 +673,12 @@ public class BoundedBarnesHut {
 
         propagateNodesKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
-            "NODES_SSBO",
-            "WORK_QUEUE_SSBO",
-            "WORK_QUEUE_B_SSBO",
+            "INTERNAL_NODES_SSBO",
+            "LEAF_NODES_SSBO",
+            "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
+            "SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "DEBUG_SSBO"
+
             
         });
         propagateNodesKernel.setXWorkGroupsFunction(() -> {
@@ -699,9 +701,10 @@ public class BoundedBarnesHut {
             "VALUES_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
-            "NODES_SSBO",
+            "INTERNAL_NODES_SSBO",
+            "LEAF_NODES_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
-            "MERGE_QUEUE_SSBO",
+            "MERGE_QUEUE_SSBO"
         });
 
         computeForceKernel.setXWorkGroupsFunction(() -> {
@@ -717,7 +720,6 @@ public class BoundedBarnesHut {
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_BODIES_OUT_SSBO",
             "MERGE_QUEUE_SSBO",
-            "DEBUG_SSBO",
             "BODY_LOCKS_SSBO",
         });
         mergeBodiesKernel.setXWorkGroupsFunction(() -> {
@@ -735,7 +737,6 @@ public class BoundedBarnesHut {
             "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
-            "DEBUG_SSBO",
         });
 
         debugKernel.setXWorkGroupsFunction(() -> {
@@ -1085,8 +1086,15 @@ public class BoundedBarnesHut {
     /**
      * Get the nodes buffer.
      */
-    public SSBO getNodesSSBO() {
-        return NODES_SSBO;
+    public SSBO getLeafNodesSSBO() {
+        return LEAF_NODES_SSBO;
+    }
+
+    /**
+     * Get the nodes buffer.
+     */
+    public SSBO getInternalNodesSSBO() {
+        return INTERNAL_NODES_SSBO;
     }
 
     /**
@@ -1110,7 +1118,7 @@ public class BoundedBarnesHut {
     public ByteBuffer packValues() {
 
         //layout(std430, binding = 1) buffer SimulationValues { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
-        ByteBuffer buf = BufferUtils.createByteBuffer(12*4);
+        ByteBuffer buf = BufferUtils.createByteBuffer(12*4+8*100);
         buf.putInt(numBodies());
         buf.putInt(numBodies());
         buf.putInt(0);
@@ -1134,10 +1142,12 @@ public class BoundedBarnesHut {
         int offset = 0;
         System.out.print("Uploading planet data:");
         double percentUploaded = 0;
-        int displayProgress = 25;
+        int displayProgress = 5;
+        int lastDisplayed = -1;
         while (planetGenerator.hasNext()) {
             percentUploaded = (int)((double)planetGenerator.planetsGenerated/planetGenerator.getNumPlanets()*100);
-            if (percentUploaded % displayProgress == 0) {
+            if (percentUploaded % displayProgress == 0 && percentUploaded != lastDisplayed) {
+                lastDisplayed = (int)percentUploaded;
                 System.out.print(" "+percentUploaded+"%");
             }
             List<Planet> planets = planetGenerator.nextChunk();
@@ -1371,96 +1381,7 @@ public class BoundedBarnesHut {
 
     }
 
-    /**
-     * Debug the tree.
-     */
-    private void debugTree() {
-        
-        // Debug: Output buffer data
-            System.out.println("=== FINAL TREE WITH COM DATA ===");
-            
-            // First check for stuck nodes with readyChildren < 2
-            NODES_SSBO.bind();
-            ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-            IntBuffer nodeData = nodeBuffer.asIntBuffer();
-            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-            
-            int numLeaves = numBodies();
-            int totalNodes = 2 * numBodies() - 1;
 
-            // boolean foundStuckNodes = false;
-            
-            // for (int i = numLeaves; i < totalNodes; i++) { // Check internal nodes only
-            //     int offset = i * Node.STRUCT_SIZE;
-            //     if (offset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-            //         int readyChildren = nodeData.get(offset + Node.READY_CHILDREN_OFFSET);
-            //         if (readyChildren < 2) {
-            //             foundStuckNodes = true;
-            //             int childA = nodeData.get(offset + Node.CHILD_A_OFFSET);
-            //             int childB = nodeData.get(offset + Node.CHILD_B_OFFSET);
-            //             int parentId = nodeData.get(offset + Node.PARENT_ID_OFFSET);
-            //             float mass = Float.intBitsToFloat(nodeData.get(offset + Node.COM_MASS_OFFSET));
-                        
-            //             // System.out.printf("STUCK Node[%d]: ready=%d childA=%d childB=%d parent=%d mass=%.3f\n", 
-            //             //     i, readyChildren, 
-            //             //     childA == 0xFFFFFFFF ? -1 : childA,
-            //             //     childB == 0xFFFFFFFF ? -1 : childB,
-            //             //     parentId == 0xFFFFFFFF ? -1 : parentId,
-            //             //     mass);
-                            
-            //             // Check children status
-            //             if (childA != 0xFFFFFFFF && childA < totalNodes) {
-            //                 int childAOffset = childA * Node.STRUCT_SIZE;
-            //                 if (childAOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-            //                     int childAReady = childA < numLeaves ? 1 : nodeData.get(childAOffset + Node.READY_CHILDREN_OFFSET); // Leaves are always ready
-            //                     float childAMass = Float.intBitsToFloat(nodeData.get(childAOffset + Node.COM_MASS_OFFSET));
-            //                     System.out.printf("  Child A[%d]: ready=%d mass=%.3f%s\n", 
-            //                         childA, childAReady, childAMass, childA < numLeaves ? " (leaf)" : "");
-            //                 }
-            //             }
-            //             if (childB != 0xFFFFFFFF && childB < totalNodes) {
-            //                 int childBOffset = childB * Node.STRUCT_SIZE;
-            //                 if (childBOffset + Node.STRUCT_SIZE - 1 < nodeData.capacity()) {
-            //                     int childBReady = childB < numLeaves ? 1 : nodeData.get(childBOffset + Node.READY_CHILDREN_OFFSET); // Leaves are always ready
-            //                     float childBMass = Float.intBitsToFloat(nodeData.get(childBOffset + Node.COM_MASS_OFFSET));
-            //                     System.out.printf("  Child B[%d]: ready=%d mass=%.3f%s\n", 
-            //                         childB, childBReady, childBMass, childB < numLeaves ? " (leaf)" : "");
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
-            
-            // if (!foundStuckNodes) {
-            //     System.out.println("No stuck nodes found - all internal nodes have readyChildren >= 2");
-            // }
-            
-            // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-            
-            // System.out.println("Tree nodes:");
-            // // Read tree nodes
-            // glBindBuffer(GL_SHADER_STORAGE_BUFFER, NODES_SSBO);
-        
-            // Read tree nodes
-            //ByteBuffer nodeBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-            //IntBuffer nodeData = nodeBuffer.asIntBuffer();
-            //System.out.println("Tree nodes:");
-            
-            //int numLeaves = planets.size();
-            //int numInternalNodes = planets.size() - 1;
-            //int totalNodes = 2 * planets.size() - 1;
-            
-            // Show first few leaf nodes (indices 0 to numBodies-1)
-
-            //System.out.println(Node.getNodes(nodeData, 0, Math.min(20, numLeaves)));
-            
-            // Show internal nodes from halfway point (indices numBodies to 2*numBodies-2)
-            //System.out.println(Node.getNodes(nodeData, numLeaves, Math.min(numLeaves + 20, totalNodes)));
-
-            //glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-            verifyTreeStructure(nodeData, numLeaves, totalNodes);
-            NODES_SSBO.unbind();
-    }
 
     /**
      * Verify the tree structure.

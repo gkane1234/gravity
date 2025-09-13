@@ -9,8 +9,8 @@ void initLeafNodesKernel()
     uint gid = gl_GlobalInvocationID.x;
 
     if (gid == 0) {
-        uintDebug[0]=0u;
-        uintDebug[50]=0u;
+        sim.uintDebug[0]=0u;
+        sim.uintDebug[50]=0u;
         tailIn = 0u;
         headIn = 0u;
         tailOut = 0u;
@@ -21,15 +21,15 @@ void initLeafNodesKernel()
     uint bodyIdx = indexIn[gid];
     Body body = srcB.bodies[bodyIdx];
 
-    nodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
-    nodes[gid].aabb = packAABB(AABB(body.posMass.xyz, body.posMass.xyz));
-    nodes[gid].childA = 0xFFFFFFFFu;
-    nodes[gid].childB = 0xFFFFFFFFu;
-    nodes[gid].readyChildren = 0xFFFFFFFFu;
-    nodes[gid].nodeDepth = 0u;
+    leafNodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
+    leafNodes[gid].aabb = packAABB(AABB(body.posMass.xyz, body.posMass.xyz));
+    leafNodes[gid].childA = 0xFFFFFFFFu;
+    leafNodes[gid].childB = 0xFFFFFFFFu;
+    leafNodes[gid].readyChildren = 0xFFFFFFFFu;
+    leafNodes[gid].nodeDepth = 0u;
 
-    uint parentIdx = nodes[gid].parentId;
-    uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+    uint parentIdx = leafNodes[gid].parentId;
+    uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
     if (prev == 1u) {
         uint idx = atomicAdd(tailIn, 1u);
         itemsIn[idx] = parentIdx;
@@ -43,11 +43,11 @@ void propagateNodesKernel()
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0u) {
-        if (nodes[sim.initialNumBodies].readyChildren != 0xFFFFFFFFu) {
-            //atomicAdd(uintDebug[0], 1u);
+        if (internalNodes[0].readyChildren != 0xFFFFFFFFu) {
+            //atomicAdd(sim.uintDebug[0], 1u);
 
         }
-        uintDebug[1] = 0u;
+        sim.uintDebug[1] = 0u;
         headIn = 0u;
         headOut = 0u;
         tailOut = 0u;
@@ -58,27 +58,34 @@ void propagateNodesKernel()
     uint workIdx = atomicAdd(headIn, 1u);
     while (workIdx < tailIn) {
         
-        uint nodeIdx = itemsIn[workIdx];
-        if (nodes[nodeIdx].readyChildren == 0xFFFFFFFFu) {
+        uint internalNodeIdx = itemsIn[workIdx]-sim.initialNumBodies;
+        uint readyChildren = internalNodes[internalNodeIdx].readyChildren;
+        if (readyChildren == 0xFFFFFFFFu) {
             workIdx = atomicAdd(headIn, 1u);
             continue;
         }
 
-
-        uint leftChild = nodes[nodeIdx].childA;
-        uint rightChild = nodes[nodeIdx].childB;
-        if (nodes[leftChild].readyChildren < 2u || nodes[rightChild].readyChildren < 2u) {
+        uint leftReadyChildren = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childA].readyChildren 
+                                                                                              : internalNodes[internalNodes[internalNodeIdx].childA-sim.initialNumBodies].readyChildren;
+        uint rightReadyChildren = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childB].readyChildren 
+                                                                                               : internalNodes[internalNodes[internalNodeIdx].childB-sim.initialNumBodies].readyChildren;
+        if (leftReadyChildren < 2u || rightReadyChildren < 2u) {
             workIdx = atomicAdd(headIn, 1u);
             continue;
 
             
         }
-        if (atomicCompSwap(nodes[nodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+        if (atomicCompSwap(internalNodes[internalNodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
             workIdx = atomicAdd(headIn, 1u);
             continue;
         }
-        vec4 leftCOM = nodes[leftChild].comMass;
-        vec4 rightCOM = nodes[rightChild].comMass;
+        Node leftChild = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childA] 
+                                                                                       : internalNodes[internalNodes[internalNodeIdx].childA-sim.initialNumBodies];
+        Node rightChild = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childB] 
+                                                                                        : internalNodes[internalNodes[internalNodeIdx].childB-sim.initialNumBodies];
+        
+        vec4 leftCOM = leftChild.comMass;
+        vec4 rightCOM = rightChild.comMass;
         float totalMass = leftCOM.w + rightCOM.w;
         vec3 centerOfMass;
         if (totalMass > 0.0) {
@@ -86,16 +93,16 @@ void propagateNodesKernel()
         } else {
             centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
         }
-        AABB leftAABB = getAABB(nodes[leftChild].aabb);
-        AABB rightAABB = getAABB(nodes[rightChild].aabb);
+        AABB leftAABB = getAABB(leftChild.aabb);
+        AABB rightAABB = getAABB(rightChild.aabb);
         AABB newAABB = updateAABB(leftAABB, rightAABB);
-        nodes[nodeIdx].comMass = vec4(centerOfMass, totalMass);
-        nodes[nodeIdx].aabb = packAABB(newAABB);
-        nodes[nodeIdx].readyChildren = 0xFFFFFFFFu;
-        nodes[nodeIdx].nodeDepth = 1u+max(nodes[leftChild].nodeDepth, nodes[rightChild].nodeDepth);
-        uint parentIdx = nodes[nodeIdx].parentId;
+        internalNodes[internalNodeIdx].comMass = vec4(centerOfMass, totalMass);
+        internalNodes[internalNodeIdx].aabb = packAABB(newAABB);
+        internalNodes[internalNodeIdx].readyChildren = 0xFFFFFFFFu;
+        internalNodes[internalNodeIdx].nodeDepth = 1u+max(leftChild.nodeDepth, rightChild.nodeDepth);
+        uint parentIdx = internalNodes[internalNodeIdx].parentId;
         if (parentIdx != 0xFFFFFFFFu) {
-            uint prev = atomicAdd(nodes[parentIdx].readyChildren, 1u);
+            uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
             if (prev == 1u) {
                 uint idx = atomicAdd(tailOut, 1u);
                 itemsOut[idx] = parentIdx;
@@ -105,7 +112,7 @@ void propagateNodesKernel()
 
         workIdx = atomicAdd(headIn, 1u);
 
-        //atomicAdd(uintDebug[1], 1u);
+        //atomicAdd(sim.uintDebug[1], 1u);
         
     }
 }

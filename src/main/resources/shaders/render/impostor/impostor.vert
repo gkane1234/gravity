@@ -5,7 +5,7 @@ struct Body {
   vec4 velDensity;
 };
 
-layout(std430, binding = 2) readonly buffer SrcBodies {
+layout(std430, binding = 3) readonly buffer SrcBodies {
   Body bodies[];
 } srcB;
 

@@ -114,7 +114,7 @@ public class GPUSimulation {
 
     public static PlanetGenerator createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 20;
+        int numDisks = 110;
         int[] numPlanetsRange = {250_000,250_000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
@@ -342,7 +342,7 @@ public class GPUSimulation {
 
     // Expose nodes SSBO for regions rendering
     public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
-        return boundedBarnesHut.getNodesSSBO();
+        return boundedBarnesHut.getInternalNodesSSBO();
     }
 
     public com.grumbo.gpu.SSBO barnesHutValuesSSBO() {

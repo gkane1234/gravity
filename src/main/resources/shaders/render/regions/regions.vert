@@ -24,10 +24,10 @@ struct Node {
 	uint parentId;
 };
 
-layout(std430, binding = 0) readonly buffer Nodes {
+layout(std430, binding = 1) readonly buffer InternalNodes {
 	Node nodes[];
 };
-layout(std430, binding = 1) readonly buffer SimulationValues { 
+layout(std430, binding = 2) readonly buffer SimulationValues { 
 	uint numBodies;
 	uint initialNumBodies;
 };
@@ -44,7 +44,7 @@ void main() {
 		gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 		return;
 	}
-	int nodeIndex = gl_InstanceID + int(initialNumBodies);
+	int nodeIndex = gl_InstanceID;
 
 	Node node = nodes[nodeIndex];
 

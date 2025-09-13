@@ -25,7 +25,7 @@ void computeForce()
 
     uint bodyIdx = indexIn[gid];
 
-    //uintDebug[gid] = bodyIdx;
+    //sim.uintDebug[gid] = bodyIdx;
 
     Body body = srcB.bodies[bodyIdx];
 
@@ -36,7 +36,7 @@ void computeForce()
 
     while (stackSize > 0) {
         uint nodeIdx = stack[--stackSize];
-        Node node = nodes[nodeIdx];
+        Node node = nodeIdx < sim.initialNumBodies ? leafNodes[nodeIdx] : internalNodes[nodeIdx-sim.initialNumBodies];
         vec3 r = node.comMass.xyz - body.posMass.xyz;
         float oneOverDist = invDist(r, SOFTENING);
         AABB aabb = getAABB(node.aabb);

@@ -12,8 +12,8 @@ void resetKernel() {
             sim.justMerged = 0u;
         }
         else {
-            uintDebug[99] = sim.justDied;
-            uintDebug[98] = sim.numBodies;
+            sim.uintDebug[99] = sim.justDied;
+            sim.uintDebug[98] = sim.numBodies;
             sim.numBodies -= sim.justDied;
             sim.justDied = 0u;
 
