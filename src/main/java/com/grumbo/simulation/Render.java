@@ -164,7 +164,7 @@ public class Render {
                 case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
                 default: break;
             }
-            if (showRegions) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
+            if (showRegions && gpuSimulation.getSteps() > 0) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
             checkGLError("after render");
         }
 

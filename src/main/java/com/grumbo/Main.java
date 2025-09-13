@@ -9,11 +9,8 @@ import com.grumbo.simulation.GPUSimulation;
  */
 
  //Known issues:
- // Make different types have the correct ui
- // Make these specific types of UI work with the UI map that is used
- // Fix string problem when setting a new value, actually fix all the problems wiht making sure that input is comprehensible
- 
- // - Cant put chunk size too low or else it will freeze or lose correct velocity of planets
+ // galaxy generation seems to tear itself apart sometimes
+ // the name of fixed ssbos is overwritten by the swapping ssbos
 public class Main {
     public static void main(String[] args) {
         GPUSimulation gpuSimulation = new GPUSimulation();

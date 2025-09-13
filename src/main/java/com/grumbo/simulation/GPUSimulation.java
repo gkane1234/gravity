@@ -36,7 +36,7 @@ public class GPUSimulation {
     }
 
     private boolean debug = true;
-    public State state = State.FRAME_ADVANCE;
+    public State state = State.PAUSED;
 
     // Recording
     private Recording recording;
@@ -51,7 +51,7 @@ public class GPUSimulation {
 
     public GPUSimulation() {
 
-        PlanetGenerator planetGenerator = createSeveralDisksAroundAnotherDiskSimulation();
+        PlanetGenerator planetGenerator = collisionTest();
         System.out.println("Planet generator num planets: " + planetGenerator.getNumPlanets());
 
 
@@ -201,7 +201,7 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 1000;
+        int numAlive = 100_000;
         for (int i = 0; i < numAlive; i++) {
             newPlanets.add(new Planet((float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), 0, 0, 0, 100));
         }
@@ -262,8 +262,8 @@ public class GPUSimulation {
         }
 
         if (state == State.FRAME_ADVANCE) {
-            boundedBarnesHut.step();
             checkGLError("after boundedBarnesHut.step");
+            boundedBarnesHut.step();
             render.render(boundedBarnesHut.getOutputSSBO(), state);
             checkGLError("after render.render");
             captureIfRecording();

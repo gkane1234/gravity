@@ -241,11 +241,6 @@ public class BoundedBarnesHut {
      */
     public void init() {
         initComputeSSBOs();
-
-
-
-
-
         initComputeSwappingBuffers();
         initComputeUniforms();
         initComputeShaders();
