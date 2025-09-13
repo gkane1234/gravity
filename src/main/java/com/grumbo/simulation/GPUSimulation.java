@@ -201,9 +201,9 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 100_000;
+        int numAlive = 30_000_000;
         for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), (float)(100*java.lang.Math.random()), 0, 0, 0, 100));
+            newPlanets.add(new Planet((float)(10000*java.lang.Math.random()), (float)(10000*java.lang.Math.random()), (float)(10000*java.lang.Math.random()), 0, 0, 0, 100));
         }
 
         Collections.shuffle(newPlanets);

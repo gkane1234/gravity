@@ -10,7 +10,9 @@ import com.grumbo.simulation.GPUSimulation;
 
  //Known issues:
  // galaxy generation seems to tear itself apart sometimes
- // the name of fixed ssbos is overwritten by the swapping ssbos
+ // the name of fixed ssbo objects is overwritten by the swapping ssbos
+ // Radix sort dispatches with too many workgroups when the number of bodies goes down which matters a lot because of the amount of inop threads
+ // Most shaders dispatch with too many workgroups when the number of bodies goes down
 public class Main {
     public static void main(String[] args) {
         GPUSimulation gpuSimulation = new GPUSimulation();
