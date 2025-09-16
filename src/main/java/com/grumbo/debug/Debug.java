@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.IOException;
+import java.util.Arrays;
 
 public class Debug {
 
@@ -15,6 +16,8 @@ public class Debug {
     private static String fileName = "debug_" + code + ".txt";
 
     private static String debugFileString = "";
+
+    private static String[] debugsSelected = new String[0];
 
 
     private String debugString = "";
@@ -52,10 +55,16 @@ public class Debug {
         debugString = debug;
     }
 
+    public static void setDebugsSelected(String[] debugsSelected) {
+        Debug.debugsSelected = debugsSelected;
+    }
+
     public static void addDebugToFile(int frame) {
-        debugFileString = "--------------------------------Frame " + frame + "--------------------------------\n";
+        debugFileString += "--------------------------------Frame " + frame + "--------------------------------\n";
         for (Debug debug : debugs) {
-            debugFileString += debug.getDebug() + "\n";
+            if (Arrays.asList(debugsSelected).contains("ALL")||Arrays.asList(debugsSelected).contains(debug.name)||Arrays.asList(debugsSelected).contains(debug.name.split(" ")[1])) {
+                debugFileString += debug.getDebug() + "\n";
+            }
         }
         saveDebug();
     }
@@ -65,6 +74,12 @@ public class Debug {
             Files.write(Path.of("C:/Users/gkane/Documents/Stuff/gravitychunk/src/main/java/com/grumbo/debug/debug_output/" + fileName), debugFileString.getBytes());
         } catch (IOException e) {
             System.err.println("Failed to save debug: " + e.getMessage());
+        }
+    }
+
+    public static void outputAllConnectedDebugs() {
+        for (Debug debug : debugs) {
+            System.out.println(debug.name);
         }
     }
 }

@@ -61,6 +61,10 @@ public class GPUSimulation {
         Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
         boolean debug = true;
 
+        Debug.setDebugsSelected(new String[] {});
+
+
+
         this.openGlWindow = new OpenGLWindow(this); 
         this.planetGenerator = planetGenerator;
         this.initialbodiesContained = planetGenerator.getNumPlanets();
@@ -71,6 +75,7 @@ public class GPUSimulation {
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.commandQueue = new ConcurrentLinkedQueue<>();
+
     }
 
     public GPUSimulation(ArrayList<Planet> planets, Render.RenderMode renderMode, boolean debug) {
@@ -241,6 +246,8 @@ public class GPUSimulation {
 
     public void run() {
         init();
+        System.out.println("Debugs connected:");
+        Debug.outputAllConnectedDebugs();
         while (state != State.STOPPED) {
             step();
             openGlWindow.step();

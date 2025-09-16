@@ -57,8 +57,8 @@ public class ComputeShader {
         this.ssboNames = ssboNames;
         this.xWorkGroupsFunction = xWorkGroupsFunction;
         this.boundedBarnesHut = boundedBarnesHut;
-        this.preDebug = new Debug("Pre " + kernelName);
-        this.postDebug = new Debug("Post " + kernelName);
+        this.preDebug = new Debug("PRE " + kernelName);
+        this.postDebug = new Debug("POST " + kernelName);
         this.kernelName = kernelName;
     }
 
