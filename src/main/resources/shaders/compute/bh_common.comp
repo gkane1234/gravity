@@ -13,7 +13,9 @@ uniform bool collision;
 uniform uint numWorkGroups;
 uniform uint passShift;
 uniform bool mergeToggle;
+uniform bool wrapAround;
 
+//To change these, you need to also change them in BoundedBarnesHut.java
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
 
@@ -28,6 +30,8 @@ struct AABB {
     vec3 maxCorner;
 };
 
+
+
 struct Node {
     vec4 comMass;
     //stored as a uint[6] to avoid padding
@@ -41,7 +45,9 @@ struct Node {
 };
 layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
 layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
-layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
+layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
+                                                        uint outOfBounds; uint pad0; uint pad1; uint pad2; 
+                                                        AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
 layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
 layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
 layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
@@ -65,6 +71,12 @@ AABB updateAABB(AABB a, AABB b) {
 
 bool isEmpty(Body b) {
     return b.posMass.w == 0.0;
+}
+
+bool outOfBounds(Body b) {
+    return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
+           b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
+           b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
 }
 
 float radius(Body b) {

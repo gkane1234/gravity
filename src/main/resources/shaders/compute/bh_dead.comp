@@ -7,11 +7,7 @@ uint deadScannedOffset(){ return aliveScannedSize(); }
 
 shared uint deadFlags[WG_SIZE];
 shared uint aliveFlags[WG_SIZE];
-bool outOfBounds(Body b) {
-    return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
-           b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
-           b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
-}
+
 
 
 void deadCountKernel() {
@@ -27,11 +23,11 @@ void deadCountKernel() {
         wgHist[wgId + deadHistOffset()] = 0u;
     }
 
-    
-    if (alive && outOfBounds(srcB.bodies[bodyIdx])) {
-        dead = true;
+    //Extra check for out of bounds. Instead make sure that initial positions are in bounds
+    // if (alive && outOfBounds(srcB.bodies[bodyIdx])) {
+    //     dead = true;
 
-    }
+    // }
 
 
     // this makes sure that the body is set to empty correctly on the old buffer

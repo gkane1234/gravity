@@ -27,10 +27,9 @@ public class Body {
 
     private float[] posMass;
     private float[] velDensity;
-    
-    public static final VariableType[] bodyTypes = new VariableType[] { 
-        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, 
-        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT};
+    public static final GLSLVariable posMassGLSL = new GLSLVariable(VariableType.FLOAT, "posMass", 4);
+    public static final GLSLVariable velDensityGLSL = new GLSLVariable(VariableType.FLOAT, "velDensity", 4);
+    public static final GLSLVariable bodyStruct = new GLSLVariable(new GLSLVariable[] {posMassGLSL, velDensityGLSL}, "Body");
 
     /**
      * Constructor for the Body class.

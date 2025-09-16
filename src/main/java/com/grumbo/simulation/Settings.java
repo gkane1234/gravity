@@ -129,6 +129,9 @@ public class Settings {
 		// Merge bodies
 		properties.put("mergeBodies", Property.createBooleanProperty("mergeBodies", false, false, true));
 
+		// Wrap around
+		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
+
 	}
 	// ===== END AUTO-GENERATED: Property Initialization =====
 
@@ -252,6 +255,10 @@ public class Settings {
 	public void setMergeBodies(boolean value) { setValue("mergeBodies", value); }
 
 	public void toggleMergeBodies() { setMergeBodies(!isMergeBodies()); }
+	public boolean isWrapAround() { return getValue("wrapAround"); }
+	public void setWrapAround(boolean value) { setValue("wrapAround", value); }
+
+	public void toggleWrapAround() { setWrapAround(!isWrapAround()); }
 	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
 
 	// ===== FIXED: Non-Configurable Values =====

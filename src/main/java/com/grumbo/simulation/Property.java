@@ -483,12 +483,18 @@ public class Property<T> {
     private ArrayList<UIElement> createBooleanEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UIButton toggle = new UIButton("", () -> {
+        boolean initialState = (Boolean) Settings.getInstance().getValue(name);
+        UIButton toggle = new UIButton(initialState ? "On" : "Off");
+        toggle.setOnClick(() -> {
             try {
                 boolean current = (Boolean) Settings.getInstance().getValue(name);
-                Settings.getInstance().setValue(name, !current);
+                boolean newState = !current;
+                Settings.getInstance().setValue(name, newState);
                 Settings.getInstance().saveSettings();
+                toggle.setText(newState ? "On" : "Off");
+
             } catch (Exception ignore) {
+                System.out.println("Error toggling boolean property: " + name);
             }
         });
         elements.add(toggle);

@@ -53,7 +53,7 @@ void mergeBodiesKernel() {
             dstB.bodies[iA] = merged;
             dstB.bodies[iB] = EMPTY_BODY;
 
-            atomicAdd(sim.justMerged, 1u);
+            atomicAdd(sim.merged, 1u);
         }
 
         // Unlock both

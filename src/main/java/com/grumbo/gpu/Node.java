@@ -36,9 +36,15 @@ public class Node {
     public static final int PARENT_ID_OFFSET = 15;
 
     public static final int STRUCT_SIZE = 16;
-    public static final VariableType[] nodeTypes = new VariableType[] { VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, 
-        VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT, VariableType.FLOAT,
-        VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT}; 
+    public static final GLSLVariable comMassGLSL = new GLSLVariable(VariableType.FLOAT, "comMass", 4);
+    public static final GLSLVariable aabbGLSL = new GLSLVariable(VariableType.FLOAT, "aabb", 6);
+    public static final GLSLVariable childAGLSL = new GLSLVariable(VariableType.UINT, "childA", 1);
+    public static final GLSLVariable childBGLSL = new GLSLVariable(VariableType.UINT, "childB", 1);
+    public static final GLSLVariable nodeDepthGLSL = new GLSLVariable(VariableType.UINT, "nodeDepth", 1);
+    public static final GLSLVariable bodiesContainedGLSL = new GLSLVariable(VariableType.UINT, "bodiesContained", 1);
+    public static final GLSLVariable readyChildrenGLSL = new GLSLVariable(VariableType.UINT, "readyChildren", 1);
+    public static final GLSLVariable parentIdGLSL = new GLSLVariable(VariableType.UINT, "parentId", 1);
+    public static final GLSLVariable nodeStruct = new GLSLVariable(new GLSLVariable[] {comMassGLSL, aabbGLSL, childAGLSL, childBGLSL, nodeDepthGLSL, bodiesContainedGLSL, readyChildrenGLSL, parentIdGLSL}, "Node");
 
     public float[] comMass;
     public float[] aabb;

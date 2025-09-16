@@ -398,9 +398,8 @@ public class OpenGLUI {
         
         // Format stats string
         int curBodies = openGlWindow.gpuSimulation.currentBodies();
-        int jMerged = openGlWindow.gpuSimulation.justMerged();
-
-        int lostToOutOfBounds = lastDifference - jMerged;
+        int jMerged = openGlWindow.gpuSimulation.merged();
+        int lostToOutOfBounds = openGlWindow.gpuSimulation.outOfBounds();
         String statsText = String.format("FPS: %.1f\nBodies: %d\nMerged: %d\nLost to out of bounds: %d", openGlWindow.getFPS(), curBodies, jMerged, lostToOutOfBounds);
         
 

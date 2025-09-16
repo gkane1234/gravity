@@ -9,11 +9,8 @@ void resetKernel() {
             mergeQueueTail = 0u;
             mergeQueueHead = 0u;
             sim.justDied = 0u;
-            sim.justMerged = 0u;
         }
         else {
-            sim.uintDebug[99] = sim.justDied;
-            sim.uintDebug[98] = sim.numBodies;
             sim.numBodies -= sim.justDied;
             sim.justDied = 0u;
 

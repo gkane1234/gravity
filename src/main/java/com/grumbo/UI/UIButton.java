@@ -17,8 +17,16 @@ public class UIButton extends UIElement {
         this.onClick = onClick;
     }
 
-    public UIButton (String label, Runnable onClick) {
-        this(0, 0, 0, 0, label, onClick);
+    public UIButton (String text, Runnable onClick) {
+        this(0, 0, 0, 0, text, onClick);
+    }
+
+    public UIButton (String text) {
+        this(0, 0, 0, 0, text, null);
+    }
+
+    public UIButton () {
+        this(0, 0, 0, 0, "", null);
     }
 
 
@@ -28,6 +36,10 @@ public class UIButton extends UIElement {
     }
     public String getText() {
         return text;
+    }
+
+    public void setOnClick(Runnable onClick) {
+        this.onClick = onClick;
     }
 
     @Override

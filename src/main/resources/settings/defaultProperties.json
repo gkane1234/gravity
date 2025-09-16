@@ -189,6 +189,12 @@
       "default": false,
       "description": "Merge bodies",
       "editable": true
+    },
+    "wrapAround": {
+      "type": "boolean",
+      "default": false,
+      "description": "Wrap around",
+      "editable": true
     }
   }
 } 

@@ -2,7 +2,7 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
+import java.util.HashMap;
 
 /**
  * SSBO class for creating SSBO objects on the GPU
@@ -54,6 +54,7 @@ public class SSBO {
 
     // Buffer location of the SSBO
     private int bufferLocation;
+    private ByteBuffer bufferCache;
     // Binding of the SSBO
     private final int bufferBinding;
     // Function to get the size of the SSBO, this is used by default to size the SSBO
@@ -62,14 +63,11 @@ public class SSBO {
     private dataFunction dataFunction;
     // Name of the SSBO
     private String name;
-    // Size of the struct in this SSBO in bytes
-    private int STRUCT_SIZE;
+
     // Types of the fields of the struct
-    private VariableType[] types;
-    // Size of the header in this SSBO in bytes
-    private int headerSize;
-    // Types of the fields of the header
-    private VariableType[] headerTypes;
+    private GLSLVariable SSBOLayout;
+    private HashMap<String, GLSLVariable> SSBOLayoutMap;
+    private HashMap<String, Integer> SSBOByteOffsets;
     /**
      * Function to get the size of the SSBO, this or the data function is used.
      */
@@ -101,16 +99,28 @@ public class SSBO {
      * @param headerSize the size of the header in this SSBO in bytes
      * @param headerTypes the types of the fields of the header
      */
-    public SSBO(int binding, sizeFunction sizeFunction, dataFunction dataFunction, String name, int structSize, VariableType[] types, int headerSize, VariableType[] headerTypes) {
+    public SSBO(int binding, sizeFunction sizeFunction, dataFunction dataFunction, String name, GLSLVariable SSBOLayout) {
         this.bufferBinding = binding;
         this.sizeFunction = sizeFunction;
         this.dataFunction = dataFunction;
         this.name = name;
         this.bufferLocation = glGenBuffers();
-        this.STRUCT_SIZE = structSize;
-        this.types = types;
-        this.headerSize = headerSize;
-        this.headerTypes = headerTypes;
+        this.SSBOLayout = SSBOLayout;
+        this.SSBOLayoutMap = new HashMap<>();
+        this.SSBOByteOffsets = new HashMap<>();
+        addToSSBOLayoutMap(SSBOLayout, 0);
+    }
+
+    private void addToSSBOLayoutMap(GLSLVariable variable, int baseOffset) {
+        SSBOLayoutMap.put(variable.name, variable);
+        SSBOByteOffsets.put(variable.name, baseOffset);
+        if (variable.dataType == VariableType.STRUCT) {
+            int internalOffset = 0;
+            for (GLSLVariable subVariable : variable.variables) {
+                addToSSBOLayoutMap(subVariable, baseOffset + internalOffset);
+                internalOffset += subVariable.byteSize * subVariable.size;
+            }
+        }
     }
     /**
      * Constructor for the SSBO class
@@ -119,7 +129,7 @@ public class SSBO {
      * @param name the name of the SSBO
      */
     public SSBO(int binding, sizeFunction size, String name) {
-        this(binding, size, null, name, -1, null, 0, null);
+        this(binding, size, null, name, null);
     }
     /**
      * Constructor for the SSBO class
@@ -128,7 +138,7 @@ public class SSBO {
      * @param name the name of the SSBO
      */
     public SSBO(int binding, dataFunction dataFunction, String name) {
-        this(binding, null, dataFunction, name, -1, null, 0, null);
+        this(binding, null, dataFunction, name, null);
     }
     /**
      * Constructor for the SSBO class
@@ -138,8 +148,8 @@ public class SSBO {
      * @param structSize the size of the struct in this SSBO in bytes
      * @param types the types of the fields of the struct
      */
-    public SSBO(int binding, sizeFunction size, String name, int structSize, VariableType[] types) {
-        this(binding, size, null, name, structSize, types, 0, null);
+    public SSBO(int binding, sizeFunction size, String name, GLSLVariable SSBOLayout) {
+        this(binding, size, null, name, SSBOLayout);
     }
     /**
      * Constructor for the SSBO class
@@ -149,49 +159,15 @@ public class SSBO {
      * @param structSize the size of the struct in this SSBO in bytes
      * @param types the types of the fields of the struct
      */
-    public SSBO(int binding, dataFunction dataFunction, String name, int structSize, VariableType[] types) {
-        this(binding, dataFunction, name, structSize, types, 0, null);
-    }
-
-    /**
-     * Constructor for the SSBO class
-     * @param binding the binding of the SSBO given by OpenGL
-     * @param sizeFunction the function to get the size of the SSBO
-     * @param name the name of the SSBO
-     * @param structSize the size of the struct in this SSBO in bytes
-     * @param types the types of the fields of the struct
-     */
-    public SSBO(int binding, sizeFunction size, String name, int structSize, VariableType[] types, int headerSize, VariableType[] headerTypes) {
-        this(binding, size, null, name, structSize, types, headerSize, headerTypes);
-    }
-    /**
-     * Constructor for the SSBO class
-     * @param binding the binding of the SSBO given by OpenGL
-     * @param dataFunction the function to set the data of the SSBO
-     * @param name the name of the SSBO
-     * @param structSize the size of the struct in this SSBO in bytes
-     * @param types the types of the fields of the struct
-     */
-    public SSBO(int binding, dataFunction dataFunction, String name, int structSize, VariableType[] types, int headerSize, VariableType[] headerTypes) {
-        this(binding, null, dataFunction, name, structSize, types, headerSize, headerTypes);
+    public SSBO(int binding, dataFunction dataFunction, String name, GLSLVariable SSBOLayout) {
+        this(binding, null, dataFunction, name, SSBOLayout);
     }
 
 
-    /**
-     * Sets the size of the struct in this SSBO in bytes
-     * @param structSize the size of the struct in this SSBO in bytes
-     */
-    public void setStructSize(int structSize) {
-        this.STRUCT_SIZE = structSize;
+    public void setSSBOLayout(GLSLVariable SSBOLayout) {
+        this.SSBOLayout = SSBOLayout;
     }
 
-    /**
-     * Sets the types of the fields of the struct
-     * @param types the types of the fields of the struct
-     */
-    public void setTypes(VariableType[] types) {
-        this.types = types;
-    }
 
     /**
      * Sets the name of the SSBO
@@ -233,46 +209,26 @@ public class SSBO {
      */
     public ByteBuffer getBuffer() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
-        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        buffer.order(java.nio.ByteOrder.nativeOrder());
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
-        return buffer;
-    }
-
-    /**
-     * Gets the header data from the SSBO
-     * @return the header data from the SSBO
-     */
-    public String getHeader() {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
-        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        buffer.order(java.nio.ByteOrder.nativeOrder());
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
-        String result = "Header for "+name+"\n(";
-        result += readEachField(buffer, 0, headerTypes);
-        return result;
-    }
-
-    /**
-     * Gets the header data from the SSBO as an array of integers
-     * @return the header data from the SSBO as an array of integers
-     */
-    public int[] getHeaderAsInts() {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
-        ByteBuffer buffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        if (buffer == null) {
-            return null;
+        if (bufferCache == null) {
+            refreshCache();
         }
-        buffer.order(java.nio.ByteOrder.nativeOrder());
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind when done
-        int[] data = new int[(buffer.capacity()/4)-headerSize];
-        IntBuffer intBuffer = buffer.asIntBuffer();
-        intBuffer.get(data);
-        return data;
+        return bufferCache;
     }
+
+    public void refreshCache() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
+        ByteBuffer mapped = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+        mapped.order(java.nio.ByteOrder.nativeOrder());
+        ByteBuffer copy = ByteBuffer.allocateDirect(mapped.remaining()).order(java.nio.ByteOrder.nativeOrder());
+        copy.put(mapped);
+        copy.flip();
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        bufferCache = copy;
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        System.out.println("Buffer cache created for " + name);
+    }
+
 
 
     /**
@@ -281,97 +237,59 @@ public class SSBO {
      * @param endIndex the index of the last data to get
      * @return the data from the SSBO
      */
-    public String getData(int startIndex, int endIndex) {
+    public String getDataAsString(String variableName, int startIndex, int endIndex) {
+        GLSLVariable variable = SSBOLayoutMap.get(variableName);
+        return variable.getDataAsString(getBuffer(), startIndex, endIndex);
+    }
+
+    public String getDataAsString(String[] variableNames, int startIndex, int endIndex) {
+        StringBuilder sb = new StringBuilder();
+        for (String variableName : variableNames) {
+            sb.append(getDataAsString(variableName, startIndex, endIndex));
+        }
+        return sb.toString();
+    }
+
+    public Object[] getData(String variableName, int startIndex, int endIndex) {
+        GLSLVariable variable = SSBOLayoutMap.get(variableName);
+        System.out.println("Getting data for variable: " + variableName + " from index " + startIndex + " to " + endIndex);
         ByteBuffer buffer = getBuffer();
-        String result = name+"\n";
-        
-
-        //Assume it is integers
-        if (STRUCT_SIZE == -1) {
-            int[] data = new int[(buffer.capacity()/4)-headerSize];
-            IntBuffer intBuffer = buffer.asIntBuffer();
-            intBuffer.get(data);
-            for (int i = 0; i < data.length; i++) {
-                result += String.format("%d", data[i]);
-                if (i < data.length - 1) {
-                    result += "\n";
-                }
-            }
-            return result+"\n";
-        }
-
-        // Calculate total struct size in bytes
-        int structSizeInBytes = 0;
-        for (int i = 0; i < types.length; i++) {
-            structSizeInBytes += VariableType.getSize(types[i]);
-        }
-
-        // Start reading from the correct byte offset
-        int startByteOffset = startIndex * structSizeInBytes + headerSize;
-        
-        // Iterate through each struct
-        for (int structIndex = startIndex; structIndex < endIndex; structIndex++) {
-            result += String.format("Index: %d\t (", structIndex);
-            
-            // Current byte position within the buffer
-            int currentByteOffset = startByteOffset + (structIndex - startIndex) * structSizeInBytes;
-            
-            result += readEachField(buffer, currentByteOffset, types);
-        }
-        
-        return result;
-    }
-    /**
-     * Reads each field in the struct using types
-     * @param buffer the buffer to read the fields from
-     * @param currentByteOffset the current byte offset in the buffer
-     * @param types the types of the fields in the struct
-     * @return the string representation of the fields
-     */
-    private String readEachField(ByteBuffer buffer, int currentByteOffset, VariableType[] types) {
-        String result = "";
-        // Read each field in the struct
-        for (int fieldIndex = 0; fieldIndex < types.length; fieldIndex++) {
-            VariableType type = types[fieldIndex];
-
-            //System.out.println(buffer.get(currentByteOffset)+" "+Float.intBitsToFloat(buffer.getInt(currentByteOffset)));
-            
-            result += String.format("%d:", fieldIndex);
-            
-            if (type == VariableType.FLOAT) {
-                int intValue = buffer.getInt(currentByteOffset);
-                result += String.format("%."+PRECISION+"f", Float.intBitsToFloat(intValue));
-                currentByteOffset += VariableType.getSize(type);    
-            } else if (type == VariableType.INT) {
-                result += String.valueOf(buffer.getInt(currentByteOffset));
-                currentByteOffset += VariableType.getSize(type);
-            } else if (type == VariableType.UINT) {
-                // For unsigned int, we need to handle it properly
-                int value = buffer.getInt(currentByteOffset);
-                result += String.valueOf(value);
-                currentByteOffset += VariableType.getSize(type);
-            } else if (type == VariableType.BOOL) {
-                result += String.format(buffer.get(currentByteOffset) == 1 ? "T" : "F");
-                currentByteOffset += VariableType.getSize(type);
-            } else if (type == VariableType.UINT64) {
-                result += String.format("%d", buffer.getLong(currentByteOffset));
-                currentByteOffset += VariableType.getSize(type);
-            } else if (type == VariableType.PADDING) {
-                result += "PADDING";
-                currentByteOffset += VariableType.getSize(type);
-            }
-            
-            if (fieldIndex < types.length - 1) {
-                result += ", ";
+        int count = endIndex - startIndex;
+        Object[] out = new Object[count];
+        int baseOffset = SSBOByteOffsets.getOrDefault(variableName, 0);
+        for (int i = 0; i < count; i++) {
+            Object[] row = variable.getDataAt(buffer, baseOffset, startIndex + i);
+            if (variable.dataType != VariableType.STRUCT && row.length == 1) {
+                out[i] = row[0];
+            } else {
+                out[i] = row;
             }
         }
-        result += ")";
-        result += "\n";
-        return result;
+        return out;
     }
 
 
-    
+    public Object[] getData(String variableName) {
+        int size = SSBOLayoutMap.get(variableName).size;
+        return getData(variableName, 0, size);
+    }
+
+    public Object[][] getData(String[] variableNames) {
+        Object[][] data = new Object[variableNames.length][];
+        for (int i = 0; i < variableNames.length; i++) {
+            data[i] = getData(variableNames[i]);
+        }
+        return data;
+    }
+
+    public Object[][] getData(String[] variableNames, int startIndex, int endIndex) {
+        Object[][] data = new Object[variableNames.length][];
+        for (int i = 0; i < variableNames.length; i++) {
+            data[i] = getData(variableNames[i], startIndex, endIndex);
+        }
+        return data;
+    }
+
     /**
      * Gets the binding of the SSBO
      * @return the binding of the SSBO

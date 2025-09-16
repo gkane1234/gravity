@@ -11,6 +11,8 @@ import java.nio.IntBuffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
+import com.grumbo.debug.Debug;
+
 
 import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL43C.*;
@@ -55,12 +57,13 @@ public class BoundedBarnesHut {
     private Uniform<Boolean> collisionUniform;
     private Uniform<Integer> passShiftUniform;
     private Uniform<Integer> resetKernelFirstPassUniform;
+    private Uniform<Boolean> wrapAroundUniform;
+    private Uniform<Boolean> mergeToggleUniform;
 
     // Uniform local variables
     private int radixSortPassShift;
     private int COMPropagationPassNumber;
     private boolean resetKernelFirstPass;
-
     // Compute Shaders
     private List<ComputeShader> computeShaders;
     private ComputeShader initKernel; // bh_init.comp
@@ -188,9 +191,6 @@ public class BoundedBarnesHut {
 
 
         //gpuSimulation.updateCurrentBodies();
-
-
-
         //System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 10));
         // Reset various values for the queues and death counting.
         resetValues();
@@ -274,94 +274,118 @@ public class BoundedBarnesHut {
         System.out.println("numBodies: " + numBodies());
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
             return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
-        }, "FIXED_BODIES_IN_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
+        }, "FIXED_BODIES_IN_SSBO", new GLSLVariable(Body.bodyStruct,numBodies()));
         ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
 
         FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
             return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
-        }, "FIXED_BODIES_OUT_SSBO", Body.STRUCT_SIZE, Body.bodyTypes, Body.HEADER_SIZE, null);
+        }, "FIXED_BODIES_OUT_SSBO", new GLSLVariable(Body.bodyStruct,numBodies()));
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
         //These are the fixed SSBOs that point to the morton and index buffers.
         //They are intialized with the correct sizes.
         FIXED_MORTON_IN_SSBO = new SSBO(SSBO.MORTON_IN_SSBO_BINDING, () -> {
             return numBodies() * Long.BYTES;
-        }, "FIXED_MORTON_IN_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        }, "FIXED_MORTON_IN_SSBO", new GLSLVariable(VariableType.UINT64,"MortonIn", numBodies()));
         ssbos.put(FIXED_MORTON_IN_SSBO.getName(), FIXED_MORTON_IN_SSBO);
 
         FIXED_INDEX_IN_SSBO = new SSBO(SSBO.INDEX_IN_SSBO_BINDING, () -> {
             return numBodies() * Integer.BYTES;
-        }, "FIXED_INDEX_IN_SSBO", 1, new VariableType[] { VariableType.UINT });
+        }, "FIXED_INDEX_IN_SSBO", new GLSLVariable(VariableType.UINT,"IndexIn", numBodies()));
         ssbos.put(FIXED_INDEX_IN_SSBO.getName(), FIXED_INDEX_IN_SSBO);
 
         LEAF_NODES_SSBO = new SSBO(SSBO.LEAF_NODES_SSBO_BINDING, () -> {
             return numBodies() * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "LEAF_NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
+        }, "LEAF_NODES_SSBO", new GLSLVariable(Node.nodeStruct,"LeafNodes", numBodies()));
         ssbos.put(LEAF_NODES_SSBO.getName(), LEAF_NODES_SSBO);
 
         INTERNAL_NODES_SSBO = new SSBO(SSBO.INTERNAL_NODES_SSBO_BINDING, () -> {
             return (numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "INTERNAL_NODES_SSBO", Node.STRUCT_SIZE, Node.nodeTypes);
+        }, "INTERNAL_NODES_SSBO", new GLSLVariable(Node.nodeStruct,"InternalNodes", numBodies() - 1));
         ssbos.put(INTERNAL_NODES_SSBO.getName(), INTERNAL_NODES_SSBO);
 
         //This is the SSBO that holds values that are used in different shaders
         SIMULATION_VALUES_SSBO = new SSBO(SSBO.SIMULATION_VALUES_SSBO_BINDING, () -> {
             return packValues();
-        }, "VALUES_SSBO", 1, new VariableType[] { VariableType.UINT });
+        }, "VALUES_SSBO", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT,"numBodies", 1), 
+            new GLSLVariable(VariableType.UINT,"initialNumBodies", 1), 
+            new GLSLVariable(VariableType.UINT,"justDied", 1), 
+            new GLSLVariable(VariableType.UINT,"merged", 1), 
+            new GLSLVariable(VariableType.UINT,"outOfBounds", 1), 
+            new GLSLVariable(VariableType.UINT,"pad0", 1), 
+            new GLSLVariable(VariableType.UINT,"pad1", 1), 
+            new GLSLVariable(VariableType.UINT,"pad2", 1), 
+            new GLSLVariable(new GLSLVariable[] {
+                new GLSLVariable(VariableType.FLOAT,"minCorner", 3), new GLSLVariable(VariableType.PADDING),
+                new GLSLVariable(VariableType.FLOAT,"maxCorner", 3), new GLSLVariable(VariableType.PADDING)},"bounds"), 
+            new GLSLVariable(VariableType.UINT,"uintDebug", 100), 
+            new GLSLVariable(VariableType.FLOAT,"floatDebug", 100)}));
         ssbos.put(SIMULATION_VALUES_SSBO.getName(), SIMULATION_VALUES_SSBO);
 
         //This is the SSBO that holds the histogram of the radix sort.
         RADIX_WG_HIST_SSBO = new SSBO(SSBO.RADIX_WG_HIST_SSBO_BINDING, () -> {
             return numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES;
-        }, "WG_HIST_SSBO", 1, new VariableType[] { VariableType.UINT });
+        }, "WG_HIST_SSBO", new GLSLVariable(VariableType.UINT,"WGHist", numGroups() * (1+NUM_RADIX_BUCKETS)));
         ssbos.put(RADIX_WG_HIST_SSBO.getName(), RADIX_WG_HIST_SSBO);
 
         //This is the SSBO that holds the scanned histogram of the radix sort.
         RADIX_WG_SCANNED_SSBO = new SSBO(SSBO.RADIX_WG_SCANNED_SSBO_BINDING, () -> {
             return Integer.BYTES + numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES + Integer.BYTES;
-        }, "WG_SCANNED_SSBO", 1, new VariableType[] { VariableType.UINT }, 4, new VariableType[] { VariableType.UINT });
+        }, "WG_SCANNED_SSBO", new GLSLVariable(VariableType.UINT,"WGScanned", numGroups() * (1+NUM_RADIX_BUCKETS) + 1));
         ssbos.put(RADIX_WG_SCANNED_SSBO.getName(), RADIX_WG_SCANNED_SSBO);
 
         //This is the SSBO that holds the total number of bodies in each bucket of the radix sort.
         RADIX_BUCKET_TOTALS_SSBO = new SSBO(SSBO.RADIX_BUCKET_TOTALS_SSBO_BINDING, () -> {
             return NUM_RADIX_BUCKETS * Integer.BYTES * 2;
-        }, "BUCKET_TOTALS_SSBO", 1, new VariableType[] { VariableType.UINT });
+        }, "BUCKET_TOTALS_SSBO", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT,"BucketTotals", NUM_RADIX_BUCKETS), 
+            new GLSLVariable(VariableType.UINT,"GlobalBase", NUM_RADIX_BUCKETS)}));
         ssbos.put(RADIX_BUCKET_TOTALS_SSBO.getName(), RADIX_BUCKET_TOTALS_SSBO);
 
         //These are the fixed SSBOs that point to the morton and index buffers after the radix sort.
         //They are intialized with the correct sizes.
         FIXED_MORTON_OUT_SSBO = new SSBO(SSBO.MORTON_OUT_SSBO_BINDING, () -> {
             return numBodies() * Long.BYTES;
-        }, "FIXED_MORTON_OUT_SSBO", 1, new VariableType[] { VariableType.UINT64 });
+        }, "FIXED_MORTON_OUT_SSBO", new GLSLVariable(VariableType.UINT64,"MortonOut", numBodies()));
         ssbos.put(FIXED_MORTON_OUT_SSBO.getName(), FIXED_MORTON_OUT_SSBO);
 
         FIXED_INDEX_OUT_SSBO = new SSBO(SSBO.INDEX_OUT_SSBO_BINDING, () -> {
             return numBodies() * Integer.BYTES;
-        }, "FIXED_INDEX_OUT_SSBO", 1, new VariableType[] { VariableType.UINT });
+        }, "FIXED_INDEX_OUT_SSBO", new GLSLVariable(VariableType.UINT,"IndexOut", numBodies()));
         ssbos.put(FIXED_INDEX_OUT_SSBO.getName(), FIXED_INDEX_OUT_SSBO);
 
         //This is the SSBO that holds the work queue.
         //It is intialized with the correct sizes.
         FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_IN_SSBO_BINDING, () -> {
             return (4 + numBodies()) * Integer.BYTES;
-        }, "FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
+        }, "FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT,"HeadIn", 1), 
+            new GLSLVariable(VariableType.UINT,"TailIn", 1), 
+            new GLSLVariable(VariableType.UINT,"ItemsIn", numBodies())}));
         ssbos.put(FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO.getName(), FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO);
 
         //This is the SSBO that holds the work queue for the second pass.
         //It is intialized with the correct sizes.
         FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_OUT_SSBO_BINDING, () -> {
             return (4 + numBodies()) * Integer.BYTES;
-        }, "FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO", 1, new VariableType[] { VariableType.UINT }, 16, new VariableType[] { VariableType.UINT, VariableType.UINT, VariableType.UINT, VariableType.UINT });
+        }, "FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT,"HeadOut", 1), 
+            new GLSLVariable(VariableType.UINT,"TailOut", 1), 
+            new GLSLVariable(VariableType.UINT,"ItemsOut", numBodies())}));
         ssbos.put(FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO.getName(), FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO);
 
         MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
             return Math.max(2*Integer.BYTES, 2*Integer.BYTES+numBodies() * 2 * Integer.BYTES);
-        }, "MERGE_QUEUE_SSBO", 2, new VariableType[] { VariableType.UINT, VariableType.UINT }, 8, new VariableType[] {VariableType.UINT});
+        }, "MERGE_QUEUE_SSBO", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT,"MergeQueueHead", 1), 
+            new GLSLVariable(VariableType.UINT,"MergeQueueTail", 1), 
+            new GLSLVariable(VariableType.UINT,"MergeQueue", numBodies() * 2)}));
         ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
 
         MERGE_BODY_LOCKS_SSBO = new SSBO(SSBO.MERGE_BODY_LOCKS_SSBO_BINDING, () -> {
             return numBodies() * Integer.BYTES;
-        }, "BODY_LOCKS_SSBO", 1, new VariableType[] { VariableType.UINT });
+        }, "BODY_LOCKS_SSBO", new GLSLVariable(VariableType.UINT,"BodyLocks", numBodies()));
         ssbos.put(MERGE_BODY_LOCKS_SSBO.getName(), MERGE_BODY_LOCKS_SSBO);
 
         checkGLError("after initComputeSSBOs");
@@ -407,6 +431,8 @@ public class BoundedBarnesHut {
         uniforms.put("collision", collisionUniform);
         uniforms.put("passShift", passShiftUniform);
         uniforms.put("firstPass", resetKernelFirstPassUniform);
+        uniforms.put("wrapAround", wrapAroundUniform);
+        uniforms.put("mergeToggle", mergeToggleUniform);
 
         numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
@@ -447,6 +473,14 @@ public class BoundedBarnesHut {
         resetKernelFirstPassUniform = new Uniform<Integer>("firstPass", () -> {
             return resetKernelFirstPass ? 1 : 0;
         }, VariableType.UINT);
+
+        wrapAroundUniform = new Uniform<Boolean>("wrapAround", () -> {
+            return Settings.getInstance().isWrapAround();
+        }, VariableType.BOOL);
+
+        mergeToggleUniform = new Uniform<Boolean>("mergeToggle", () -> {
+            return Settings.getInstance().isMergeBodies();
+        }, VariableType.BOOL);
 
     }
 
@@ -498,6 +532,7 @@ public class BoundedBarnesHut {
         deadCountKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
+        
         computeShaders.add(deadCountKernel);
         deadExclusiveScanKernel = new ComputeShader("KERNEL_DEAD_EXCLUSIVE_SCAN", this);
         deadExclusiveScanKernel.setUniforms(new Uniform[] {
@@ -514,6 +549,7 @@ public class BoundedBarnesHut {
         deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
+        
         computeShaders.add(deadExclusiveScanKernel);
         deadScatterKernel = new ComputeShader("KERNEL_DEAD_SCATTER", this);
         deadScatterKernel.setUniforms(new Uniform[] {
@@ -531,6 +567,7 @@ public class BoundedBarnesHut {
         deadScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
+        
         computeShaders.add(deadScatterKernel);
         radixSortHistogramKernel = new ComputeShader("KERNEL_RADIX_HIST", this);
         radixSortHistogramKernel.setUniforms(new Uniform[] {
@@ -548,6 +585,7 @@ public class BoundedBarnesHut {
         radixSortHistogramKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
+        
         computeShaders.add(radixSortHistogramKernel);
         radixSortParallelScanKernel = new ComputeShader("KERNEL_RADIX_PARALLEL_SCAN", this);
         radixSortParallelScanKernel.setUniforms(new Uniform[] {
@@ -563,6 +601,7 @@ public class BoundedBarnesHut {
         radixSortParallelScanKernel.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
+        
         computeShaders.add(radixSortParallelScanKernel);    
         radixSortExclusiveScanKernel = new ComputeShader("KERNEL_RADIX_EXCLUSIVE_SCAN", this);
         radixSortExclusiveScanKernel.setUniforms(new Uniform[] {
@@ -576,6 +615,7 @@ public class BoundedBarnesHut {
         radixSortExclusiveScanKernel.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
+        
         computeShaders.add(radixSortExclusiveScanKernel);
         radixSortScatterKernel = new ComputeShader("KERNEL_RADIX_SCATTER", this);
 
@@ -598,6 +638,7 @@ public class BoundedBarnesHut {
         radixSortScatterKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
+        
         computeShaders.add(radixSortScatterKernel); 
 
 
@@ -620,6 +661,7 @@ public class BoundedBarnesHut {
             int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return internalNodeGroups;
         });
+        
         computeShaders.add(buildBinaryRadixTreeKernel);
         //Compute COM and Location Kernels
 
@@ -690,6 +732,8 @@ public class BoundedBarnesHut {
             dtUniform,
             elasticityUniform,
             densityUniform,
+            wrapAroundUniform,
+            mergeToggleUniform,
         });
 
         computeForceKernel.setSSBOs(new String[] {
@@ -737,6 +781,7 @@ public class BoundedBarnesHut {
         debugKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
+
         computeShaders.add(debugKernel);
     }
 
@@ -844,7 +889,7 @@ public class BoundedBarnesHut {
      * Radix sort the morton codes. In bh_radix.comp
      */
     private void radixSort() {
-        int numPasses = (int)Math.ceil(63.0 / 4.0);
+        int numPasses = (int)Math.ceil(63.0 / RADIX_BITS);
         
         radixSortHistogramTime = 0;
         radixSortScanParallelTime = 0;
@@ -1113,13 +1158,19 @@ public class BoundedBarnesHut {
     public ByteBuffer packValues() {
 
         //layout(std430, binding = 1) buffer SimulationValues { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
-        ByteBuffer buf = BufferUtils.createByteBuffer(12*4+8*100);
-        buf.putInt(numBodies());
-        buf.putInt(numBodies());
-        buf.putInt(0);
-        buf.putInt(0);
-        buf.putFloat(bounds[0][0]).putFloat(bounds[0][1]).putFloat(bounds[0][2]).putInt(0);
-        buf.putFloat(bounds[1][0]).putFloat(bounds[1][1]).putFloat(bounds[1][2]).putInt(0);
+        ByteBuffer buf = BufferUtils.createByteBuffer(8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES);
+        buf.putInt(numBodies()); // numBodies
+        buf.putInt(numBodies()); // initialNumBodies
+        buf.putInt(0); // justDied
+        buf.putInt(0); // merged
+        buf.putInt(0); // outOfBounds
+        buf.putInt(0); // pad0
+        buf.putInt(0); // pad1
+        buf.putInt(0); // pad2
+        buf.putFloat(bounds[0][0]).putFloat(bounds[0][1]).putFloat(bounds[0][2]).putInt(0); // bounds
+        buf.putFloat(bounds[1][0]).putFloat(bounds[1][1]).putFloat(bounds[1][2]).putInt(0); // bounds
+        //uintDebug[100]
+        //floatDebug[100]
         buf.flip();
         return buf;
     }

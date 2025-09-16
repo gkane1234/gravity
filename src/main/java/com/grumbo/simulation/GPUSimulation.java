@@ -2,8 +2,8 @@ package com.grumbo.simulation;
 
 import java.nio.*;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.nio.file.Path;
 import java.nio.file.Files;
@@ -13,7 +13,9 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import com.grumbo.debug.Debug;
 import com.grumbo.record.Recording;
+import com.grumbo.gpu.SSBO;
 import static org.lwjgl.opengl.GL43.*;
 
 
@@ -47,7 +49,8 @@ public class GPUSimulation {
     private BufferedWriter recordMetaWriter;
 
     private int currentBodies = 0;
-    private int justMerged = 0;
+    private int merged = 0;
+    private int outOfBounds = 0;
 
     public GPUSimulation() {
 
@@ -234,12 +237,16 @@ public class GPUSimulation {
         }
     }
 
+    private int frame = 0;
+
     public void run() {
         init();
         while (state != State.STOPPED) {
             step();
             openGlWindow.step();
             checkGLError("after openGlWindow.step");
+            Debug.addDebugToFile(frame);
+            frame++;
         }
         cleanupEmbedded();
     }
@@ -309,14 +316,24 @@ public class GPUSimulation {
 
     public void updateCurrentBodies() { //Note: this is EXTREMELY slow.
 
-        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null || boundedBarnesHut.getValuesSSBO().getHeaderAsInts() == null) {
+        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null) {
             currentBodies = numBodies();
 
             return;
         }
-        int[] header = boundedBarnesHut.getValuesSSBO().getHeaderAsInts();
-        currentBodies = header[0];
-        justMerged = header[3];
+        SSBO valuesSSBO = boundedBarnesHut.getValuesSSBO();
+        valuesSSBO.refreshCache();
+        Object[][] header = valuesSSBO.getData(new String[] {
+            "numBodies",
+            "merged",
+            "outOfBounds"
+        });
+
+        System.out.println("Header: " + Arrays.toString(header));
+
+        currentBodies = (Integer)header[0][0];
+        merged = (Integer)header[1][0];
+        outOfBounds = (Integer)header[2][0];
 
     }
 
@@ -324,8 +341,12 @@ public class GPUSimulation {
         return currentBodies;
     }
 
-    public int justMerged() {
-        return justMerged;
+    public int merged() {
+        return merged;
+    }
+
+    public int outOfBounds() {
+        return outOfBounds;
     }
 
     public void setMvp(FloatBuffer mvp) {

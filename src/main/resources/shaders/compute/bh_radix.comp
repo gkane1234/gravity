@@ -124,7 +124,14 @@ void radixScatterKernel()
     uint wgId = gl_WorkGroupID.x;
     //check if body exists
     bool isActive = (gid < sim.numBodies);
+
+    if (!isActive) {
+        digits[lid] = 0xFFFFFFFFu;
+        //barrier();
+        return;
+    }
     //get the morton code for the body
+
     uint64_t key = isActive ? mortonIn[gid] : 0ul;
     //get the digits for the body
     uint dig = uint((key >> passShift) & (NUM_BUCKETS - 1u));
@@ -138,12 +145,12 @@ void radixScatterKernel()
         if (digits[i] == dig) localRank++;
     }
     //place the body in the correct position
-    if (isActive) {
-        uint base = globalBase[dig] + wgScanned[wgId * NUM_BUCKETS + dig];
-        uint dstIndex = base + localRank;
-        mortonOut[dstIndex] = key;
-        indexOut[dstIndex]  = indexIn[gid];
-    }
+
+    uint base = globalBase[dig] + wgScanned[wgId * NUM_BUCKETS + dig];
+    uint dstIndex = base + localRank;
+    mortonOut[dstIndex] = key;
+    indexOut[dstIndex]  = indexIn[gid];
+
 }
 
 

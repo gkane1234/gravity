@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import com.grumbo.simulation.BoundedBarnesHut;
+import com.grumbo.debug.Debug;
 
 /**
  * ComputeShader is a class that represents a compute shader program.
@@ -22,6 +23,10 @@ public class ComputeShader {
     private String[] ssboNames;
     private xWorkGroupsFunction xWorkGroupsFunction;
     private BoundedBarnesHut boundedBarnesHut;
+    private Debug preDebug;
+    private Debug postDebug;
+
+    private String kernelName;
 
     /**
      * xWorkGroupsFunction is a function that returns the number of work groups to dispatch.
@@ -52,6 +57,9 @@ public class ComputeShader {
         this.ssboNames = ssboNames;
         this.xWorkGroupsFunction = xWorkGroupsFunction;
         this.boundedBarnesHut = boundedBarnesHut;
+        this.preDebug = new Debug("Pre " + kernelName);
+        this.postDebug = new Debug("Post " + kernelName);
+        this.kernelName = kernelName;
     }
 
     /**
@@ -71,9 +79,34 @@ public class ComputeShader {
     public void debug(int numOutputs) {
         for (String ssboName : ssboNames) {
             System.out.println(ssboName + ":");
-            System.out.println(boundedBarnesHut.ssbos.get(ssboName).getData(0, numOutputs));
+            System.out.println(boundedBarnesHut.ssbos.get(ssboName).getDataAsString(ssboName, 0, numOutputs));
         }
     }
+
+    public void setPreDebugString(String preDebug) {
+        this.preDebug.setDebugString(preDebug);
+    }
+    
+    public void setPostDebugString(String postDebug) {
+        this.postDebug.setDebugString(postDebug);
+    }
+
+    public void addToPreDebugString(String preDebug) {
+        this.preDebug.addToDebugString(preDebug);
+    }
+    
+    public void addToPostDebugString(String postDebug) {
+        this.postDebug.addToDebugString(postDebug);
+    }
+
+    public void clearPreDebug() {
+        this.preDebug.clearDebugString();
+    }
+    
+    public void clearPostDebug() {
+        this.postDebug.clearDebugString();
+    }
+
 
     /**
      * Runs the compute shader and debugs the SSBOs after the compute shader has run, with 10 outputs from each SSBO.
@@ -81,7 +114,6 @@ public class ComputeShader {
     public void runDebug() {
         runDebug(10);
     }
-
     /**
      * Runs the compute shader and debugs the SSBOs before and after the compute shader has run.
      * @param numOutputs the number of outputs to print from each SSBO
