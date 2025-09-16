@@ -237,22 +237,45 @@ public class SSBO {
      * @param endIndex the index of the last data to get
      * @return the data from the SSBO
      */
-    public String getDataAsString(String variableName, int startIndex, int endIndex) {
+    public String getDataAsString(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
-        return variable.getDataAsString(getBuffer(), startIndex, endIndex);
+        int baseOffset = SSBOByteOffsets.getOrDefault(variableName, 0);
+        ByteBuffer buf = getBuffer();
+        if (updateCache) {
+            refreshCache();
+        }
+        return variable.getDataAsStringAt(buf, baseOffset, startIndex, endIndex);
+    }
+    public String getDataAsString(String variableName, int startIndex, int endIndex) {
+        return getDataAsString(variableName, startIndex, endIndex, true);
     }
 
-    public String getDataAsString(String[] variableNames, int startIndex, int endIndex) {
+    public String getDataAsString(String[] variableNames, int startIndex, int endIndex, boolean updateCache) {
         StringBuilder sb = new StringBuilder();
         for (String variableName : variableNames) {
-            sb.append(getDataAsString(variableName, startIndex, endIndex));
+            sb.append(getDataAsString(variableName, startIndex, endIndex, updateCache));
         }
         return sb.toString();
     }
+    public String getDataAsString(String[] variableNames, int startIndex, int endIndex) {
+        return getDataAsString(variableNames, startIndex, endIndex, true);
+    }
 
-    public Object[] getData(String variableName, int startIndex, int endIndex) {
+    public String getDataAsString(String variableName, boolean updateCache) {
+        return getDataAsString(variableName, 0, SSBOLayoutMap.get(variableName).size, updateCache);
+    }
+
+    public String getDataAsString(String variableName) {
+        return getDataAsString(variableName, true);
+    }
+
+
+    public Object[] getData(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
         System.out.println("Getting data for variable: " + variableName + " from index " + startIndex + " to " + endIndex);
+        if (updateCache) {
+            refreshCache();
+        }
         ByteBuffer buffer = getBuffer();
         int count = endIndex - startIndex;
         Object[] out = new Object[count];
@@ -268,26 +291,44 @@ public class SSBO {
         return out;
     }
 
+    public Object[] getData(String variableName, int startIndex, int endIndex) {
+        return getData(variableName, startIndex, endIndex, true);
+    }
+
+
+    public Object[] getData(String variableName, boolean updateCache) {
+        int size = SSBOLayoutMap.get(variableName).size;
+        return getData(variableName, 0, size, updateCache);
+    }
 
     public Object[] getData(String variableName) {
-        int size = SSBOLayoutMap.get(variableName).size;
-        return getData(variableName, 0, size);
+        return getData(variableName, true);
     }
+
+    public Object[][] getData(String[] variableNames, boolean updateCache) {
+        Object[][] data = new Object[variableNames.length][];
+        for (int i = 0; i < variableNames.length; i++) {
+            data[i] = getData(variableNames[i], updateCache);
+        }
+        return data;
+    }
+
 
     public Object[][] getData(String[] variableNames) {
+        return getData(variableNames, true);
+    }
+
+    public Object[][] getData(String[] variableNames, int startIndex, int endIndex, boolean updateCache) {
         Object[][] data = new Object[variableNames.length][];
         for (int i = 0; i < variableNames.length; i++) {
-            data[i] = getData(variableNames[i]);
+            data[i] = getData(variableNames[i], startIndex, endIndex, updateCache);
         }
         return data;
     }
 
+
     public Object[][] getData(String[] variableNames, int startIndex, int endIndex) {
-        Object[][] data = new Object[variableNames.length][];
-        for (int i = 0; i < variableNames.length; i++) {
-            data[i] = getData(variableNames[i], startIndex, endIndex);
-        }
-        return data;
+        return getData(variableNames, startIndex, endIndex, true);
     }
 
     /**

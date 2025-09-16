@@ -79,7 +79,7 @@ public class ComputeShader {
     public void debug(int numOutputs) {
         for (String ssboName : ssboNames) {
             System.out.println(ssboName + ":");
-            System.out.println(boundedBarnesHut.ssbos.get(ssboName).getDataAsString(ssboName, 0, numOutputs));
+            System.out.println(boundedBarnesHut.ssbos.get(ssboName).getDataAsString(ssboName, 0, numOutputs, true));
         }
     }
 
