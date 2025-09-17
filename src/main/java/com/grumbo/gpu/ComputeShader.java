@@ -17,6 +17,7 @@ import com.grumbo.debug.Debug;
  * It is also used to run the compute shader.
  */
 public class ComputeShader {
+    private static Debug debug = new Debug("ComputeShaderCode",0);
     private int program;
     private int computeShader;
     private Uniform<?>[] uniforms;
@@ -83,29 +84,51 @@ public class ComputeShader {
         }
     }
 
+    public boolean isPreDebugSelected() {
+        return this.preDebug.isSelected();
+    }
+    
+    public boolean isPostDebugSelected() {
+        return this.postDebug.isSelected();
+    }
+
     public void setPreDebugString(String preDebug) {
-        this.preDebug.setDebugString(preDebug);
+        if (isPreDebugSelected()) {
+            this.preDebug.setDebugString(preDebug);
+        }
+
     }
     
     public void setPostDebugString(String postDebug) {
-        this.postDebug.setDebugString(postDebug);
+        if (isPostDebugSelected()) {
+            this.postDebug.setDebugString(postDebug);
+        }
     }
 
     public void addToPreDebugString(String preDebug) {
-        this.preDebug.addToDebugString(preDebug);
+        if (isPreDebugSelected()) {
+            this.preDebug.addToDebugString(preDebug);
+        }
     }
     
     public void addToPostDebugString(String postDebug) {
-        this.postDebug.addToDebugString(postDebug);
+        if (isPostDebugSelected()) {
+            this.postDebug.addToDebugString(postDebug);
+        }
     }
 
     public void clearPreDebug() {
-        this.preDebug.clearDebugString();
+        if (isPreDebugSelected()) {
+            this.preDebug.clearDebugString();
+        }
     }
     
     public void clearPostDebug() {
-        this.postDebug.clearDebugString();
+        if (isPostDebugSelected()) {
+            this.postDebug.clearDebugString();
+        }
     }
+
 
 
     /**
@@ -234,6 +257,7 @@ public class ComputeShader {
      */
     public static String getSource(String kernelName) {
         String source = insertDefineAfterVersion(getComputeShaderSource(), kernelName);
+        debug.setDebugString(source);
         //System.out.println(source);
         return source;
     }

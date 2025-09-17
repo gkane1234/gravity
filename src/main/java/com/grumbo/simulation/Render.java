@@ -15,7 +15,13 @@ import org.joml.Matrix4f;
 
 import com.grumbo.gpu.SSBO;
 import com.grumbo.gpu.Body;
+import com.grumbo.simulation.GPUSimulation;
 
+/**
+ * The Render class is responsible for rendering the simulation.
+ * The render mode for the bodies is either off, points, impostor spheres, impostor spheres with glow, or mesh spheres.
+ * There is also rendering for regions
+ */
 public class Render {
     public enum RenderMode {
         OFF,
@@ -69,7 +75,12 @@ public class Render {
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;
     private boolean debug;
-
+    /**
+     * Constructor for the Render class.
+     * @param gpuSimulation the GPU simulation
+     * @param renderMode the render mode
+     * @param debug whether to debug the render
+     */
     public Render(GPUSimulation gpuSimulation, RenderMode renderMode, boolean debug) {
         this.gpuSimulation = gpuSimulation;
         this.renderMode = renderMode;
@@ -77,27 +88,16 @@ public class Render {
     }
 
 
-    private void createProgram(String renderScheme, int program) {
-        int vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vs, getVertexShaderSource(renderScheme));
-        glCompileShader(vs);
-        checkShader(vs);
-        int fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fs, getFragmentShaderSource(renderScheme));
-        glCompileShader(fs);
-        checkShader(fs);
-        glAttachShader(program, vs);
-        glAttachShader(program, fs);
-        glLinkProgram(program);
-        checkProgram(program);
 
-    }
 
+    /**
+     * Initializes the different rendering programs.
+     */
     public void init() {
         // Create points render program
         pointsProgram = glCreateProgram();
         createProgram("points", pointsProgram);
-        checkGLError("pointsProgram");
+        GPUSimulation.checkGLError("pointsProgram");
 
         // Cache uniform locations
         uPointsMvpLocation = glGetUniformLocation(pointsProgram, "uMVP");
@@ -105,7 +105,7 @@ public class Render {
         // Create impostor render program
         impostorProgram = glCreateProgram();
         createProgram("impostor", impostorProgram);
-        checkGLError("impostorProgram");
+        GPUSimulation.checkGLError("impostorProgram");
         // Cache uniform locations
         uImpostorModelViewLocation = glGetUniformLocation(impostorProgram, "uModelView");
         uImpostorPointScaleLocation = glGetUniformLocation(impostorProgram, "uPointScale");
@@ -119,7 +119,7 @@ public class Render {
         // Create mesh sphere render program
         sphereProgram = glCreateProgram();
         createProgram("sphere", sphereProgram);
-        checkGLError("sphereProgram");
+        GPUSimulation.checkGLError("sphereProgram");
         // Cache uniform locations
         uSphereMvpLocation = glGetUniformLocation(sphereProgram, "uMVP");
         uSphereRadiusScaleLocation = glGetUniformLocation(sphereProgram, "uRadiusScale");
@@ -147,127 +147,183 @@ public class Render {
 
         rebuildRegionsMesh();
 
-        checkGLError("init");
+        GPUSimulation.checkGLError("init");
+
+    }
+
+    /**
+     * Creates a program for the render.
+     * @param renderScheme the render scheme
+     * @param program the program
+     */
+    private void createProgram(String renderScheme, int program) {
+        int vs = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vs, getVertexShaderSource(renderScheme));
+        glCompileShader(vs);
+        checkShader(vs);
+        int fs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fs, getFragmentShaderSource(renderScheme));
+        glCompileShader(fs);
+        checkShader(fs);
+        glAttachShader(program, vs);
+        glAttachShader(program, fs);
+        glLinkProgram(program);
+        checkProgram(program);
 
     }
 
         /* --------- Rendering --------- */
-
-        public void render(SSBO bodiesOutSSBO, GPUSimulation.State state) {
-            checkGLError("before render");
-            if (renderMode == RenderMode.OFF) return;
-            getCameraView();
-            switch (renderMode) {
-                case POINTS: renderPoints(bodiesOutSSBO); break;
-                case IMPOSTOR_SPHERES: renderImpostorSpheres(bodiesOutSSBO); break;
-                case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(bodiesOutSSBO); break;
-                case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
-                default: break;
-            }
-            if (showRegions && gpuSimulation.getSteps() > 0) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
-            checkGLError("after render");
+    /**
+     * Renders the simulation.
+     * @param bodiesOutSSBO the bodies out SSBO
+     * @param state the state of the simulation
+     */
+    public void render(SSBO bodiesOutSSBO, GPUSimulation.State state) {
+        GPUSimulation.checkGLError("before render");
+        if (renderMode == RenderMode.OFF) return;
+        // Get the camera view
+        getCameraView();
+        switch (renderMode) {
+            case POINTS: renderPoints(bodiesOutSSBO); break;
+            case IMPOSTOR_SPHERES: renderImpostorSpheres(bodiesOutSSBO); break;
+            case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(bodiesOutSSBO); break;
+            case MESH_SPHERES: renderMeshSpheres(bodiesOutSSBO); break;
+            default: break;
         }
+        // Render the regions
+        if (showRegions && gpuSimulation.getSteps() > 0) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
+        GPUSimulation.checkGLError("after render");
+    }
 
-        private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
-            int RENDERING_SSBO_OFFSET = Body.HEADER_SIZE;
-            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-                SSBO.BODIES_IN_SSBO_BINDING,
-                bodiesOutSSBO.getBufferLocation(),
-                RENDERING_SSBO_OFFSET,
-                (long)gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES);
-        }
-    
-        public void renderPoints(SSBO bodiesOutSSBO     ) {
-            // Do not clear or swap; caller owns window
-            glUseProgram(pointsProgram);
-            // MVP will be sent by caller before rendering
-            bindWithCorrectOffset(bodiesOutSSBO);
-            glBindVertexArray(vao);
-            glDrawArrays(GL_POINTS, 0, gpuSimulation.numBodies());
-            glUseProgram(0);
-        }
-    
-        public void renderImpostorSpheres(SSBO bodiesOutSSBO) {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // black background
-            glClear(GL_DEPTH_BUFFER_BIT);
-            glEnable(GL_DEPTH_TEST);
-            glDepthMask(true);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            renderImpostorSpheresPass(bodiesOutSSBO, 0);
+    /**
+     * Binds the bodies out SSBO with the correct offset.
+     * @param bodiesOutSSBO the bodies out SSBO
+     */
+    private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
+        int RENDERING_SSBO_OFFSET = Body.HEADER_SIZE;
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+            SSBO.BODIES_OUT_SSBO_BINDING,
+            bodiesOutSSBO.getBufferLocation(),
+            RENDERING_SSBO_OFFSET,
+            (long)gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES);
+    }
 
-            if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
-                glEnable    (GL_DEPTH_TEST);
-                glDepthMask(false);
+    /**
+     * Renders the points.
+     * @param bodiesOutSSBO the bodies out SSBO
+     */
+    public void renderPoints(SSBO bodiesOutSSBO) {
+        // Do not clear or swap; caller owns window
+        glUseProgram(pointsProgram);
+        // MVP will be sent by caller before rendering
+        bindWithCorrectOffset(bodiesOutSSBO);
+        glBindVertexArray(vao);
+        glDrawArrays(GL_POINTS, 0, gpuSimulation.numBodies());
+        glUseProgram(0);
+    }
 
-                glBlendFunc(GL_ONE, GL_ONE);
-                renderImpostorSpheresPass(bodiesOutSSBO, 1);
+    /**
+     * Renders impostor spheres in two passes, one for the sphere and one for the glow.
+     * @param bodiesOutSSBO the bodies out SSBO
+     */
+    public void renderImpostorSpheres(SSBO bodiesOutSSBO) {
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // black background
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(true);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        renderImpostorSpheresPass(bodiesOutSSBO, 0);
 
-                glDepthMask(true);
-            }
-
-            glUseProgram(0);
-        }
-
-
-        private void renderImpostorSpheresPass(SSBO bodiesOutSSBO, int pass) {
-            glUseProgram(impostorProgram);
-            glUniform1f(uImpostorPointScaleLocation, impostorPointScale);
-            glUniform3f(uImpostorCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
-            glUniform3f(uImpostorCameraFrontLocation, Settings.getInstance().getCameraFront().x, Settings.getInstance().getCameraFront().y, Settings.getInstance().getCameraFront().z);
-            glUniform1f(uImpostorFovYLocation, (float)Math.toRadians(Settings.getInstance().getFov()));
-            glUniform1i(uImpostorPassLocation, pass);
-            float aspect = (float)Settings.getInstance().getWidth() / (float)Settings.getInstance().getHeight();
-            glUniform1f(uImpostorAspectLocation, aspect);
-            // cameraToClipMatrix is set by caller via setCameraToClip
-            bindWithCorrectOffset(bodiesOutSSBO);
-            glBindVertexArray(vao);
-            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.numBodies());
-
-        }
-    
-        public void renderMeshSpheres(SSBO bodiesOutSSBO) {
-            if (sphereVao == 0 || sphereIndexCount == 0) return;
-            glUseProgram(sphereProgram);
-            bindWithCorrectOffset(bodiesOutSSBO);
-            glBindVertexArray(sphereVao);
-            glUniform1f(uSphereRadiusScaleLocation, sphereRadiusScale);
-            // Distance/color uniforms
-            glUniform3f(uSphereCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
-            int instanceCount = Math.min(gpuSimulation.numBodies(), maxMeshInstances);
-            glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
-            glBindVertexArray(0);
-            glUseProgram(0);
-        }
-
-        public void renderRegions(SSBO NodesSSBO, SSBO ValuesSSBO) {
-            glDisable(GL_DEPTH_TEST);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
+            //set up appropriate blending for additive glow
+            glEnable    (GL_DEPTH_TEST);
             glDepthMask(false);
-            glUseProgram(regionsProgram);
-            // Bind nodes SSBO at binding 4
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.INTERNAL_NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
-            // Start after leaves
-            
-            glUniform2i(uRegionsMinMaxDepthLocation, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
+            glBlendFunc(GL_ONE, GL_ONE);
+            renderImpostorSpheresPass(bodiesOutSSBO, 1);
 
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, ValuesSSBO.getBufferLocation());
-
-            glBindVertexArray(regionsVao);
-            int instanceCount = Math.max(0, gpuSimulation.numBodies() - 1);
-            if (instanceCount > 0) {
-                glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0L, instanceCount);
-            }
-            glBindVertexArray(0);
-            glUseProgram(0);
             glDepthMask(true);
-            glEnable(GL_DEPTH_TEST);
         }
+
+        glUseProgram(0);
+    }
+
+
+    /**
+     * Renders the impostor spheres pass.
+     * @param bodiesOutSSBO the bodies out SSBO
+     * @param pass the pass
+     */
+    private void renderImpostorSpheresPass(SSBO bodiesOutSSBO, int pass) {
+        glUseProgram(impostorProgram);
+        glUniform1f(uImpostorPointScaleLocation, impostorPointScale);
+        glUniform3f(uImpostorCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
+        glUniform3f(uImpostorCameraFrontLocation, Settings.getInstance().getCameraFront().x, Settings.getInstance().getCameraFront().y, Settings.getInstance().getCameraFront().z);
+        glUniform1f(uImpostorFovYLocation, (float)Math.toRadians(Settings.getInstance().getFov()));
+        glUniform1i(uImpostorPassLocation, pass);
+        float aspect = (float)Settings.getInstance().getWidth() / (float)Settings.getInstance().getHeight();
+        glUniform1f(uImpostorAspectLocation, aspect);
+        // cameraToClipMatrix is set by caller via setCameraToClip
+        bindWithCorrectOffset(bodiesOutSSBO);
+        glBindVertexArray(vao);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.numBodies());
+
+    }
+
+    /**
+     * Renders the mesh spheres.
+     * @param bodiesOutSSBO the bodies out SSBO
+     */
+    public void renderMeshSpheres(SSBO bodiesOutSSBO) {
+        if (sphereVao == 0 || sphereIndexCount == 0) return;
+        glUseProgram(sphereProgram);
+        bindWithCorrectOffset(bodiesOutSSBO);
+        glBindVertexArray(sphereVao);
+        glUniform1f(uSphereRadiusScaleLocation, sphereRadiusScale);
+        // Distance/color uniforms
+        glUniform3f(uSphereCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
+        int instanceCount = Math.min(gpuSimulation.numBodies(), maxMeshInstances);
+        glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
+        glBindVertexArray(0);
+        glUseProgram(0);
+    }
+
+    /**
+     * Renders the regions.
+     * @param NodesSSBO the nodes SSBO
+     * @param ValuesSSBO the values SSBO
+     */
+    public void renderRegions(SSBO NodesSSBO, SSBO ValuesSSBO) {
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(false);
+        glUseProgram(regionsProgram);
+        // Bind nodes SSBO at binding 4
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.INTERNAL_NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
+        // Start after leaves
+        
+        glUniform2i(uRegionsMinMaxDepthLocation, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, ValuesSSBO.getBufferLocation());
+
+        glBindVertexArray(regionsVao);
+        int instanceCount = Math.max(0, gpuSimulation.numBodies() - 1);
+        if (instanceCount > 0) {
+            glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0L, instanceCount);
+        }
+        glBindVertexArray(0);
+        glUseProgram(0);
+        glDepthMask(true);
+        glEnable(GL_DEPTH_TEST);
+    }
 
 
         
+    /**
+     * Gets the camera view and sets the MVP, projection, and model view, and uploads them to the shaders.
+     */
     private void getCameraView() {
         // Get camera position from Settings
         Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());
@@ -298,6 +354,10 @@ public class Render {
 
 
 
+    /**
+     * Uploads the MVP matrix to the shaders.
+     * @param mvp4x4ColumnMajor the MVP matrix
+     */
     public void setMvp(java.nio.FloatBuffer mvp4x4ColumnMajor) {
         // Called by the window each frame to set camera transform 
         glUseProgram(pointsProgram);
@@ -309,6 +369,10 @@ public class Render {
         glUseProgram(0);
     }
     
+    /**
+     * Uploads the camera to clip matrix to the shaders.
+     * @param cameraToClip4x4ColumnMajor the camera to clip matrix
+     */
     public void setCameraToClip(java.nio.FloatBuffer cameraToClip4x4ColumnMajor) {
         // Mirror MVP handling: set on impostor program when provided
         glUseProgram(impostorProgram);
@@ -316,6 +380,10 @@ public class Render {
         glUseProgram(0);
     }
 
+    /**
+     * Uploads the model view matrix to the shaders.
+     * @param modelView4x4ColumnMajor the model view matrix
+     */
     public void setModelView(java.nio.FloatBuffer modelView4x4ColumnMajor) {
         glUseProgram(impostorProgram);
         glUniformMatrix4fv(uImpostorModelViewLocation, false, modelView4x4ColumnMajor);
@@ -324,6 +392,11 @@ public class Render {
 
     /* --------- SHADERS --------- */
 
+    /**
+     * Gets the vertex shader source.
+     * @param renderScheme the render scheme
+     * @return the vertex shader source
+     */
     private String getVertexShaderSource(String renderScheme) {
         try {
             return Files.readString(Paths.get("src/main/resources/shaders/render/" + renderScheme + "/"+ renderScheme + ".vert"));
@@ -332,6 +405,11 @@ public class Render {
         }
     }
 
+    /**
+     * Gets the fragment shader source.
+     * @param renderScheme the render scheme
+     * @return the fragment shader source
+     */
     private String getFragmentShaderSource(String renderScheme) {
         try {
             return Files.readString(Paths.get("src/main/resources/shaders/render/" + renderScheme + "/"+ renderScheme + ".frag"));
@@ -341,6 +419,11 @@ public class Render {
     }
 
     /* --------- Sphere mesh generation --------- */
+    /**
+     * Sets the sphere detail.
+     * @param stacks the stacks
+     * @param slices the slices
+     */
     public void setSphereDetail(int stacks, int slices) {
         if (stacks < 3) stacks = 3;
         if (slices < 3) slices = 3;
@@ -349,27 +432,50 @@ public class Render {
         rebuildSphereMesh();
     }
 
+    /**
+     * Sets the render mode.
+     * @param mode the render mode
+     */
     public void setRenderMode(RenderMode mode) {
         if (mode != null) this.renderMode = mode;
     }
 
+    /**
+     * Gets the render mode.
+     * @return the render mode
+     */
     public RenderMode getRenderMode() {
         return this.renderMode;
     }
 
+    /**
+     * Sets the impostor point scale.
+     * @param scale the impostor point scale
+     */
     public void setImpostorPointScale(float scale) {
         this.impostorPointScale = scale <= 0 ? 1.0f : scale;
     }
 
 
+    /**
+     * Sets the sphere radius scale.
+     * @param scale the sphere radius scale
+     */
     public void setSphereRadiusScale(float scale) {
         this.sphereRadiusScale = scale;
     }
 
+    /**
+     * Sets the max mesh instances.
+     * @param max the max mesh instances
+     */
     public void setMaxMeshInstances(int max) {
         this.maxMeshInstances = Math.max(1, max);
     }
 
+    /**
+     * Rebuilds the sphere mesh.
+     */
     private void rebuildSphereMesh() {
         // Dispose previous
         if (sphereVao != 0) glDeleteVertexArrays(sphereVao);
@@ -397,6 +503,12 @@ public class Render {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
+    /**
+     * Generates the sphere positions.
+     * @param stacks the stacks
+     * @param slices the slices
+     * @return the sphere positions
+     */
     private FloatBuffer generateSpherePositions(int stacks, int slices) {
         int vertexCount = (stacks + 1) * (slices + 1);
         FloatBuffer buf = BufferUtils.createFloatBuffer(vertexCount * 3);
@@ -420,6 +532,12 @@ public class Render {
         return buf;
     }
 
+    /**
+     * Generates the sphere indices.
+     * @param stacks the stacks
+     * @param slices the slices
+     * @return the sphere indices
+     */
     private IntBuffer generateSphereIndices(int stacks, int slices) {
         int quadCount = stacks * slices;
         IntBuffer idx = BufferUtils.createIntBuffer(quadCount * 6);
@@ -440,66 +558,71 @@ public class Render {
     }
         /* --------- Regions --------- */
 
-        private void rebuildRegionsMesh() {
-            float[] cubeVertices = {
-                -0.5f, -0.5f,  0.5f,
-                0.5f, -0.5f,  0.5f,
-                0.5f,  0.5f,  0.5f,
-               -0.5f,  0.5f,  0.5f,
-           
-               // Back face
-               -0.5f, -0.5f, -0.5f,
-                0.5f, -0.5f, -0.5f,
-                0.5f,  0.5f, -0.5f,
-               -0.5f,  0.5f, -0.5f
-            };
-    
-            int[] cubeIndices = {
-                // Front face
-                0, 1, 2,
-                2, 3, 0,
-    
-                // Right face
-                1, 5, 6,
-                6, 2, 1,
-    
-                // Back face
-                5, 4, 7,
-                7, 6, 5,
-    
-                // Left face
-                4, 0, 3,
-                3, 7, 4,
-    
-                // Top face
-                3, 2, 6,
-                6, 7, 3,
-    
-                // Bottom face
-                4, 5, 1,
-                1, 0, 4
-            };
-            if (regionsVao == 0) regionsVao = glGenVertexArrays();
-            if (regionsVbo == 0) regionsVbo = glGenBuffers();
-            if (regionsEbo == 0) regionsEbo = glGenBuffers();
-            glBindVertexArray(regionsVao);
-    
-            // Vertex buffer
-            glBindBuffer(GL_ARRAY_BUFFER, regionsVbo);
-            glBufferData(GL_ARRAY_BUFFER, cubeVertices, GL_STATIC_DRAW);
-    
-            // Index buffer
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, regionsEbo);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeIndices, GL_STATIC_DRAW);
-    
-            // Vertex attribute (pos)
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.BYTES, 0L);
-    
-            glBindVertexArray(0);
-    
-    
-        }
+    /**
+     * Rebuilds the regions mesh.
+     */
+    private void rebuildRegionsMesh() {
+        //Creates a cube mesh
+        float[] cubeVertices = {
+            -0.5f, -0.5f,  0.5f,
+            0.5f, -0.5f,  0.5f,
+            0.5f,  0.5f,  0.5f,
+            -0.5f,  0.5f,  0.5f,
+        
+            // Back face
+            -0.5f, -0.5f, -0.5f,
+            0.5f, -0.5f, -0.5f,
+            0.5f,  0.5f, -0.5f,
+            -0.5f,  0.5f, -0.5f
+        };
+
+        //Creates a cube mesh
+        int[] cubeIndices = {
+            // Front face
+            0, 1, 2,
+            2, 3, 0,
+
+            // Right face
+            1, 5, 6,
+            6, 2, 1,
+
+            // Back face
+            5, 4, 7,
+            7, 6, 5,
+
+            // Left face
+            4, 0, 3,
+            3, 7, 4,
+
+            // Top face
+            3, 2, 6,
+            6, 7, 3,
+
+            // Bottom face
+            4, 5, 1,
+            1, 0, 4
+        };
+        if (regionsVao == 0) regionsVao = glGenVertexArrays();
+        if (regionsVbo == 0) regionsVbo = glGenBuffers();
+        if (regionsEbo == 0) regionsEbo = glGenBuffers();
+        glBindVertexArray(regionsVao);
+
+        // Vertex buffer
+        glBindBuffer(GL_ARRAY_BUFFER, regionsVbo);
+        glBufferData(GL_ARRAY_BUFFER, cubeVertices, GL_STATIC_DRAW);
+
+        // Index buffer
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, regionsEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeIndices, GL_STATIC_DRAW);
+
+        // Vertex attribute (pos)
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.BYTES, 0L);
+
+        glBindVertexArray(0);
+
+
+    }
 
     /* --------- Cleanup --------- */
     public void cleanup() {
@@ -513,25 +636,25 @@ public class Render {
         if (sphereIbo != 0) glDeleteBuffers(sphereIbo);
     }
 
-        /* --------- Shader checking --------- */
-        public static void checkShader(int shader) {
-            if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
-                System.err.println("Shader compilation failed: " + glGetShaderInfoLog(shader));
-            }
-        }
-    
-        public static void checkProgram(int program) {
-            if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
-                System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
-            }
-        }
+    /* --------- Shader checking --------- */
     /**
-     * Check for OpenGL errors.
+     * Checks if the shader compiled successfully.
+     * @param shader the shader to check
      */
-    private void checkGLError(String operation) {
-        int error = glGetError();
-        if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error after " + operation + ": " + error);
+    public static void checkShader(int shader) {
+        if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
+            System.err.println("Shader compilation failed: " + glGetShaderInfoLog(shader));
         }
     }
+
+    /**
+     * Checks if the program linked successfully.
+     * @param program the program to check
+     */
+    public static void checkProgram(int program) {
+        if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
+            System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
+        }
+    }
+
 }

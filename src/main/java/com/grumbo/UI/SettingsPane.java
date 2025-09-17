@@ -12,6 +12,9 @@ import static org.lwjgl.glfw.GLFW.*;
 
 /**
  * Encapsulates the settings panel UI: building controls, drawing, and input handling.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
  */
 public class SettingsPane {
 
@@ -29,6 +32,10 @@ public class SettingsPane {
 
     public boolean textFieldFocused = false;
 
+    /**
+     * Constructor for the SettingsPane class.
+     * Initializes the title and page buttons and rows for each property from the settings class.
+     */
     public SettingsPane() {
         ArrayList<UIElement> titleRow = new ArrayList<>();
         titleRow.add(new UIText("=== SETTINGS " + (currentPage + 1)+  " ==="));
@@ -54,6 +61,11 @@ public class SettingsPane {
     }
 
     // -------- Public input hooks (to be called from window callbacks) --------
+    /**
+     * Handles the mouse move event.
+     * @param x The x coordinate.
+     * @param y The y coordinate.
+     */
     public void onMouseMove(double x, double y) {
         mouseX = x;
         mouseY = y;
@@ -62,6 +74,11 @@ public class SettingsPane {
         }
     }
 
+    /**
+     * Handles the mouse button event.
+     * @param button The button that was pressed.
+     * @param action The action that was performed.
+     */
     public void onMouseButton(int button, int action) {
         if (button != GLFW_MOUSE_BUTTON_LEFT) return;
 
@@ -91,6 +108,12 @@ public class SettingsPane {
         }
     }
 
+    /**
+     * Handles the key event.
+     * @param key The key that was pressed.
+     * @param action The action that was performed.
+     * @param mods The modifiers that were pressed.
+     */
     public boolean onKey(int key, int action, int mods) {
         boolean keyPressed = false;
         for (UIRow row : renderedRows) {
@@ -108,6 +131,10 @@ public class SettingsPane {
         return keyPressed;
     }
 
+    /**
+     * Handles the character event.
+     * @param codepoint The codepoint of the character that was pressed.
+     */
     public boolean onChar(int codepoint) {
         boolean charPressed = false;
         for (UIRow row : renderedRows) {
@@ -121,6 +148,10 @@ public class SettingsPane {
     }
 
     // -------- Rendering --------
+    /**
+     * Draws the settings pane.
+     * @param font The font to use.
+     */
     public void draw(BitmapFont font) {
         beginUiFrame();
 
@@ -189,6 +220,11 @@ public class SettingsPane {
         renderedRows.clear();
     }
 
+    /**
+     * Checks if a row was rendered.
+     * @param row The row to check.
+     * @return True if the row was rendered, false otherwise.
+     */
     public boolean wasRendered(UIRow row) {
         return renderedRows.contains(row);
     }

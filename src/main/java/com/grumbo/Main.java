@@ -6,10 +6,11 @@ import com.grumbo.simulation.GPUSimulation;
  * Main - Application Entry Point
  * =============================
  * Creates and starts the GravitySimulator, which manages the simulation and UI.
+ * The Simulation is started by calling the GPUSimulation.run() method.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
  */
-
- //Features to add:
- // Make a debug txt file that can output lots of data about the simulation with very specific parameters
 
  //Known issues:
  // galaxy generation seems to tear itself apart sometimes
@@ -18,6 +19,7 @@ import com.grumbo.simulation.GPUSimulation;
  // Most shaders dispatch with too many workgroups when the number of bodies goes down
  // # merged, # lost to oob not calculated correctly at times (sometimes #lost is negative)
  // Radix bits cannot be changed from 4
+ // Camera is jumpy especially when far away
 public class Main {
     public static void main(String[] args) {
         GPUSimulation gpuSimulation = new GPUSimulation();

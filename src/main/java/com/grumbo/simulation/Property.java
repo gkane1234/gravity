@@ -7,6 +7,12 @@ import org.joml.Vector3f;
 
 import com.grumbo.UI.*;
 
+/**
+ * Property class used for accessing and setting the simulation settings.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class Property<T> {
     public static final int DEFAULT_ROUNDING = 3;
     private String name;
@@ -25,6 +31,13 @@ public class Property<T> {
     
     // Constructors
 
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param numericalRounding the numerical rounding of the property
+     */
     public Property(String name, T value, T defaultValue, int numericalRounding) {
         this.name = name;
         this.value = value;
@@ -36,10 +49,24 @@ public class Property<T> {
     }
 
 
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     */
     public Property(String name, T value, T defaultValue) {
         this(name, value, defaultValue, DEFAULT_ROUNDING);
     }
 
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param minValue the minimum value of the property
+     * @param maxValue the maximum value of the property
+     */
     public Property(String name, T value, T defaultValue, T minValue, T maxValue) {
         this(name, value, defaultValue);
         if (!isNumericType(value)) {
@@ -50,12 +77,28 @@ public class Property<T> {
         validateAndSet(value);
     }
     
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param validator the validator of the property
+     */
     public Property(String name, T value, T defaultValue, Predicate<T> validator) {
         this(name, value, defaultValue);
         this.validator = validator;
         validateAndSet(value);
     }
 
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param minValue the minimum value of the property
+     * @param maxValue the maximum value of the property
+     * @param numericalRounding the numerical rounding of the property
+     */
     public Property(String name, T value, T defaultValue, T minValue, T maxValue, int numericalRounding) {
         this(name, value, defaultValue, numericalRounding);
         if (!isNumericType(value)) {
@@ -66,6 +109,14 @@ public class Property<T> {
         validateAndSet(value);
     }
     
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param validator the validator of the property
+     * @param numericalRounding the numerical rounding of the property
+     */
     public Property(String name, T value, T defaultValue, Predicate<T> validator, int numericalRounding) {
         this(name, value, defaultValue, numericalRounding);
         this.validator = validator;
@@ -75,39 +126,114 @@ public class Property<T> {
 
     
     // Getters and setters
+    /**
+     * Gets the name of the property.
+     * @return the name of the property
+     */
     public String getName() { return name; }
+    /**
+     * Sets the name of the property.
+     * @param name the name of the property
+     */
     public void setName(String name) { this.name = name; }
     
+    /**
+     * Gets the value of the property.
+     * @return the value of the property
+     */
     public T getValue() { return value; }
     
+    /**
+     * Sets the value of the property.
+     * @param value the value of the property
+     */
     public void setValue(T value) {
         validateAndSet(value);
     }
     
+    /**
+     * Gets the default value of the property.
+     * @return the default value of the property
+     */
     public T getDefaultValue() { return defaultValue; }
+    /**
+     * Sets the default value of the property.
+     * @param defaultValue the default value of the property
+     */
     public void setDefaultValue(T defaultValue) { this.defaultValue = defaultValue; }
     
+    /**
+     * Gets the minimum value of the property.
+     * @return the minimum value of the property
+     */
     public T getMinValue() { return minValue; }
+    /**
+     * Sets the minimum value of the property.
+     * @param minValue the minimum value of the property
+     */
     public void setMinValue(T minValue) { this.minValue = minValue; }
     
+    /**
+     * Gets the maximum value of the property.
+     * @return the maximum value of the property
+     */
     public T getMaxValue() { return maxValue; }
+    /**
+     * Sets the maximum value of the property.
+     * @param maxValue the maximum value of the property
+     */
     public void setMaxValue(T maxValue) { this.maxValue = maxValue; }
     
+    /**
+     * Gets the numeric status of the property.
+     * @return the numeric status of the property
+     */
     public boolean isNumeric() { return isNumeric; }
+    /**
+     * Gets the editable status of the property.
+     * @return the editable status of the property
+     */
     public boolean isEditable() { return editable; }
+    /**
+     * Sets the editable status of the property.
+     * @param editable the editable status of the property
+     */
     public void setEditable(boolean editable) { this.editable = editable; }
+    /**
+     * Gets the type name of the property.
+     * @return the type name of the property
+     */
     public String getTypeName() { return typeName; }
+    /**
+     * Sets the type name of the property.
+     * @param typeName the type name of the property
+     */
     public void setTypeName(String typeName) { this.typeName = typeName; }
+    /**
+     * Gets the range status of the property.
+     * @return the range status of the property
+     */
     public boolean hasRange() { return isNumeric && minValue != null && maxValue != null; }
+    /**
+     * Gets the minimum value of the property as a double.
+     * @return the minimum value of the property as a double
+     */
     public Double getMinAsDouble() {
         if (!isNumeric || minValue == null) return null;
         return ((Number) minValue).doubleValue();
     }
+    /**
+     * Gets the maximum value of the property as a double.
+     * @return the maximum value of the property as a double
+     */
     public Double getMaxAsDouble() {
         if (!isNumeric || maxValue == null) return null;
         return ((Number) maxValue).doubleValue();
     }
 
+    /**
+     * Updates the property.
+     */
     public void update() {
         // Lazily create the editor row once
         if (editorRow == null) {
@@ -124,6 +250,10 @@ public class Property<T> {
     }
     
     // Validation methods
+    /**
+     * Validates and sets the value of the property.
+     * @param newValue the new value of the property
+     */
     private void validateAndSet(T newValue) {
         if (newValue == null) {
             throw new IllegalArgumentException("Value cannot be null");
@@ -146,6 +276,13 @@ public class Property<T> {
         this.value = newValue;
     }
     
+    /**
+     * Checks if the value is in range.
+     * @param value the value to check
+     * @param min the minimum value
+     * @param max the maximum value
+     * @return true if the value is in range, false otherwise
+     */
     private boolean isInRange(T value, T min, T max) {
         if (value instanceof Number && min instanceof Number && max instanceof Number) {
             double val = ((Number) value).doubleValue();
@@ -156,32 +293,75 @@ public class Property<T> {
         return true; // Non-numeric types don't have range validation
     }
     
+    /**
+     * Checks if the value is a numeric type.
+     * @param value the value to check
+     * @return true if the value is a numeric type, false otherwise
+     */
     private boolean isNumericType(T value) {
         return value instanceof Number;
     }
     
-    // Reset to default value
+    /**
+     * Resets the value of the property to the default value.
+     */
     public void reset() {
         this.value = defaultValue;
     }
     
     // Convenience methods for common types
+    /**
+     * Creates an integer property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the integer property
+     */
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue) {
         Property<Integer> p = new Property<>(name, value, defaultValue);
         p.typeName = "int";
         return p;
     }
     
+    /**
+     * Creates an integer property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @return the integer property
+     */
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue, int min, int max) {
         Property<Integer> p = new Property<>(name, value, defaultValue, min, max);
         p.typeName = "int";
         return p;
     }
+    /**
+     * Creates an integer property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @param editable the editable status of the property
+     * @return the integer property
+     */
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue, int min, int max, boolean editable) {
         Property<Integer> p = createIntProperty(name, value, defaultValue, min, max);
         p.setEditable(editable);
         return p;
     }
+    /**
+     * Creates an integer property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @param editable the editable status of the property
+     * @return the integer property
+     */
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue, Integer min, Integer max, boolean editable) {
         Property<Integer> p = (min != null && max != null)
             ? new Property<>(name, value, defaultValue, min, max)
@@ -193,22 +373,58 @@ public class Property<T> {
         return p;
     }
     
+    /**
+     * Creates a double property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the double property
+     */
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue) {
         Property<Double> p = new Property<>(name, value, defaultValue);
         p.typeName = "double";
         return p;
     }
     
+    /**
+     * Creates a double property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @return the double property
+     */
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, double min, double max) {
         Property<Double> p = new Property<>(name, value, defaultValue, min, max);
         p.typeName = "double";
         return p;
     }
+    /**
+     * Creates a double property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @param editable the editable status of the property
+     * @return the double property
+     */
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, double min, double max, boolean editable) {
         Property<Double> p = createDoubleProperty(name, value, defaultValue, min, max);
         p.setEditable(editable);
         return p;
     }
+    /**
+     * Creates a double property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @param editable the editable status of the property
+     * @return the double property
+     */
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, Double min, Double max, boolean editable) {
         Property<Double> p = (min != null && max != null)
             ? new Property<>(name, value, defaultValue, min, max)
@@ -220,22 +436,58 @@ public class Property<T> {
         return p;
     }
 
+    /**
+     * Creates a float property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the float property
+     */
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue) {
         Property<Float> p = new Property<>(name, value, defaultValue);
         p.typeName = "float";
         return p;
     }
     
+    /**
+     * Creates a float property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @return the float property
+     */
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue, float min, float max) {
         Property<Float> p = new Property<>(name, value, defaultValue, min, max);
         p.typeName = "float";
         return p;
     }
+    /**
+     * Creates a float property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @param editable the editable status of the property
+     * @return the float property
+     */
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue, float min, float max, boolean editable) {
         Property<Float> p = createFloatProperty(name, value, defaultValue, min, max);
         p.setEditable(editable);
         return p;
     }
+    /**
+     * Creates a float property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param min the minimum value of the property
+     * @param max the maximum value of the property
+     * @param editable the editable status of the property
+     * @return the float property
+     */
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue, Float min, Float max, boolean editable) {
         Property<Float> p = (min != null && max != null)
             ? new Property<>(name, value, defaultValue, min, max)
@@ -247,51 +499,117 @@ public class Property<T> {
         return p;
     }
     
+    /**
+     * Creates a boolean property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the boolean property
+     */
     public static Property<Boolean> createBooleanProperty(String name, boolean value, boolean defaultValue) {
         Property<Boolean> p = new Property<>(name, value, defaultValue);
         p.typeName = "boolean";
         return p;
     }
+    /**
+     * Creates a boolean property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param editable the editable status of the property
+     * @return the boolean property
+     */
     public static Property<Boolean> createBooleanProperty(String name, boolean value, boolean defaultValue, boolean editable) {
         Property<Boolean> p = createBooleanProperty(name, value, defaultValue);
         p.setEditable(editable);
         return p;
     }
     
+    /**
+     * Creates a string property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the string property
+     */
     public static Property<String> createStringProperty(String name, String value, String defaultValue) {
         Property<String> p = new Property<>(name, value, defaultValue);
         p.typeName = "string";
         return p;
     }
+    /**
+     * Creates a string property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param editable the editable status of the property
+     * @return the string property
+     */
     public static Property<String> createStringProperty(String name, String value, String defaultValue, boolean editable) {
         Property<String> p = createStringProperty(name, value, defaultValue);
         p.setEditable(editable);
         return p;
     }
     
+    /**
+     * Creates a color property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the color property
+     */
     public static Property<Color> createColorProperty(String name, Color value, Color defaultValue) {
         Property<Color> p = new Property<>(name, value, defaultValue);
         p.typeName = "color";
         return p;
     }
+    /**
+     * Creates a color property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param editable the editable status of the property
+     * @return the color property
+     */
     public static Property<Color> createColorProperty(String name, Color value, Color defaultValue, boolean editable) {
         Property<Color> p = createColorProperty(name, value, defaultValue);
         p.setEditable(editable);
         return p;
     }
 
+    /**
+     * Creates a vector3f property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @return the vector3f property
+     */
     public static Property<Vector3f> createVector3fProperty(String name, Vector3f value, Vector3f defaultValue) {
         Property<Vector3f> p = new Property<>(name, value, defaultValue);
         p.typeName = "vector3f";
         return p;
     }
+    /**
+     * Creates a vector3f property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param editable the editable status of the property
+     * @return the vector3f property
+     */
     public static Property<Vector3f> createVector3fProperty(String name, Vector3f value, Vector3f defaultValue, boolean editable) {
         Property<Vector3f> p = createVector3fProperty(name, value, defaultValue);
         p.setEditable(editable);
         return p;
     }
-    
-    // Special method for Color properties that work with RGB integers
+
+    /**
+     * Creates a color property from RGB.
+     * @param name the name of the property
+     * @param rgbValue the RGB value of the property
+     * @param defaultRGB the default RGB value of the property
+     * @return the color property
+     */
     public static Property<Color> createColorPropertyFromRGB(String name, int rgbValue, int defaultRGB) {
         Property<Color> prop = new Property<>(name, new Color(rgbValue), new Color(defaultRGB));
         prop.typeName = "color";
@@ -299,13 +617,24 @@ public class Property<T> {
         prop.validator = color -> color != null ;
         return prop;
     }
+    /**
+     * Creates a color property from RGB.
+     * @param name the name of the property
+     * @param rgbValue the RGB value of the property
+     * @param defaultRGB the default RGB value of the property
+     * @param editable the editable status of the property
+     * @return the color property
+     */
     public static Property<Color> createColorPropertyFromRGB(String name, int rgbValue, int defaultRGB, boolean editable) {
         Property<Color> p = createColorPropertyFromRGB(name, rgbValue, defaultRGB);
         p.setEditable(editable);
         return p;
     }
     
-    // Utility method to get RGB value for Color properties
+    /**
+     * Gets the RGB value of the property.
+     * @return the RGB value of the property
+     */
     public int getRGBValue() {
         if (value instanceof Color) {
             return ((Color) value).getRGB();
@@ -313,6 +642,10 @@ public class Property<T> {
         throw new IllegalStateException("Property is not a Color type");
     }
     
+    /**
+     * Sets the RGB value of the property.
+     * @param rgb the RGB value of the property
+     */
     @SuppressWarnings("unchecked")
     public void setRGBValue(int rgb) {
         if (value instanceof Color) {
@@ -322,12 +655,20 @@ public class Property<T> {
         }
     }
     
+    /**
+     * Returns the string representation of the property.
+     * @return the string representation of the property
+     */
     @Override
     public String toString() {
         return String.format("Property{name='%s', value=%s, defaultValue=%s, min=%s, max=%s}", 
             name, value, defaultValue, minValue, maxValue);
     }
 
+    /**
+     * Gets the editor row of the property.
+     * @return the editor row of the property
+     */
     public UIRow getEditorRow() {
         if (editorRow != null) {
             return editorRow;
@@ -348,6 +689,9 @@ public class Property<T> {
         return editorRow;
     }
 
+    /**
+     * Syncs the editor row from the value.
+     */
     private void syncEditorRowFromValue() {
         if (editorRow == null) return;
         for (UIElement element : editorRow.getElements()) {
@@ -356,6 +700,10 @@ public class Property<T> {
         }
     }
 
+    /**
+     * Creates the editor elements for an integer property.
+     * @return the editor elements for an integer property
+     */
     private ArrayList<UIElement> createIntEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -396,6 +744,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Creates the editor elements for a double property.
+     * @return the editor elements for a double property
+     */
     private ArrayList<UIElement> createDoubleEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -438,6 +790,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Creates the editor elements for a float property.
+     * @return the editor elements for a float property
+     */
     private ArrayList<UIElement> createFloatEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -501,6 +857,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Creates the editor elements for a string property.
+     * @return the editor elements for a string property
+     */
     private ArrayList<UIElement> createStringEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -514,6 +874,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Creates the editor elements for a color property.
+     * @return the editor elements for a color property
+     */
     private ArrayList<UIElement> createColorEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -571,6 +935,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Creates the editor elements for a vector3f property.
+     * @return the editor elements for a vector3f property
+     */
     private ArrayList<UIElement> createVector3fEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -593,6 +961,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Creates the editor elements for a double array property.
+     * @return the editor elements for a double array property
+     */
     private ArrayList<UIElement> createDoubleArrayEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
@@ -614,6 +986,10 @@ public class Property<T> {
         return elements;
     }
 
+    /**
+     * Reverts the value of the property to the default value.
+     * @param tf the text field to revert
+     */
     private void revert(UITextField tf) {
         tf.setText(String.valueOf((Object) Settings.getInstance().getValue(name)));
     }

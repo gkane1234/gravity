@@ -21,6 +21,12 @@ import java.nio.file.Paths;
  * - 16 characters per row
  * - Starts with ASCII 32 (space character)
  * - Standard layout: !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+ * 
+ * The PNG can be generated using resources/font/create_font.py
+ * 
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
  */
 public class BitmapFont {
     private static final String DEFAULT_FONT_RESOURCE = "/font/font.png";
@@ -38,7 +44,7 @@ public class BitmapFont {
     private boolean loaded;
     
     /**
-     * Creates a new bitmap font from the specified PNG file.
+     * Constructor that creates a new bitmap font from the specified PNG file.
      * @param fontPath Path to the PNG font file
      */
     public BitmapFont(String fontPath) {
@@ -46,7 +52,9 @@ public class BitmapFont {
         this.fontSize = DEFAULT_FONT_SIZE;
         loadFont();
     }
-
+    /**
+     * Default constructor
+     */
     public BitmapFont() {
         this(null);
     }
@@ -55,102 +63,48 @@ public class BitmapFont {
      * Loads the font texture from the PNG file.
      */
     private void loadFont() {
-        try {
-            BufferedImage image = null;
+        BufferedImage image = getFontImage();
+        
+        int width = image.getWidth();
+        int height = image.getHeight();
 
-            if (fontPath != null) {
-                File file = new File(fontPath);
-                if (file.exists()) {
-                    image = ImageIO.read(file);
-                    this.fontPath = file.getAbsolutePath();
-                }
-            }
-
-            if (image == null) {
-                try (InputStream in = BitmapFont.class.getResourceAsStream(DEFAULT_FONT_RESOURCE)) {
-                    if (in != null) {
-                        image = ImageIO.read(in);
-                        this.fontPath = "classpath:" + DEFAULT_FONT_RESOURCE;
-                    }
-                }
-            }
-
-            if (image == null) {
-                File fallback = resolveFontFileFallback();
-                if (fallback != null && fallback.exists()) {
-                    image = ImageIO.read(fallback);
-                    this.fontPath = fallback.getAbsolutePath();
-                }
-            }
-
-            if (image == null) {
-                throw new IOException("font.png not found via constructor path, classpath, or fallback resolution");
-            }
+        // Calculate character dimensions
+        this.readCharWidth = (width / CHARS_PER_ROW);
+        this.readCharHeight = (height / NUM_ROWS);
+        
+        // Convert BufferedImage to ByteBuffer for OpenGL
+        ByteBuffer buffer = convertImageToBuffer(image, width, height);
+        
+        // Generate OpenGL texture
+        fontTexture = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, fontTexture);
+        
+        // Set texture parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        
+        // Upload texture data to GPU
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+        
+        loaded = true;
+        System.out.println("Bitmap font loaded: " + fontPath + " (" + readCharWidth + "x" + readCharHeight + " chars)");
             
-            int width = image.getWidth();
-            int height = image.getHeight();
-
-            // Calculate character dimensions
-            this.readCharWidth = (width / CHARS_PER_ROW);
-            this.readCharHeight = (height / NUM_ROWS);
-            
-            // Convert BufferedImage to ByteBuffer for OpenGL
-            ByteBuffer buffer = convertImageToBuffer(image, width, height);
-            
-            // Generate OpenGL texture
-            fontTexture = glGenTextures();
-            glBindTexture(GL_TEXTURE_2D, fontTexture);
-            
-            // Set texture parameters for crisp pixel art
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-            
-            // Upload texture data to GPU
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-            
-            loaded = true;
-            System.out.println("Bitmap font loaded: " + fontPath + " (" + readCharWidth + "x" + readCharHeight + " chars)");
-            
-        } catch (IOException e) {
-            System.err.println("Failed to load bitmap font: " + fontPath);
-            e.printStackTrace();
-            loaded = false;
-        }
     }
-
-    private static File resolveFontFileFallback() {
-        try {
-            URL loc = BitmapFont.class.getProtectionDomain().getCodeSource().getLocation();
-            Path p = Paths.get(loc.toURI());
-            Path moduleRoot;
-            if (Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
-                moduleRoot = p.getParent().getParent();
-            } else if (Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
-                moduleRoot = p.getParent().getParent();
-            } else {
-                Path q = p;
-                Path found = null;
-                while (q != null) {
-                    if (Files.exists(q.resolve("pom.xml"))) { found = q; break; }
-                    q = q.getParent();
-                }
-                moduleRoot = found != null ? found : Paths.get(System.getProperty("user.dir"));
+    /**
+     * Gets the font image from the default font resource.
+     * @return Font image
+     */
+    private static BufferedImage getFontImage() {
+        try (InputStream in = BitmapFont.class.getResourceAsStream(DEFAULT_FONT_RESOURCE)) {
+            if (in != null) {
+                return ImageIO.read(in);
             }
-            // Try the standard Maven resource location first
-            Path candidate = moduleRoot.resolve("src/main/resources/font.png");
-            if (Files.exists(candidate)) {
-                return candidate.toFile();
-            }
-            // Fallback: handle historical path if present (based on prior absolute path)
-            Path legacy = moduleRoot.resolveSibling("gravity").resolve("src/main/resources/font.png");
-            if (Files.exists(legacy)) {
-                return legacy.toFile();
-            }
-        } catch (Exception ignored) {
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        return null;
+        throw new RuntimeException("Failed to load bitmap font: " + DEFAULT_FONT_RESOURCE);
     }
     
     /**
@@ -293,11 +247,20 @@ public class BitmapFont {
     public float getTextWidth(String text, float fontSize) {
         return text.length() * getCharWidth(fontSize);
     }
+    /**
+     * Gets the width of a character in pixels with scaling.
+     * @param fontSize Scale factor
+     * @return Width in pixels
+     */
     public float getCharWidth(float fontSize) {
         float[] desiredCharSize = getDesiredCharSize(fontSize);
         float desiredCharWidth = desiredCharSize[0];
         return desiredCharWidth;
     }
+    /**
+     * Gets the width of a character in pixels.
+     * @return Width in pixels
+     */
     public float getCharWidth() {
         return getCharWidth(fontSize);
     }
@@ -329,9 +292,17 @@ public class BitmapFont {
     public boolean isLoaded() {
         return loaded;
     }
+    /**
+     * Gets the font size.
+     * @return Font size
+     */
     public float getFontSize() {
         return fontSize;
     }   
+    /**
+     * Sets the font size.
+     * @param fontSize Font size
+     */
     public void setFontSize(float fontSize) {
         this.fontSize = fontSize;
     }

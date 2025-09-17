@@ -4,17 +4,31 @@ import java.util.ArrayList;
 
 import static org.lwjgl.opengl.GL11.*;
 
+/**
+ * UIRow class is a row of UI elements. One row is used to display a single property in the settings pane.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class UIRow extends UIElement {
 
     private ArrayList<UIElement> elements;
 
     private float padding = 10.0f;
 
+    /**
+     * Constructor for the UIRow class.
+     * @param elements The elements to add to the row.
+     */
     public UIRow(ArrayList<UIElement> elements) {
         super();
         this.elements = elements;
     }
 
+    /**
+     * Gets the elements in the row.
+     * @return The elements in the row.
+     */
     public ArrayList<UIElement> getElements() {
         return elements;
     }
@@ -22,6 +36,10 @@ public class UIRow extends UIElement {
 
 
 
+    /**
+     * Gets if the row needs to be updated.
+     * @return True if the row needs to be updated, false otherwise.
+     */
     public boolean getForceUpdate() {
         boolean forceUpdate = false;
         for (UIElement element : elements) {
@@ -109,5 +127,15 @@ public class UIRow extends UIElement {
         for (UIElement element : elements) {
             element.handleMouseDrag(mouseX, mouseY);
         }
+    }
+
+    @Override
+    public boolean hitTest(double mx, double my) {
+        for (UIElement element : elements) {
+            if (element.hitTest(mx, my)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

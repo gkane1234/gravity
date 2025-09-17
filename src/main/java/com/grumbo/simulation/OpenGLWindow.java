@@ -7,6 +7,14 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
+import com.grumbo.simulation.GPUSimulation;
+
+/**
+ * OpenGLWindow class creates the OpenGL window, manages window events, and draws the UI.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class OpenGLWindow {
 
     // The window handle
@@ -19,15 +27,22 @@ public class OpenGLWindow {
     private int frameCount = 0;
     private double fps = 0.0;
     
+
     public GPUSimulation gpuSimulation;
 
     // FPS limiting using GPU swap interval
     private int maxFPS = -1; // Default max FPS
-
+    /**
+     * Constructor for the OpenGLWindow class.
+     * @param gpuSimulation the GPU simulation.
+     */
     public OpenGLWindow(GPUSimulation gpuSimulation) {
         this.gpuSimulation = gpuSimulation;
     }
 
+    /**
+     * Initializes the OpenGL window.
+     */
     public void init() {
         // Setup an error callback
         GLFWErrorCallback.createPrint(System.err).set();
@@ -40,8 +55,10 @@ public class OpenGLWindow {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+        // Set the OpenGL context version to 4.6
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        // Set the OpenGL profile to COMPAT to allow for legacy OpenGL features.
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
 
@@ -69,16 +86,19 @@ public class OpenGLWindow {
 
         glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
         glfwSetFramebufferSizeCallback(window, (win, w, h) -> glViewport(0, 0, w, h));
-
+        // Enable point size and point sprite.
         glEnable(GL_PROGRAM_POINT_SIZE);
         glEnable(GL_POINT_SPRITE);
         glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, GL_LOWER_LEFT);
 
+        // Create the OpenGLUI.
         openGlUI = new OpenGLUI(this);
         
         System.out.println(getStartupInfo());
     }
-
+    /**
+     * Steps the OpenGL window.
+     */
     public void step() {
 
         if (glfwWindowShouldClose(window)) {
@@ -92,25 +112,20 @@ public class OpenGLWindow {
         // Update FPS calculation
         updateFPS();
         openGlUI.drawUI();
-        checkGLError("after openGlUI.drawUI");
+        GPUSimulation.checkGLError("after openGlUI.drawUI");
         glfwSwapBuffers(window);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glfwPollEvents();
-        checkGLError("after glfwPollEvents");
+        GPUSimulation.checkGLError("after glfwPollEvents");
     }
 
-        /**
-     * Check for OpenGL errors.
-     */
-    private void checkGLError(String operation) {
-        int error = glGetError();
-        if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error after " + operation + ": " + error);
-        }
-    }
 
     // Initialization Methods
    
+    /**
+     * Gets the startup information.
+     * @return the startup information.
+     */
     private String getStartupInfo() {
         String info = "";
         if (!openGlUI.isFontLoaded()) {
@@ -148,21 +163,25 @@ public class OpenGLWindow {
 
     }
 
+    /**
+     * Cleans up the OpenGL window.
+     */
     private void cleanup() {
-        // Cleanup font resources
-
         // Free the window callbacks and destroy the window
         glfwFreeCallbacks(window);
         glfwDestroyWindow(window);
 
         // Terminate GLFW and free the error callback
-        gpuSimulation.cleanupEmbedded();
+        gpuSimulation.cleanup();
         glfwTerminate();
         glfwSetErrorCallback(null).free();
     }
 
     // Setters and Getters
     
+    /**
+     * Updates the FPS.
+     */
     private void updateFPS() {
         double currentTime = glfwGetTime();
         frameCount++;
@@ -175,6 +194,10 @@ public class OpenGLWindow {
         }
     }
     
+    /**
+     * Sets the maximum FPS.
+     * @param maxFPS the maximum FPS.
+     */
     public void setMaxFPS(int maxFPS) {
         this.maxFPS = maxFPS;
         
@@ -193,41 +216,80 @@ public class OpenGLWindow {
         }
     }
         
+    /**
+     * Gets the swap interval.
+     * @return the swap interval.
+     */
     public int getSwapInterval() {
         // Get the current swap interval from GLFW
         return glfwGetWindowAttrib(window, GLFW_CONTEXT_REVISION);
     }
     
+    /**
+     * Gets the maximum FPS.
+     * @return the maximum FPS.
+     */
     public int getMaxFPS() {
         return maxFPS;
     }
 
+    /**
+     * Applies the FPS limit.
+     */
     public void applyFPSLimit() {
         // Re-apply the current FPS settings
         setMaxFPS(maxFPS);
     }
+    /**
+     * Gets the window.
+     * @return the window.
+     */
     public long getWindow() {
         return window;
     }
 
+    /**
+     * Gets the FPS.
+     * @return the FPS.
+     */
     public double getFPS() {
         return fps;
     }
 
+    /**
+     * Gets the show crosshair.
+     * @return the show crosshair.
+     */
     public boolean getShowCrosshair() {
         return openGlUI.showCrosshair;
     }
+    /**
+     * Sets the show crosshair.
+     * @param showCrosshair the show crosshair.
+     */
     public void setShowCrosshair(boolean showCrosshair) {
         openGlUI.showCrosshair = showCrosshair;
     }
 
+    /**
+     * Gets the state of the GPU simulation.
+     * @return the state of the GPU simulation.
+     */
     public GPUSimulation.State getState() {
         return gpuSimulation.state;
     }
+    /**
+     * Sets the state of the GPU simulation.
+     * @param state the state of the GPU simulation.
+     */
     public void setState(GPUSimulation.State state) {
         this.gpuSimulation.state = state;
     }
 
+    /**
+     * Gets the performance text.
+     * @return the performance text.
+     */
     public String getPerformanceText() {
         return gpuSimulation.getPerformanceText();
     }

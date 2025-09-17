@@ -7,7 +7,12 @@ import org.joml.Vector3f;
 
 import com.grumbo.simulation.*;
 import java.util.ArrayList;
-
+/**
+ * OpenGLUI class creates the SimulationOpenGL UI, manages key events, and draws the UI.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class OpenGLUI {
 
     private double lastX = Settings.getInstance().getWidth() / 2.0;
@@ -29,7 +34,9 @@ public class OpenGLUI {
     private int lastBodies = 0;
     private int lastSteps = 0;
     private int lastDifference = 0;
-
+    /**
+     * KeyEvent class represents a key event.
+     */
     public class KeyEvent {
         public int key;
         private Runnable pressAction;
@@ -37,10 +44,18 @@ public class OpenGLUI {
         public boolean pressed; 
         public boolean repeatable;
         private boolean repeat;
-
+        
+         //The delay between repeats of a key event.
         private static final long REPEAT_DELAY = 30; // 200ms
         private long lastRepeatTime = 0;
-
+        
+        /**
+         * Constructor for the KeyEvent class.
+         * @param key The key that was pressed.
+         * @param pressAction The action to perform when the key is pressed.
+         * @param releaseAction The action to perform when the key is released.
+         * @param repeatable Whether the key event is repeatable.
+         */
         public KeyEvent(int key, Runnable pressAction, Runnable releaseAction, boolean repeatable) {
             this.key = key;
             this.pressAction = pressAction;
@@ -50,41 +65,72 @@ public class OpenGLUI {
             this.repeat = false;
         }
 
+        /**
+         * Constructor for the KeyEvent class.
+         * @param key The key that was pressed.
+         * @param pressAction The action to perform when the key is pressed.
+         * @param repeatable Whether the key event is repeatable.
+         */
         public KeyEvent(int key, Runnable pressAction, boolean repeatable) {
             this(key, pressAction, null, repeatable);
         }
 
+        /**
+         * Constructor for the KeyEvent class.
+         * @param key The key that was pressed.
+         * @param action The action to perform when the key is pressed.
+         */
         public KeyEvent(int key, Runnable action) {
             this(key, action,null, false);
         }
 
+        /**
+         * Run when the key is pressed.
+         */
         public void press() {
             pressed = true;
             repeat = false;
         }
 
+        /**
+         * Run when the key is released.
+         */
         public void release() {
             pressed = false;
             repeat = false;
         }
 
-        public void run() {
+        /**
+         * Tries to run key events
+         * @return True if a key event was run, false otherwise.
+         */
+        public boolean run() {
+            boolean ran = false;
             if (pressed && !repeat) {
                 pressAction.run();
                 repeat = true;
+                ran = true;
             }
             else if (repeatable && repeat) {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - lastRepeatTime >= REPEAT_DELAY) {
                     pressAction.run();
                     lastRepeatTime = currentTime;
+                    ran = true;
                 }
             }
             else if (releaseAction != null) {
                 releaseAction.run();
+                ran = true;
             }
+            return ran;
         }
 
+        /**
+         * Checks if the key event is equal to another key event.
+         * @param o The object to compare to.
+         * @return True if the key event is equal to the other key event, false otherwise.
+         */
         @Override
         public boolean equals(Object o) {
             if (o instanceof KeyEvent) {
@@ -98,9 +144,14 @@ public class OpenGLUI {
         }
     }
 
+    //A list of key events.
     public ArrayList<KeyEvent> keyEvents = new ArrayList<>();
     private OpenGLWindow openGlWindow;
 
+    /**
+     * Constructor for the OpenGLUI class.
+     * @param openGlWindow The OpenGL window to use.
+     */
     public OpenGLUI(OpenGLWindow openGlWindow) {
         // Initialize bitmap font
         font = new BitmapFont();
@@ -111,6 +162,9 @@ public class OpenGLUI {
 
     }
 
+    /**
+     * Initializes the key events.
+     */
     public void initKeyEvents() {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() * 1.1),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() / 1.1),true));
@@ -162,50 +216,47 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
     }
 
-        /**
-     * Check for OpenGL errors.
+    /**
+     * Draws the UI.
      */
-    private void checkGLError(String operation) {
-        int error = glGetError();
-        if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error after " + operation + ": " + error);
-        }
-    }
-
     public void drawUI() {
-        checkGLError("before runKeyFunctions");
+        GPUSimulation.checkGLError("before runKeyFunctions");
         runKeyFunctions();
 
         if (openGlWindow.getState() == GPUSimulation.State.PAUSED) {
             drawFrameAdvanceIndicator();
-            checkGLError("after drawFrameAdvanceIndicator");
+            GPUSimulation.checkGLError("after drawFrameAdvanceIndicator");
         }
 
         // Draw FPS display
         if (showStats) {
             drawStats();
-            checkGLError("after drawStats");
+            GPUSimulation.checkGLError("after drawStats");
         }
         
         // Draw settings panel
         if (displaySettings) {
             settingsPane.draw(font);
-            checkGLError("after drawSettingsPane");
+            GPUSimulation.checkGLError("after drawSettingsPane");
         }
 
         // Draw profiling info
         if (displayDebug) {
             drawDebugInfo();
-            checkGLError("after drawDebugInfo");
+            GPUSimulation.checkGLError("after drawDebugInfo");
         }
 
         if (showCrosshair) {
             drawCrosshair();
-            checkGLError("after drawCrosshair");
+            GPUSimulation.checkGLError("after drawCrosshair");
         }
-        checkGLError("after drawUI");
+        GPUSimulation.checkGLError("after drawUI");
     }
-
+    /**
+     * Updates the keys based on a key press or release.
+     * @param key The key that was pressed.
+     * @param action The action that was performed.
+     */
     public void updateKeys(int key, int action) {
         for (KeyEvent event : keyEvents) {
             if (event.key == key && action == GLFW.GLFW_PRESS) {
@@ -217,12 +268,21 @@ public class OpenGLUI {
         }
     }
 
+    /**
+     * Runs the key functions.
+     * This is called every frame.
+     */
     public void runKeyFunctions() {
         for (KeyEvent event : keyEvents) {
             event.run();
         }
     }
 
+    /**
+     * Changes the camera based on a mouse offset.
+     * @param xoffset The x offset.
+     * @param yoffset The y offset.
+     */
     public void changeCamera(float xoffset, float yoffset) {
         xoffset *= Settings.getInstance().getMouseRotationSensitivity();
         yoffset *= Settings.getInstance().getMouseRotationSensitivity();
@@ -241,6 +301,9 @@ public class OpenGLUI {
         updateCameraDirection();
     }
 
+    /**
+     * Sets up the callbacks for the window. This includes key, mouse, and window resize callbacks.
+     */
     public void setupCallbacks() {
 
         // Key callback
@@ -306,6 +369,9 @@ public class OpenGLUI {
         });
     }
 
+    /**
+     * Updates the camera direction.
+     */
     private void updateCameraDirection() {
         Vector3f direction = new Vector3f();
         direction.x = (float)(java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
@@ -313,6 +379,10 @@ public class OpenGLUI {
         direction.z = (float)(java.lang.Math.sin(java.lang.Math.toRadians(Settings.getInstance().getYaw())) * java.lang.Math.cos(java.lang.Math.toRadians(Settings.getInstance().getPitch())));
         Settings.getInstance().setCameraFront(direction.normalize());
     }
+    /**
+     * Processes WASDQE movement.
+     * @param key The key that was pressed.
+     */
     private void processWASDQEMovement(int key) {
         // Don't process movement if a text field is focused
         if (settingsPane.textFieldFocused) {
@@ -358,6 +428,10 @@ public class OpenGLUI {
             
         }
     }
+    /**
+     * Processes IJKL movement.
+     * @param key The key that was pressed.
+     */
     private void processIJKLMovement(int key) {
         // Don't process movement if a text field is focused
         if (settingsPane.textFieldFocused) {
@@ -384,6 +458,10 @@ public class OpenGLUI {
         }
     }
 
+    /**
+     * Draws a few stats about the simulation./
+     * This is drawn in the top-left corner of the screen.
+     */
     private void drawStats() {
         if (font == null || !font.isLoaded()) {
             return; // Skip if font is not available
@@ -420,10 +498,17 @@ public class OpenGLUI {
         drawMultiLineText(statsText, x, y, lineHeight, padding);
     }
 
+    /**
+     * Gets the performance text when debug mode is active and the f3 key is pressed.
+     * @return The performance text.
+     */
     public String getPerformanceText() {
         return openGlWindow.getPerformanceText();
     }
 
+    /**
+     * Draws the frame advance indicator.
+     */
     private void drawFrameAdvanceIndicator() {
         if (font == null || !font.isLoaded()) {
             return;
@@ -440,6 +525,9 @@ public class OpenGLUI {
         drawMultiLineText(indicatorText, x, y, lineHeight, padding);
     }
 
+    /**
+     * Draws the crosshair.
+     */
     private void drawCrosshair() {
         setUpFor2D();
         
@@ -466,6 +554,9 @@ public class OpenGLUI {
         tearDownFor2D();
     }
     
+    /**
+     * Draws the debug info.
+     */
     private void drawDebugInfo() {
         String performanceText = openGlWindow.getPerformanceText();
         if (performanceText == null || performanceText.isEmpty()) return;
@@ -491,25 +582,31 @@ public class OpenGLUI {
         drawMultiLineText(performanceText, x, y, lineHeight, padding);
     }
 
+    /**
+     * Sets up the 2D projection.
+     */
     private void setUpFor2D() {
-        checkGLError("before setUpFor2D");
+        GPUSimulation.checkGLError("before setUpFor2D");
         // Save current OpenGL state
         glPushMatrix();
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
         glLoadIdentity();
-        checkGLError("saved projection matrix");
+        GPUSimulation.checkGLError("saved projection matrix");
         // Set up 2D orthographic projection
         glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
         glLoadIdentity();
-        checkGLError("saved modelview matrix");
+        GPUSimulation.checkGLError("saved modelview matrix");
         // Disable depth testing for UI elements
         glDisable(GL_DEPTH_TEST);
-        checkGLError("disabled depth testing");
+        GPUSimulation.checkGLError("disabled depth testing");
     }
 
+    /**
+     * Tears down the 2D projection.
+     */
     private void tearDownFor2D() {
         glEnable(GL_DEPTH_TEST);
         glPopMatrix();                   // MODELVIEW
@@ -519,10 +616,18 @@ public class OpenGLUI {
         glPopMatrix(); 
     }
 
+    /**
+     * Draws multi-line text.
+     * @param text The text to draw.
+     * @param x The x coordinate.
+     * @param y The y coordinate.
+     * @param lineHeight The height of each line.
+     * @param padding The padding.
+     */
     private void drawMultiLineText(String text, int x, int y, int lineHeight, int padding) {
-        checkGLError("before setUpFor2D");
+        GPUSimulation.checkGLError("before setUpFor2D");
         setUpFor2D();
-        checkGLError("after setUpFor2D");
+        GPUSimulation.checkGLError("after setUpFor2D");
 
         // Split performance text into lines
         String[] lines = text.split("\n");
@@ -538,14 +643,14 @@ public class OpenGLUI {
 
         // Draw background rectangle
         glColor4f(0.0f, 0.0f, 0.0f, 0.8f); // Semi-transparent black
-        checkGLError("before glBegin");
+        GPUSimulation.checkGLError("before glBegin");
         glBegin(GL_QUADS);
         glVertex2f(x - padding, y - padding);
         glVertex2f(x + width + padding, y - padding); // 280 pixels wide
         glVertex2f(x + width + padding, y + totalHeight + padding);
         glVertex2f(x - padding, y + totalHeight + padding);
         glEnd();
-        checkGLError("after glBegin");
+        GPUSimulation.checkGLError("after glBegin");
         
         // Draw text in white
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White
@@ -557,13 +662,17 @@ public class OpenGLUI {
                 font.drawText(line, x, y + i * (lineHeight+10));
             } 
         }
-        checkGLError("after drawText");
+        GPUSimulation.checkGLError("after drawText");
         tearDownFor2D();
-        checkGLError("after tearDownFor2D");
+        GPUSimulation.checkGLError("after tearDownFor2D");
 
     }
         
 
+    /**
+     * Checks if the font is loaded.
+     * @return True if the font is loaded, false otherwise.
+     */
     public boolean isFontLoaded() {
         return font != null && font.isLoaded();
     }

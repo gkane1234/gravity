@@ -1,3 +1,4 @@
+// ===== AUTO-GENERATED: Settings.java =====
 package com.grumbo.simulation;
 
 import java.awt.Color;
@@ -9,7 +10,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import org.joml.Vector3f;
 
-
+/**
+ * Settings - Class for storing and accessing the simulation settings as singleton objects.
+ * This class is automatically generated from defaultProperties.json
+ * Any changes made here will be overwritten when regenerating EXCEPT for the methods in the "preserved" section at the bottom of the file.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class Settings {
 
     private static Settings instance;
@@ -22,19 +30,29 @@ public class Settings {
         loadSettings();
     }
 
+    /**
+     * Gets the instance of the Settings class object for a given property.
+     * @return the instance of the Settings class
+     */
     public static Settings getInstance() {
         if (instance == null) {
             instance = new Settings();
         }
         return instance;
     }
+    /**
+     * Gets the names of all the properties in the Settings class.
+     * @return the names of all the properties in the Settings class
+     */
     public ArrayList<String> getPropertyNames() {
         return new ArrayList<>(properties.keySet());
     }
 
-	// ===== AUTO-GENERATED: Property Initialization =====
-	// This section is automatically generated from defaultProperties.json
-	// Any changes made here will be overwritten when regenerating
+	/**
+	 * Initializes the properties as read from defaultProperties.json.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	private void initializeProperties() {
 		// Window width in pixels
 		{ Property<Integer> p = Property.createIntProperty("width", 1000, 1000); p.setEditable(true); properties.put("width", p); }
@@ -133,11 +151,11 @@ public class Settings {
 		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
 
 	}
-	// ===== END AUTO-GENERATED: Property Initialization =====
-
-	// ===== AUTO-GENERATED: Generic Getter/Setter Methods =====
-	// These methods provide type-safe access to properties
-	// Any changes made here will be overwritten when regenerating
+	/**
+	 * Gets the value of a given property.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	@SuppressWarnings("unchecked")
 	public <T> T getValue(String propertyName) {
 		Property<T> prop = (Property<T>) properties.get(propertyName);
@@ -147,6 +165,11 @@ public class Settings {
 		return prop.getValue();
 	}
 
+	/**
+	 * Sets the value of a given property.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	@SuppressWarnings("unchecked")
 	public <T> void setValue(String propertyName, T value) {
 		Property<T> prop = (Property<T>) properties.get(propertyName);
@@ -155,170 +178,462 @@ public class Settings {
 		}
 		prop.setValue(value);
 	}
-	// ===== END AUTO-GENERATED: Generic Getter/Setter Methods =====
-
-	// ===== AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
-	// These methods are automatically generated for each property in defaultProperties.json
-	// Any changes made here will be overwritten when regenerating
+	/**
+	 * Gets the value of the property width.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public int getWidth() { return getValue("width"); }
+	/**
+	 * Sets the value of the property width.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setWidth(int value) { setValue("width", value); }
 
+	/**
+	 * Gets the value of the property height.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public int getHeight() { return getValue("height"); }
+	/**
+	 * Sets the value of the property height.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setHeight(int value) { setValue("height", value); }
 
+	/**
+	 * Gets the value of the property zoom.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public double getZoom() { return getValue("zoom"); }
+	/**
+	 * Sets the value of the property zoom.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setZoom(double value) { setValue("zoom", value); }
 
+	/**
+	 * Gets the value of the property follow.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public boolean isFollow() { return getValue("follow"); }
+	/**
+	 * Sets the value of the property follow.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setFollow(boolean value) { setValue("follow", value); }
 
+	/**
+	 * Gets the value of the property shift.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public double[] getShift() { return getValue("shift"); }
+	/**
+	 * Sets the value of the property shift.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setShift(double[] value) { setValue("shift", value); }
 
+	/**
+	 * Gets the value of the property dt.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getDt() { return getValue("dt"); }
+	/**
+	 * Sets the value of the property dt.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setDt(float value) { setValue("dt", value); }
 
+	/**
+	 * Gets the value of the property softening.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getSoftening() { return getValue("softening"); }
+	/**
+	 * Sets the value of the property softening.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setSoftening(float value) { setValue("softening", value); }
 
+	/**
+	 * Gets the value of the property tailLength.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public int getTailLength() { return getValue("tailLength"); }
+	/**
+	 * Sets the value of the property tailLength.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setTailLength(int value) { setValue("tailLength", value); }
 
+	/**
+	 * Gets the value of the property drawTail.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public boolean isDrawTail() { return getValue("drawTail"); }
+	/**
+	 * Sets the value of the property drawTail.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setDrawTail(boolean value) { setValue("drawTail", value); }
 
+	/**
+	 * Toggles the value of the property drawTail.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void toggleDrawTail() { setDrawTail(!isDrawTail()); }
+	/**
+	 * Gets the value of the property density.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getDensity() { return getValue("density"); }
+	/**
+	 * Sets the value of the property density.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setDensity(float value) { setValue("density", value); }
 
+	/**
+	 * Gets the value of the property elasticity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public double getElasticity() { return getValue("elasticity"); }
+	/**
+	 * Sets the value of the property elasticity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setElasticity(double value) { setValue("elasticity", value); }
 
+	/**
+	 * Gets the value of the property defaultPlanetColor.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Color getDefaultPlanetColor() { return getValue("defaultPlanetColor"); }
+	/**
+	 * Sets the value of the property defaultPlanetColor.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setDefaultPlanetColor(Color value) { setValue("defaultPlanetColor", value); }
 
+	/**
+	 * Gets the value of the property defaultBackgroundColor.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Color getDefaultBackgroundColor() { return getValue("defaultBackgroundColor"); }
+	/**
+	 * Sets the value of the property defaultBackgroundColor.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setDefaultBackgroundColor(Color value) { setValue("defaultBackgroundColor", value); }
 
+	/**
+	 * Gets the value of the property defaultTextColor.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Color getDefaultTextColor() { return getValue("defaultTextColor"); }
+	/**
+	 * Sets the value of the property defaultTextColor.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setDefaultTextColor(Color value) { setValue("defaultTextColor", value); }
 
+	/**
+	 * Gets the value of the property sphereSegments.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public int getSphereSegments() { return getValue("sphereSegments"); }
+	/**
+	 * Sets the value of the property sphereSegments.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setSphereSegments(int value) { setValue("sphereSegments", value); }
 
+	/**
+	 * Gets the value of the property fov.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getFov() { return getValue("fov"); }
+	/**
+	 * Sets the value of the property fov.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setFov(float value) { setValue("fov", value); }
 
+	/**
+	 * Gets the value of the property nearPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getNearPlane() { return getValue("nearPlane"); }
+	/**
+	 * Sets the value of the property nearPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setNearPlane(float value) { setValue("nearPlane", value); }
 
+	/**
+	 * Gets the value of the property farPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getFarPlane() { return getValue("farPlane"); }
+	/**
+	 * Sets the value of the property farPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setFarPlane(float value) { setValue("farPlane", value); }
 
+	/**
+	 * Gets the value of the property cameraMoveSpeed.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getCameraMoveSpeed() { return getValue("cameraMoveSpeed"); }
+	/**
+	 * Sets the value of the property cameraMoveSpeed.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setCameraMoveSpeed(float value) { setValue("cameraMoveSpeed", value); }
 
+	/**
+	 * Gets the value of the property WASDSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getWASDSensitivity() { return getValue("WASDSensitivity"); }
+	/**
+	 * Sets the value of the property WASDSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setWASDSensitivity(float value) { setValue("WASDSensitivity", value); }
 
+	/**
+	 * Gets the value of the property mouseWheelSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getMouseWheelSensitivity() { return getValue("mouseWheelSensitivity"); }
+	/**
+	 * Sets the value of the property mouseWheelSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setMouseWheelSensitivity(float value) { setValue("mouseWheelSensitivity", value); }
 
+	/**
+	 * Gets the value of the property mouseRotationSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getMouseRotationSensitivity() { return getValue("mouseRotationSensitivity"); }
+	/**
+	 * Sets the value of the property mouseRotationSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setMouseRotationSensitivity(float value) { setValue("mouseRotationSensitivity", value); }
 
+	/**
+	 * Gets the value of the property cameraPos.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Vector3f getCameraPos() { return getValue("cameraPos"); }
+	/**
+	 * Sets the value of the property cameraPos.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setCameraPos(Vector3f value) { setValue("cameraPos", value); }
 
+	/**
+	 * Gets the value of the property cameraFront.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Vector3f getCameraFront() { return getValue("cameraFront"); }
+	/**
+	 * Sets the value of the property cameraFront.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setCameraFront(Vector3f value) { setValue("cameraFront", value); }
 
+	/**
+	 * Gets the value of the property cameraUp.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Vector3f getCameraUp() { return getValue("cameraUp"); }
+	/**
+	 * Sets the value of the property cameraUp.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setCameraUp(Vector3f value) { setValue("cameraUp", value); }
 
+	/**
+	 * Gets the value of the property yaw.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getYaw() { return getValue("yaw"); }
+	/**
+	 * Sets the value of the property yaw.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setYaw(float value) { setValue("yaw", value); }
 
+	/**
+	 * Gets the value of the property pitch.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getPitch() { return getValue("pitch"); }
+	/**
+	 * Sets the value of the property pitch.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setPitch(float value) { setValue("pitch", value); }
 
+	/**
+	 * Gets the value of the property theta.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public float getTheta() { return getValue("theta"); }
+	/**
+	 * Sets the value of the property theta.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setTheta(float value) { setValue("theta", value); }
 
+	/**
+	 * Gets the value of the property minDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public int getMinDepth() { return getValue("minDepth"); }
+	/**
+	 * Sets the value of the property minDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setMinDepth(int value) { setValue("minDepth", value); }
 
+	/**
+	 * Gets the value of the property maxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public int getMaxDepth() { return getValue("maxDepth"); }
+	/**
+	 * Sets the value of the property maxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setMaxDepth(int value) { setValue("maxDepth", value); }
 
+	/**
+	 * Gets the value of the property mergeBodies.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public boolean isMergeBodies() { return getValue("mergeBodies"); }
+	/**
+	 * Sets the value of the property mergeBodies.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setMergeBodies(boolean value) { setValue("mergeBodies", value); }
 
+	/**
+	 * Toggles the value of the property mergeBodies.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void toggleMergeBodies() { setMergeBodies(!isMergeBodies()); }
+	/**
+	 * Gets the value of the property wrapAround.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public boolean isWrapAround() { return getValue("wrapAround"); }
+	/**
+	 * Sets the value of the property wrapAround.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void setWrapAround(boolean value) { setValue("wrapAround", value); }
 
+	/**
+	 * Toggles the value of the property wrapAround.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void toggleWrapAround() { setWrapAround(!isWrapAround()); }
-	// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====
-
-	// ===== FIXED: Non-Configurable Values =====
-	// These methods return fixed values that are not configurable
-	public int getNumThreads() { return 100; }
-	// ===== END FIXED: Non-Configurable Values =====
-
-	// ===== PRESERVED: Custom Convenience Methods =====
-	// These methods are preserved from the previous generation
-	// You can modify these methods and they will be preserved
-	// You can also override the methods in the auto-generated section by creating them
-	// with the same name
-
-	public void changeZoom(double newZoom) {
-		setZoom(newZoom);
-		saveSettings();
-	}
-
-	public void toggleFollow() {
-		setFollow(!isFollow());
-		setShift(new double[] {0, 0, 0});
-		saveSettings();
-	}
-
-	public void moveCamera(double[] ds) {
-		double[] currentShift = getShift();
-		setShift(new double[] {
-			currentShift[0] + ds[0],
-			currentShift[1] + ds[1],
-			currentShift[2] + ds[2]
-		});
-		saveSettings();
-	}
-
-	// Reset all properties to their default values (kept across regenerations)
-	public void restoreDefaults() {
-		for (Property<?> prop : properties.values()) {
-			prop.reset();
-		}
-		saveSettings();
-	}
-
-
-	// ===== END PRESERVED: Custom Convenience Methods =====
-
-	// ===== AUTO-GENERATED: Utility Methods =====
-	// These utility methods are always included
-	// Any changes made here will be overwritten when regenerating
+	/**
+	 * Adds a property to the Settings class.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public <T> void addProperty(String name, Property<T> property) {
 		properties.put(name, property);
 	}
 
+	/**
+	 * Gets a property from the Settings class.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public Property<?> getProperty(String name) {
 		return properties.get(name);
 	}
-	// ===== END AUTO-GENERATED: Utility Methods =====
-
-	// ===== AUTO-GENERATED: Load/Save Methods =====
-	// These methods handle JSON serialization/deserialization
-	// Any changes made here will be overwritten when regenerating
+	/**
+	 * Loads the settings file.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	private static File getSettingsFile() {
 		try {
 			java.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
@@ -348,6 +663,11 @@ public class Settings {
 			return candidate.toFile();
 		}
 	}
+	/**
+	 * Loads the settings from the settings file.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void loadSettings() {
 		File file = getSettingsFile();
 		if (file.exists()) {
@@ -414,6 +734,11 @@ public class Settings {
 		}
 	}
 	
+	/**
+	 * Saves the settings to the settings file.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
 	public void saveSettings() {
 		try {
 			ObjectMapper mapper = new ObjectMapper();
@@ -439,6 +764,40 @@ public class Settings {
 			System.err.println("Failed to save settings: " + e.getMessage());
 		}
 	}
-	// ===== END AUTO-GENERATED: Load/Save Methods =====
 	
+	// ===== PRESERVED METHODS =====
+	// These methods are preserved across regenerations of the file
+
+	public void changeZoom(double newZoom) {
+		setZoom(newZoom);
+		saveSettings();
+	}
+
+	public void toggleFollow() {
+		setFollow(!isFollow());
+		setShift(new double[] {0, 0, 0});
+		saveSettings();
+	}
+
+	public void moveCamera(double[] ds) {
+		double[] currentShift = getShift();
+		setShift(new double[] {
+			currentShift[0] + ds[0],
+			currentShift[1] + ds[1],
+			currentShift[2] + ds[2]
+		});
+		saveSettings();
+	}
+
+	// Reset all properties to their default values (kept across regenerations)
+	public void restoreDefaults() {
+		for (Property<?> prop : properties.values()) {
+			prop.reset();
+		}
+		saveSettings();
+	}
+
+
+	// ===== END PRESERVED METHODS =====
+
 }

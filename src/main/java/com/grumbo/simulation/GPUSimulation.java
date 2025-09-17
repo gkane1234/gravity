@@ -18,17 +18,30 @@ import com.grumbo.record.Recording;
 import com.grumbo.gpu.SSBO;
 import static org.lwjgl.opengl.GL43.*;
 
-
+/**
+ * GPUSimulation class for the GPU simulation.
+ * Runs the simulation loop and manages the simulation state.
+ * Manages the command queue and processes commands.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class GPUSimulation {
     
     private BoundedBarnesHut boundedBarnesHut;
     private Render render;
     private OpenGLWindow openGlWindow;
-
     private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue;
-
     private PlanetGenerator planetGenerator;
-
+    
+    /**
+     * State of the simulation.
+     * LOADING: The simulation is loading.
+     * RUNNING: The simulation is running.
+     * PAUSED: The simulation is paused.
+     * FRAME_ADVANCE: The simulation is advancing one frame.
+     * STOPPED: The simulation is stopped.
+     */
     public enum State {
         LOADING,
         RUNNING,
@@ -61,7 +74,25 @@ public class GPUSimulation {
         Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
         boolean debug = true;
 
-        Debug.setDebugsSelected(new String[] {});
+        Debug.setDebugsSelected(new String[] {
+            "ComputeShaderCode",
+            //"KERNEL_INIT",
+            //"KERNEL_MORTON",
+            //"KERNEL_DEAD_COUNT",
+            //"KERNEL_DEAD_EXCLUSIVE_SCAN",
+            //"KERNEL_DEAD_SCATTER",
+            //"KERNEL_RADIX_HIST",
+            //"KERNEL_RADIX_PARALLEL_SCAN",
+            //"KERNEL_RADIX_EXCLUSIVE_SCAN",
+            //"KERNEL_RADIX_SCATTER",
+            //"KERNEL_BUILD_BINARY_RADIX_TREE",
+            //"KERNEL_INIT_LEAVES",
+            //"KERNEL_RESET",
+            //"KERNEL_PROPAGATE_NODES",
+            //"KERNEL_COMPUTE_FORCE",
+            //"KERNEL_MERGE",
+            //"KERNEL_DEBUG",
+        });
 
 
 
@@ -232,10 +263,12 @@ public class GPUSimulation {
         render.init();
     }
 
-        /**
+    /**
      * Check for OpenGL errors.
+     * Note: if this is not run after each operation sent to the GPU, an error could have occured on ANY of the previous operations since it was last run.
+     * @param operation the name of the operation that was just performed on the GPU.
      */
-    private void checkGLError(String operation) {
+    public static void checkGLError(String operation) {
         int error = glGetError();
         if (error != GL_NO_ERROR) {
             System.err.println("OpenGL Error after " + operation + ": " + error);
@@ -243,7 +276,9 @@ public class GPUSimulation {
     }
 
     private int frame = 0;
-
+    /**
+     * Runs the simulation loop, this is the main loop of the simulation.
+     */
     public void run() {
         init();
         System.out.println("Debugs connected:");
@@ -255,9 +290,12 @@ public class GPUSimulation {
             Debug.addDebugToFile(frame);
             frame++;
         }
-        cleanupEmbedded();
+        cleanup();
     }
 
+    /**
+     * Steps the simulation if the state is RUNNING, or FRAME_ADVANCE, and renders the simulation.
+     */
     public void step() {
         checkGLError("before step");
         processCommands();
@@ -266,25 +304,27 @@ public class GPUSimulation {
             boundedBarnesHut.step();
             checkGLError("after boundedBarnesHut.step");
             render.render(boundedBarnesHut.getOutputSSBO(), state);
-            checkGLError("after render.render");
+            checkGLError("after render");
             captureIfRecording();
         }
 
         if (state == State.PAUSED) {
             render.render(boundedBarnesHut.getOutputSSBO(), state);
-            checkGLError("after render.render");
+            checkGLError("after render");
         }
 
         if (state == State.FRAME_ADVANCE) {
             checkGLError("after boundedBarnesHut.step");
             boundedBarnesHut.step();
             render.render(boundedBarnesHut.getOutputSSBO(), state);
-            checkGLError("after render.render");
+            checkGLError("after render");
             captureIfRecording();
             state = State.PAUSED;
         }
     }
-
+    /**
+     * Captures the frame if recording is enabled.
+     */
     private void captureIfRecording() {
         if (!isRecording || recording == null || !recording.isRunning()) return;
         recording.capture(recordFrameIndex);
@@ -300,6 +340,9 @@ public class GPUSimulation {
         recordFrameIndex++;
     }
     
+    /**
+     * Processes the commands in the command queue.
+     */
     public void processCommands() {
         GPUCommands.GPUCommand cmd;
         while ((cmd = commandQueue.poll()) != null) {
@@ -309,18 +352,30 @@ public class GPUSimulation {
  
     /* --------- Helper functions --------- */
         
+    /**
+     * Enqueues a command into the command queue.
+     * @param command the command to enqueue.
+     */
     public void enqueue(GPUCommands.GPUCommand command) {
         if (command != null) {
             commandQueue.offer(command);
         }
     }
 
+    /**
+     * Gets the number of bodies in the simulation.
+     * @return the number of bodies in the simulation.
+     */
     public int numBodies() {
         return planetGenerator.getNumPlanets();
     }
 
 
 
+    /**
+     * Updates the current number of bodies in the simulation by reading the values from the SSBO on the GPU.
+     * Note: this is EXTREMELY slow.
+     */
     public void updateCurrentBodies() { //Note: this is EXTREMELY slow.
 
         if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null) {
@@ -344,92 +399,163 @@ public class GPUSimulation {
 
     }
 
+    /**
+     * Gets the current number of bodies in the simulation.
+     * @return the current number of bodies in the simulation.
+     */
     public int currentBodies() { 
         return currentBodies;
     }
 
+    /**
+     * Gets the number of bodies that have been merged in the simulation.
+     * @return the number of bodies that have been merged in the simulation.
+     */
     public int merged() {
         return merged;
     }
 
+    /**
+     * Gets the number of bodies that have been lost to out of bounds in the simulation.
+     * @return the number of bodies that have been lost to out of bounds in the simulation.
+     */
     public int outOfBounds() {
         return outOfBounds;
     }
 
+    /**
+     * Sets the MVP matrix for the render.
+     * @param mvp the MVP matrix.
+     */
     public void setMvp(FloatBuffer mvp) {
         render.setMvp(mvp);
     }
 
+    /**
+     * Sets the camera to clip matrix for the render.
+     * @param cameraToClip the camera to clip matrix.
+     */
     public void setCameraToClip(FloatBuffer cameraToClip) {
         render.setCameraToClip(cameraToClip);
     }
 
+    /**
+     * Sets the model view matrix for the render.
+     * @param modelView the model view matrix.
+     */
     public void setModelView(FloatBuffer modelView) {
         render.setModelView(modelView);
     }
 
-    // Expose nodes SSBO for regions rendering
+    /**
+     * Gets the internal nodes SSBO for the Barnes Hut tree.
+     * Used for regions rendering.
+     * @return the internal nodes SSBO for the Barnes Hut tree.
+     */
     public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
         return boundedBarnesHut.getInternalNodesSSBO();
     }
 
+    /**
+     * Gets the values SSBO for the simulation.
+     * @return the values SSBO for the simulation.
+     */
     public com.grumbo.gpu.SSBO barnesHutValuesSSBO() {
         return boundedBarnesHut.getValuesSSBO();
     }
 
-
+    /**
+     * Uploads the planet data to the GPU.
+     * @param planetGenerator the planet generator.
+     */
     // public void uploadPlanetsData(PlanetGenerator planetGenerator) {
     //     boundedBarnesHut.uploadPlanetsData(planetGenerator);
     // }
 
+    /**
+     * Resizes the buffers and uploads the planet data to the GPU.
+     * @param planetGenerator the planet generator.
+     */
     public void resizeBuffersAndUpload(PlanetGenerator planetGenerator) {
         this.planetGenerator = planetGenerator;
         boundedBarnesHut.reInitComputeSSBOsAndSwappingBuffers();
     }
 
 
+    /**
+     * Gets the performance text for the simulation.
+     * @return the performance text for the simulation.
+     */
     public String getPerformanceText() {
         return boundedBarnesHut.debugString;
     }
 
+    /**
+     * Gets the number of steps in the simulation.
+     * @return the number of steps in the simulation.
+     */
     public int getSteps() {
         return boundedBarnesHut.getSteps();
     }
 
+    /**
+     * Gets the planet generator.
+     * @return the planet generator.
+     */
     public PlanetGenerator getPlanetGenerator() {
         return planetGenerator;
     }
 
+    /**
+     * Toggles the regions rendering.
+     */
     public void toggleRegions() {
         render.showRegions = !render.showRegions;
     }
 
+    /**
+     * Toggles the crosshair rendering.
+     */
     public void toggleCrosshair() {
         openGlWindow.setShowCrosshair(!openGlWindow.getShowCrosshair());
     }
 
+    /**
+     * Pauses the simulation.
+     */
     public void pause() {
         state = State.PAUSED;
     }
 
+    /**
+     * Resumes the simulation.
+     */
     public void resume() {
         state = State.RUNNING;
     }
 
+    /**
+     * Stops the simulation.
+     */
     public void stop() {
         state = State.STOPPED;
     }
 
+    /**
+     * Advances the simulation by one frame.
+     */
     public void frameAdvance() {
         state = State.FRAME_ADVANCE;
     }
     
     /* --------- Cleanup --------- */
-    public void cleanupEmbedded() {
+    /**
+     * Cleans up the simulation.
+     */
+    public void cleanup() {
 
         boundedBarnesHut.cleanup();
         render.cleanup();
-        // Minimal cleanup of GL objects created in embedded mode
         if (isRecording) {
             stopRecording();
         }
@@ -442,6 +568,9 @@ public class GPUSimulation {
     // }
 
     /* --------- Recording control --------- */
+    /**
+     * Toggles the recording.
+     */
     public void toggleRecording() {
         if (isRecording) {
             stopRecording();
@@ -450,6 +579,9 @@ public class GPUSimulation {
         }
     }
 
+    /**
+     * Starts the recording.
+     */
     private void startRecording() {
         try {
             String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
@@ -474,6 +606,9 @@ public class GPUSimulation {
         }
     }
 
+    /**
+     * Stops the recording.
+     */
     private void stopRecording() {
         isRecording = false;
         if (recording != null && recording.isRunning()) {
@@ -486,6 +621,4 @@ public class GPUSimulation {
         System.out.println("Recording stopped.");
     }
 
-    
-    
 }

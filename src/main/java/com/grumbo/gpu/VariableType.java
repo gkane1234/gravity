@@ -2,7 +2,13 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 import java.nio.ByteBuffer;
-
+/**
+ * VariableType enum for the types of GLSL variables that can be used emulated in java.
+ * Includes upload to shader function. 
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public enum VariableType {
     FLOAT(Float.class),
     INT(Integer.class),
@@ -11,6 +17,8 @@ public enum VariableType {
     UINT64(Long.class),
     STRUCT(GLSLVariable.class),
     PADDING(Void.class);
+    
+    //The precision of the variable type.
     private static final int PRECISION = 5;
 
     public final Class<?> javaClass;
@@ -102,7 +110,12 @@ public enum VariableType {
                 throw new IllegalArgumentException("Invalid type: " + this);
         }
     }
-    
+    /**
+     * Gets the data from the buffer.
+     * @param buffer the buffer to get the data from
+     * @param byteOffset the byte offset of the data
+     * @return the data
+     */
     public Object getData(ByteBuffer buffer, int byteOffset) {
         switch (this) {
             case FLOAT:
@@ -121,6 +134,12 @@ public enum VariableType {
                 throw new IllegalArgumentException("Invalid type: " + this);
         }
     }
+    /**
+     * Gets the data as a string.
+     * @param buffer the buffer to get the data from
+     * @param byteOffset the byte offset of the data
+     * @return the data as a string
+     */
     public String getDataAsString(ByteBuffer buffer, int byteOffset) {
         switch (this) {
             case FLOAT:

@@ -13,6 +13,8 @@ import java.nio.LongBuffer;
 import java.util.ArrayList;
 import com.grumbo.debug.Debug;
 
+import com.grumbo.simulation.GPUSimulation;
+
 
 import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL43C.*;
@@ -267,7 +269,7 @@ public class BoundedBarnesHut {
             throw new RuntimeException("Not enough node space (your simulation is too large: " + numBodies() + ") Approximate max bodies: " + (maxBlock / (Node.STRUCT_SIZE * Integer.BYTES)));
         }
 
-        checkGLError("before initComputeSSBOs");
+        GPUSimulation.checkGLError("before initComputeSSBOs");
         
         //this is a list of all the SSBOs that are used in the algorithm.
         ssbos = new HashMap<>();
@@ -276,12 +278,12 @@ public class BoundedBarnesHut {
         System.out.println("numBodies: " + numBodies());
         FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
             return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
-        }, "FIXED_BODIES_IN_SSBO", new GLSLVariable(Body.bodyStruct,numBodies()));
+        }, "FIXED_BODIES_IN_SSBO", new GLSLVariable(Body.bodyStruct,"BodiesIn",numBodies()));
         ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
 
         FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
             return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
-        }, "FIXED_BODIES_OUT_SSBO", new GLSLVariable(Body.bodyStruct,numBodies()));
+        }, "FIXED_BODIES_OUT_SSBO", new GLSLVariable(Body.bodyStruct,"BodiesOut",numBodies()));
         ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
 
         //These are the fixed SSBOs that point to the morton and index buffers.
@@ -390,15 +392,15 @@ public class BoundedBarnesHut {
         }, "BODY_LOCKS_SSBO", new GLSLVariable(VariableType.UINT,"BodyLocks", numBodies()));
         ssbos.put(MERGE_BODY_LOCKS_SSBO.getName(), MERGE_BODY_LOCKS_SSBO);
 
-        checkGLError("after initComputeSSBOs");
+        GPUSimulation.checkGLError("after initComputeSSBOs");
 
         for (SSBO ssbo : ssbos.values()) {
             System.out.println("Creating buffer for " + ssbo.getName());
             ssbo.createBufferData();
-            checkGLError("after createBufferData for " + ssbo.getName());
+            GPUSimulation.checkGLError("after createBufferData for " + ssbo.getName());
         }
 
-        checkGLError("after createBufferData");
+        GPUSimulation.checkGLError("after createBufferData");
 
         uploadPlanetsData(gpuSimulation.getPlanetGenerator(), FIXED_BODIES_IN_SSBO);
 
@@ -795,7 +797,7 @@ public class BoundedBarnesHut {
         if (debug) {
             renderingTime = System.nanoTime();
             //If an error occured in rendering it will be caught here.
-            checkGLError("rendering");
+            GPUSimulation.checkGLError("rendering");
             glFinish();
             renderingTime = System.nanoTime() - renderingTime;
         }
@@ -808,15 +810,20 @@ public class BoundedBarnesHut {
         long resetStartTime = 0;
         if (debug) {
             resetStartTime = System.nanoTime();
-            resetKernel.setPreDebugString("Reseting values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (resetKernel.isPreDebugSelected()) {
+                resetKernel.setPreDebugString("Reseting values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
+
         }
         resetKernelFirstPass = true;
         resetKernel.run();
         if (debug) {
-            checkGLError("resetValuesPass");
+            GPUSimulation.checkGLError("resetValuesPass");
             glFinish();
             resetTime = System.nanoTime() - resetStartTime;
-            resetKernel.setPostDebugString("Reset values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (resetKernel.isPostDebugSelected()) {
+                resetKernel.setPostDebugString("Reset values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
         }
     }
 
@@ -827,15 +834,19 @@ public class BoundedBarnesHut {
         long decrementDeadBodiesStartTime = 0;
         if (debug) {
             decrementDeadBodiesStartTime = System.nanoTime();
-            resetKernel.addToPreDebugString("Decrementing dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (resetKernel.isPreDebugSelected()) {
+                resetKernel.addToPreDebugString("Decrementing dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
         }
         resetKernelFirstPass = false;
         resetKernel.run();
         if (debug) {
-            checkGLError("decrementDeadBodiesPass");
+            GPUSimulation.checkGLError("decrementDeadBodiesPass");
             glFinish();
             decrementDeadBodiesTime = System.nanoTime() - decrementDeadBodiesStartTime;
-            resetKernel.addToPostDebugString("Decremented dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (resetKernel.isPostDebugSelected()) {
+                resetKernel.addToPostDebugString("Decremented dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
         }
     }
 
@@ -849,30 +860,42 @@ public class BoundedBarnesHut {
 
         if (debug) {
             deadCountStartTime = System.nanoTime();
-            deadCountKernel.setPreDebugString("Counting dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (deadCountKernel.isPreDebugSelected()) {
+                deadCountKernel.setPreDebugString("Counting dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
         }
         deadCountKernel.run();
         if (debug) {
-            checkGLError("deadCount");
-            deadCountKernel.setPostDebugString("Counted dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            GPUSimulation.checkGLError("deadCount");
+            if (deadCountKernel.isPostDebugSelected()) {
+                deadCountKernel.setPostDebugString("Counted dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
             glFinish();
             deadCountTime = System.nanoTime() - deadCountStartTime;
             deadExclusiveScanStartTime = System.nanoTime();
-            deadExclusiveScanKernel.setPreDebugString("Scanning dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (deadExclusiveScanKernel.isPreDebugSelected()) {
+                deadExclusiveScanKernel.setPreDebugString("Scanning dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
         }
         deadExclusiveScanKernel.run();
         if (debug) {
-            checkGLError("deadExclusiveScan");
-            deadExclusiveScanKernel.setPostDebugString("Scanned dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            GPUSimulation.checkGLError("deadExclusiveScan");
+            if (deadExclusiveScanKernel.isPostDebugSelected()) {
+                deadExclusiveScanKernel.setPostDebugString("Scanned dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
             glFinish();
             deadExclusiveScanTime = System.nanoTime() - deadExclusiveScanStartTime;
             deadScatterStartTime = System.nanoTime();
-            deadScatterKernel.setPreDebugString("Scattering dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (deadScatterKernel.isPreDebugSelected()) {
+                deadScatterKernel.setPreDebugString("Scattering dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
         }
         deadScatterKernel.run();
         if (debug) {
-            checkGLError("deadScatter");
-            deadScatterKernel.setPostDebugString("Scattered dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            GPUSimulation.checkGLError("deadScatter");
+            if (deadScatterKernel.isPostDebugSelected()) {
+                deadScatterKernel.setPostDebugString("Scattered dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            }
             glFinish();
             deadScatterTime = System.nanoTime() - deadScatterStartTime;
             deadTime = deadCountTime + deadExclusiveScanTime + deadScatterTime;
@@ -886,13 +909,17 @@ public class BoundedBarnesHut {
     private void generateMortonCodes() {
         if (debug) {
             mortonTime = System.nanoTime();
-            mortonKernel.setPreDebugString("Generating morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (mortonKernel.isPreDebugSelected()) {
+                mortonKernel.setPreDebugString("Generating morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            }
         }
 
         mortonKernel.run();
         if (debug) {
-            checkGLError("generateMortonCodes");
-            mortonKernel.setPostDebugString("Generated morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            GPUSimulation.checkGLError("generateMortonCodes");
+            if (mortonKernel.isPostDebugSelected()) {
+                mortonKernel.setPostDebugString("Generated morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            }
             glFinish();
             mortonTime = System.nanoTime() - mortonTime;
         }
@@ -923,50 +950,66 @@ public class BoundedBarnesHut {
 
             if (debug) {
                 radixSortHistogramStartTime = System.nanoTime();
-                radixSortHistogramKernel.addToPreDebugString("Histograming morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortHistogramKernel.isPreDebugSelected()) {
+                    radixSortHistogramKernel.addToPreDebugString("Histograming morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
 
             // Phase 1: Histogram
             radixSortHistogramKernel.run();
 
             if (debug) {
-                checkGLError("radixSortHistogramPass" + pass);
+                GPUSimulation.checkGLError("radixSortHistogramPass" + pass);
                 glFinish();
                 radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
                 radixSortScanParallelStartTime = System.nanoTime();
-                radixSortHistogramKernel.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
-                radixSortParallelScanKernel.addToPreDebugString("Scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortHistogramKernel.isPostDebugSelected()) {
+                    radixSortHistogramKernel.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
+                if (radixSortParallelScanKernel.isPreDebugSelected()) {
+                    radixSortParallelScanKernel.addToPreDebugString("Scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
 
             // Phase 2: Scan
             radixSortParallelScanKernel.run();
             if (debug) {
-                checkGLError("radixSortParallelScanPass" + pass);
+                GPUSimulation.checkGLError("radixSortParallelScanPass" + pass);
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
                 radixSortScanExclusiveStartTime = System.nanoTime();
-                radixSortParallelScanKernel.addToPostDebugString("Scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
-                radixSortExclusiveScanKernel.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortParallelScanKernel.isPostDebugSelected()) {
+                    radixSortParallelScanKernel.addToPostDebugString("Scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
+                if (radixSortExclusiveScanKernel.isPreDebugSelected()) {
+                    radixSortExclusiveScanKernel.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
 
             radixSortExclusiveScanKernel.run();
 
             if (debug) {
-                checkGLError("radixSortExclusiveScanPass" + pass);
+                GPUSimulation.checkGLError("radixSortExclusiveScanPass" + pass);
                 glFinish();
                 radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
                 radixSortScatterStartTime = System.nanoTime();
-                radixSortExclusiveScanKernel.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
-                radixSortScatterKernel.addToPreDebugString("Scattering morton codes Pass "+pass+": "+RADIX_BUCKET_TOTALS_SSBO.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortExclusiveScanKernel.isPostDebugSelected()) {
+                    radixSortExclusiveScanKernel.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
+                if (radixSortScatterKernel.isPreDebugSelected()) {
+                    radixSortScatterKernel.addToPreDebugString("Scattering morton codes Pass "+pass+": "+RADIX_BUCKET_TOTALS_SSBO.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
 
             // Phase 3: Scatter
             radixSortScatterKernel.run();
             if (debug) {
-                checkGLError("radixSortScatterPass" + pass);
+                GPUSimulation.checkGLError("radixSortScatterPass" + pass);
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
-                radixSortScatterKernel.addToPostDebugString("Scattered morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortScatterKernel.isPostDebugSelected()) {
+                    radixSortScatterKernel.addToPostDebugString("Scattered morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
             
 
@@ -984,14 +1027,18 @@ public class BoundedBarnesHut {
     private void buildBinaryRadixTree() {
         if (debug) {
             buildTreeTime = System.nanoTime();
-            buildBinaryRadixTreeKernel.setPreDebugString("Building binary radix tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (buildBinaryRadixTreeKernel.isPreDebugSelected()) {
+                buildBinaryRadixTreeKernel.setPreDebugString("Building binary radix tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
         }
         buildBinaryRadixTreeKernel.run();
         if (debug) {
-            checkGLError("buildBinaryRadixTree");
+            GPUSimulation.checkGLError("buildBinaryRadixTree");
             glFinish();
             buildTreeTime = System.nanoTime() - buildTreeTime;
-            buildBinaryRadixTreeKernel.setPostDebugString("Built binary radix tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (buildBinaryRadixTreeKernel.isPostDebugSelected()) {
+                buildBinaryRadixTreeKernel.setPostDebugString("Built binary radix tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
         }
     }
     
@@ -1001,17 +1048,23 @@ public class BoundedBarnesHut {
     private void computeCOMAndLocation() {
         if (debug) {
             initLeavesTime = System.nanoTime();
-            initLeavesKernel.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (initLeavesKernel.isPreDebugSelected()) {
+                initLeavesKernel.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
         }
 
         initLeavesKernel.run();
 
         if (debug) {
-            checkGLError("initLeaves");
+            GPUSimulation.checkGLError("initLeaves");
             glFinish();
             initLeavesTime = System.nanoTime() - initLeavesTime;
-            initLeavesKernel.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
-            propagateNodesKernel.setPreDebugString("Propagating nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (initLeavesKernel.isPostDebugSelected()) {
+                initLeavesKernel.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
+            if (propagateNodesKernel.isPreDebugSelected()) {
+                propagateNodesKernel.setPreDebugString("Propagating nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
             propagateNodesTime = System.nanoTime();
 
         }
@@ -1019,13 +1072,17 @@ public class BoundedBarnesHut {
 
         for (COMPropagationPassNumber = 0; COMPropagationPassNumber < PROPAGATE_NODES_ITERATIONS; COMPropagationPassNumber++) {
             if (debug) {
-                propagateNodesKernel.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (propagateNodesKernel.isPreDebugSelected()) {
+                    propagateNodesKernel.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
             propagateNodesKernel.run();
             if (debug) {
-                checkGLError("propagateNodesPass" + COMPropagationPassNumber);
+                GPUSimulation.checkGLError("propagateNodesPass" + COMPropagationPassNumber);
                 glFinish();
-                propagateNodesKernel.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (propagateNodesKernel.isPostDebugSelected()) {
+                    propagateNodesKernel.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                }
             }
             swapPropagateWorkQueueBuffers();
             //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
@@ -1045,8 +1102,10 @@ public class BoundedBarnesHut {
         }
         
         if (debug) {
-            propagateNodesKernel.setPostDebugString("Propagated nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
-            checkGLError("propagateNodes");
+            if (propagateNodesKernel.isPostDebugSelected()) {
+                propagateNodesKernel.setPostDebugString("Propagated nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
+            GPUSimulation.checkGLError("propagateNodes");
             glFinish();
             propagateNodesTime = System.nanoTime() - propagateNodesTime;
             computeCOMAndLocationTime = initLeavesTime + propagateNodesTime;
@@ -1059,15 +1118,19 @@ public class BoundedBarnesHut {
     private void computeForce() {
         if (debug) {
             computeForceTime = System.nanoTime();
-            computeForceKernel.setPreDebugString("Computing force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (computeForceKernel.isPreDebugSelected()) {
+                computeForceKernel.setPreDebugString("Computing force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
+            }
         }
 
         computeForceKernel.run();
         if (debug) {
-            checkGLError("computeForce");
+            GPUSimulation.checkGLError("computeForce");
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
-            computeForceKernel.setPostDebugString("Computed force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (computeForceKernel.isPostDebugSelected()) {
+                computeForceKernel.setPostDebugString("Computed force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
         }
     }
 
@@ -1077,14 +1140,18 @@ public class BoundedBarnesHut {
     private void mergeBodies() {
         if (debug) {
             mergeBodiesTime = System.nanoTime();
-            mergeBodiesKernel.setPreDebugString("Merging bodies: "+MERGE_QUEUE_SSBO.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (mergeBodiesKernel.isPreDebugSelected()) {
+                mergeBodiesKernel.setPreDebugString("Merging bodies: "+MERGE_QUEUE_SSBO.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
         }
         mergeBodiesKernel.run();
         if (debug) {
-            checkGLError("mergeBodies");
+            GPUSimulation.checkGLError("mergeBodies");
             glFinish();
             mergeBodiesTime = System.nanoTime() - mergeBodiesTime;
-            mergeBodiesKernel.setPostDebugString("Merged bodies: "+MERGE_QUEUE_SSBO.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (mergeBodiesKernel.isPostDebugSelected()) {
+                mergeBodiesKernel.setPostDebugString("Merged bodies: "+MERGE_QUEUE_SSBO.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            }
         }
     }
 
@@ -1226,7 +1293,7 @@ public class BoundedBarnesHut {
      */
     public void uploadPlanetsData(PlanetGenerator planetGenerator, SSBO bodiesSSBO) {
 
-        checkGLError("before uploadPlanetsData");
+        GPUSimulation.checkGLError("before uploadPlanetsData");
 
         // Assumes buffers are already correctly sized
         bodiesSSBO.bind();
@@ -1250,7 +1317,7 @@ public class BoundedBarnesHut {
 
         System.out.println(" 100%");
 
-        checkGLError("after uploadPlanetsData");
+        GPUSimulation.checkGLError("after uploadPlanetsData");
 
     
         bodiesSSBO.unbind();
@@ -1272,15 +1339,6 @@ public class BoundedBarnesHut {
 
     /* --------- Debugging --------- */
 
-    /**
-     * Check for OpenGL errors.
-     */
-    private void checkGLError(String operation) {
-        int error = glGetError();
-        if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error after " + operation + ": " + error);
-        }
-    }
 
     /**
      * Print the profiling information.

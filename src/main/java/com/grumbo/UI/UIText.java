@@ -50,4 +50,9 @@ public class UIText extends UIElement {
     public boolean handleKeyPress(int key, int action, int mods) {
         return false;
     }
+
+    @Override
+    public boolean hitTest(double mx, double my) {
+        return false;
+    }
 }

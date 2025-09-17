@@ -2,7 +2,12 @@ package com.grumbo.UI;
 
 import static org.lwjgl.opengl.GL11.*;
 import org.lwjgl.glfw.GLFW;
-
+/**
+ * UITextField class is a text field UI element.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class UITextField extends UIElement {
 
     private static final float MIN_TEXT_FIELD_WIDTH = 250.0f;
@@ -16,6 +21,15 @@ public class UITextField extends UIElement {
     private Runnable onCommit; // Called when Enter pressed
     private Runnable updateFunction;
     private int numericalRounding;
+    /**
+     * Constructor for the UITextField class.
+     * @param x The x coordinate.
+     * @param y The y coordinate.
+     * @param width The width.
+     * @param height The height.
+     * @param initial The initial text.
+     * @param updateFunction The function to update the text.
+     */
     public UITextField(float x, float y, float width, float height, String initial, Runnable updateFunction) {
         super(x, y, width, height, MIN_TEXT_FIELD_WIDTH, MIN_TEXT_FIELD_HEIGHT, 0.0f, 0.0f);
         this.text = new StringBuilder(initial == null ? "" : initial);
@@ -23,18 +37,38 @@ public class UITextField extends UIElement {
         this.minWidth = 0;
     }
 
+    /**
+     * Constructor for the UITextField class.
+     * @param initial The initial text.
+     */
     public UITextField(String initial) {
         this(0, 0, 0, 0, initial, null);
     }
 
+    /**
+     * Sets the update function.
+     * @param updateFunction The update function.
+     */
     public void setUpdateFunction(Runnable updateFunction) {
         this.updateFunction = updateFunction;
     }
 
+    /**
+     * Sets the minimum width.
+     * @param minWidth The minimum width.
+     */
     public void setMinWidth(int minWidth) { this.minWidth = minWidth; }
 
 
+    /**
+     * Sets the text.
+     * @param s The text.
+     */
     public void setText(String s) { this.text = new StringBuilder(s == null ? "" : s); }
+    /**
+     * Sets the text from a value.
+     * @param value The value.
+     */
     public void setTextFromValue(Object value) { 
         String unroundedString = String.valueOf(value);
         int unroundedLength = unroundedString.length();
@@ -48,9 +82,25 @@ public class UITextField extends UIElement {
             this.text = new StringBuilder(unroundedString);
         }
     }
+    /**
+     * Gets the text.
+     * @return The text.
+     */
     public String getText() { return text.toString(); }
+    /**
+     * Gets if the text field is focused.
+     * @return True if the text field is focused, false otherwise.
+     */
     public boolean isFocused() { return focused; }
+    /**
+     * Sets the on commit function.
+     * @param onCommit The on commit function.
+     */
     public void setOnCommit(Runnable onCommit) { this.onCommit = onCommit; }
+    /**
+     * Sets the numerical rounding.
+     * @param numericalRounding The numerical rounding.
+     */
     public void setNumericalRounding(int numericalRounding) { this.numericalRounding = numericalRounding; }
 
     @Override

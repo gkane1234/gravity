@@ -5,6 +5,13 @@ import java.util.List;
 
 import org.joml.Vector3f;
 
+/**
+ * PlanetGenerator class for generating planets.
+ * Used for generating planets for the simulation without holding them all in RAM.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class PlanetGenerator {
     private List<Planet> planetChunk;
     private int chunkSize;
@@ -14,30 +21,45 @@ public class PlanetGenerator {
     private PlanetGeneratorFunction planetGeneratorFunction;
     private HasNextFunction hasNextFunction;
 
-
+    /**
+     * Interface for generating the next planet.
+     */
     private interface PlanetGeneratorFunction {
         public Planet generateNextPlanet();
     }
 
+    /**
+     * Interface for checking if there are more planets to generate.
+     */
     private interface HasNextFunction {
         public boolean hasNextFunction();
     }
 
+    /**
+     * Gets the number of planets.
+     * @return the number of planets
+     */
     public int getNumPlanets() {
         return numPlanets;
     }
 
+    /**
+     * Checks if there are more planets to generate.
+     * @return true if there are more planets to generate, false otherwise
+     */
     public boolean hasNext() {
         return hasNextFunction.hasNextFunction();
     }
 
 
-    private static final int DEFAULT_CHUNK_SIZE = 100000;
+    private static final int DEFAULT_CHUNK_SIZE = 100_000;
 
-
-    public PlanetGenerator(int numPlanets) {
-        this(null, numPlanets, DEFAULT_CHUNK_SIZE);
-    }
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param planetGeneratorFunction the function to generate the next planet
+     * @param numPlanets the number of planets to generate
+     * @param chunkSize the largest size of planets to hold in RAM at any given time
+     */
     public PlanetGenerator(PlanetGeneratorFunction planetGeneratorFunction, int numPlanets, int chunkSize) {
         this.chunkSize = chunkSize;
         this.planetGeneratorFunction = planetGeneratorFunction;
@@ -50,10 +72,28 @@ public class PlanetGenerator {
             }
         };
     }
+
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param numPlanets the number of planets to generate
+     */
+    public PlanetGenerator(int numPlanets) {
+        this(null, numPlanets, DEFAULT_CHUNK_SIZE);
+    }
+
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param planetGeneratorFunction the function to generate the next planet
+     * @param numPlanets the number of planets to generate
+     */
     public PlanetGenerator(PlanetGeneratorFunction planetGeneratorFunction, int numPlanets) {
         this(planetGeneratorFunction, numPlanets, DEFAULT_CHUNK_SIZE);
     }
 
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param planets the list of planets to generate
+     */
     public PlanetGenerator(List<Planet> planets) {
         this(planets.size());
 
@@ -72,6 +112,10 @@ public class PlanetGenerator {
         };
     }
 
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param planet the planet to generate
+     */
     public PlanetGenerator(Planet planet) {
         this(1);
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
@@ -88,6 +132,9 @@ public class PlanetGenerator {
         };
     }
 
+    /**
+     * Default constructor for the PlanetGenerator class.
+     */
     public PlanetGenerator() {
         this(0);
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
@@ -104,6 +151,11 @@ public class PlanetGenerator {
         };
     }
 
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param pg1 the first planet generator
+     * @param pg2 the second planet generator
+     */
     public PlanetGenerator(PlanetGenerator pg1, PlanetGenerator pg2) {
         this(pg1.numPlanets+pg2.numPlanets);
         final int previousNumPlanets = pg1.numPlanets;
@@ -126,39 +178,43 @@ public class PlanetGenerator {
     }
 
 
-    public void add(PlanetGenerator pg) {
-        final int prevNumPlanets = this.numPlanets;
+    // public void add(PlanetGenerator pg) {
+    //     final int prevNumPlanets = this.numPlanets;
 
-        this.numPlanets += pg.numPlanets;
+    //     this.numPlanets += pg.numPlanets;
 
-        final PlanetGeneratorFunction prevGen = this.planetGeneratorFunction;
+    //     final PlanetGeneratorFunction prevGen = this.planetGeneratorFunction;
 
-        this.planetGeneratorFunction = new PlanetGeneratorFunction() {
-            @Override
-            public Planet generateNextPlanet() {
-                if (planetsGenerated <= prevNumPlanets) {
-                    return prevGen.generateNextPlanet();
-                } else {
-                    //System.out.println("on the second one");
-                    return pg.nextPlanet();
-                }
-            }
-        };
+    //     this.planetGeneratorFunction = new PlanetGeneratorFunction() {
+    //         @Override
+    //         public Planet generateNextPlanet() {
+    //             if (planetsGenerated <= prevNumPlanets) {
+    //                 return prevGen.generateNextPlanet();
+    //             } else {
+    //                 //System.out.println("on the second one");
+    //                 return pg.nextPlanet();
+    //             }
+    //         }
+    //     };
     
-        this.hasNextFunction = new HasNextFunction() {
-            @Override
-            public boolean hasNextFunction() {
-                return planetsGenerated < numPlanets;
-            }
-        };
-    }
-    public void add(Planet planet) {
-        add(new PlanetGenerator(planet));
-    }
-    public void add(List<Planet> planets) {
-        add(new PlanetGenerator(planets));
-    }
+    //     this.hasNextFunction = new HasNextFunction() {
+    //         @Override
+    //         public boolean hasNextFunction() {
+    //             return planetsGenerated < numPlanets;
+    //         }
+    //     };
+    // }
+    // public void add(Planet planet) {
+    //     add(new PlanetGenerator(planet));
+    // }
+    // public void add(List<Planet> planets) {
+    //     add(new PlanetGenerator(planets));
+    // }
 
+    /**
+     * Gets the next chunk of planets.
+     * @return the next chunk of planets
+     */
     public List<Planet> nextChunk() {
         if (!hasNextFunction.hasNextFunction()) {
             throw new RuntimeException("No more planets");
@@ -170,6 +226,10 @@ public class PlanetGenerator {
         return ret;
     }
 
+    /**
+     * Gets the next planet.
+     * @return the next planet
+     */
     public Planet nextPlanet() {
         if (!hasNextFunction.hasNextFunction()) {
             throw new RuntimeException("No more planets");
@@ -179,6 +239,19 @@ public class PlanetGenerator {
     }
 
     
+    /**
+     * Makes a new random set of planets confined to a box.
+     * @param num the number of planets to generate
+     * @param x the x range
+     * @param y the y range
+     * @param z the z range
+     * @param xV the x velocity range
+     * @param yV the y velocity range
+     * @param zV the z velocity range
+     * @param m the mass range
+     * @param density the density range
+     * @return the new random box
+     */
 	public static PlanetGenerator makeNewRandomBox(int num, float[] x, float[] y, float[] z, float[] xV, float[] yV, float[] zV, float[] m, float[] density) {
 		
         PlanetGeneratorFunction planetGeneratorFunction = new PlanetGeneratorFunction() {
@@ -191,12 +264,26 @@ public class PlanetGenerator {
         PlanetGenerator ret = new PlanetGenerator(planetGeneratorFunction, num);
 		return ret;
 	}
+
+    /**
+     * Calculates the adherence to a plane, used in making disks.
+     * @param adherenceToPlane the adherence to a plane
+     * @return the adherence to a plane
+     */
 	private static float adherenceCalculation(float adherenceToPlane) {
 		//returns the difference in radians from the plane for the phi value
 		double factor = 1-Math.pow(Math.random(), (1.0-adherenceToPlane)); 
 		return (float)(Math.PI*factor);
 	}
 
+    /**
+     * Converts polar coordinates to planar coordinates, used in making disks.
+     * @param r the radius
+     * @param theta the theta
+     * @param u the u
+     * @param v the v
+     * @return the planar coordinates
+     */
 	private static Vector3f polarToPlanarCoordinates(float r,float theta, Vector3f u, Vector3f v) {
 		Vector3f uC = new Vector3f(u);
 		Vector3f vC = new Vector3f(v);
@@ -204,8 +291,31 @@ public class PlanetGenerator {
 		Vector3f cvTr = vC.mul(r*(float)Math.sin(theta));
 		return cuTr.add(cvTr);
 	}
+
+    /**
+     * Creates a new set of disks.
+     * @param numDisks the number of disks to create
+     * @param numPlanetsRange the number of planets per disk range
+     * @param radiusRangeLow the inner radius of a disk range 
+     * @param stellarDensityRange the stellar density range for inside the disk, this decides the outer radius of the disk
+     * @param mRange the mass range for the planets inside the disk
+     * @param densityRange the density range for the planets inside the disk
+     * @param centerXRange the range for the center x of the disk
+     * @param centerYRange the range for the center y of the disk
+     * @param centerZRange the range for the center z of the disk
+     * @param relativeVelocityX the range for the relative velocity x of the planets in the disk
+     * @param relativeVelocityY the range for the relative velocity y of the planets in the disk
+     * @param relativeVelocityZ the range for the relative velocity z of the planets in the disk
+     * @param phiRange the phi range for the disk. Generally 0 to pi, larger or smaller values reverse direction of rotation
+     * @param centerMassRange the range of the mass of the center body of the disk
+     * @param centerDensityRange the range of the density of the center body of the disk
+     * @param adherenceToPlaneRange the adherence to plane range for the disk
+     * @param orbitalFactor the orbital velocity factor for the planets in the disk
+     * @param giveOrbitalVelocity Give orbital velocity to the planets in the disk
+     * @return the new set of disks
+     */
 	public static PlanetGenerator createSeveralDisks(int numDisks, int[] numPlanetsRange, float[] radiusRangeLow, float[] stellarDensityRange, float[] mRange, 
-			float[] densityRange, float[] centerX, float[] centerY, float[] centerZ, float[] relativeVelocityX, float[] relativeVelocityY, float[] relativeVelocityZ, 
+			float[] densityRange, float[] centerXRange, float[] centerYRange, float[] centerZRange, float[] relativeVelocityX, float[] relativeVelocityY, float[] relativeVelocityZ, 
 			float[] phiRange, float[] centerMassRange, float[] centerDensityRange, 
 			float[] adherenceToPlaneRange, float orbitalFactor, boolean giveOrbitalVelocity) {
 
@@ -216,7 +326,7 @@ public class PlanetGenerator {
 			float[] radius = {randomInRange(radiusRangeLow), num/randomInRange(stellarDensityRange)};
 			float[] mass = {randomInRange(mRange), randomInRange(mRange)};
 			float[] density = {randomInRange(densityRange), randomInRange(densityRange)};
-			float[] center = {randomInRange(centerX), randomInRange(centerY), randomInRange(centerZ)};
+			float[] center = {randomInRange(centerXRange), randomInRange(centerYRange), randomInRange(centerZRange)};
 			float[] relativeVelocity = {randomInRange(relativeVelocityX), randomInRange(relativeVelocityY), randomInRange(relativeVelocityZ)};
 			float phi = randomInRange(phiRange);
 			float centerMass = randomInRange(centerMassRange);
@@ -232,7 +342,24 @@ public class PlanetGenerator {
 		}
 		return pg;
 }
-
+    
+    /**
+     * Makes a new random disk.
+     * @param num the number of planets in the disk
+     * @param radius the radius range for the disk
+     * @param mass the mass range for the planets in the disk
+     * @param density the density range for the planets in the disk
+     * @param center the center range for the disk
+     * @param relativeVelocity the relative velocity range for the planets in the disk
+     * @param phi the phi for the disk
+     * @param centerMass the center mass for the disk
+     * @param centerDensity the center density for the disk
+     * @param adherenceToPlane the adherence to plane for the disk
+     * @param orbitalFactor the orbital factor for the disk
+     * @param ccw the ccw for the disk
+     * @param giveOrbitalVelocity the give orbital velocity for the disk
+     * @return the new random disk
+     */
 	public static PlanetGenerator makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
 
 		// Disk normal tilted from +z by phi around the x-axis
@@ -267,8 +394,6 @@ public class PlanetGenerator {
 
                 Vector3f planarPlanetDir = polarToPlanarCoordinates(1, theta, u, v);
 
-                //System.out.println("planarPlanetDir: " + planarPlanetDir.x + ", " + planarPlanetDir.y + ", " + planarPlanetDir.z);
-
                 Vector3f planetDirWithDeviance = polarToPlanarCoordinates(1, devianceFromPlane, planarPlanetDir, normal);
 
                 Vector3f newNormal = polarToPlanarCoordinates(1, devianceFromPlane, normal, planarPlanetDir);
@@ -298,16 +423,20 @@ public class PlanetGenerator {
             }
         }, num);
 
-        System.out.println("Planet generator num planets: " + pg.getNumPlanets());
-
 		Planet centerPlanet = new Planet(new Vector3f(center), new Vector3f(relativeVelocity), centerMass, centerDensity);
 		PlanetGenerator pg2 = new PlanetGenerator(centerPlanet);
-        System.out.println("Planet generator num planets: " + pg2.getNumPlanets());
         PlanetGenerator ret = new PlanetGenerator(pg, pg2);
-        System.out.println("Planet generator num planets: " + ret.getNumPlanets());
 		return ret;
 	}
 
+    /**
+     * Makes a new planet in orbit around a center body.
+     * @param radius the radius range for the planet
+     * @param mass the mass range for the planet
+     * @param density the density range for the planet
+     * @param center the center body
+     * @return the new planet in orbit
+     */
 	public static Planet makeNewInOrbit(float[] radius, float[] mass, float[] density, Planet center) {
 		float r = (float)(Math.random()*(radius[1]-radius[0])+radius[0]);
 		float orbitalSpeed = (float)(1.1*Math.sqrt(center.mass/r));
@@ -323,6 +452,15 @@ public class PlanetGenerator {
 		return ret;
 	}
 
+    /**
+     * Makes a new set of planets in orbit around a center body.
+     * @param num the number of planets to generate
+     * @param mass the mass range for the planets
+     * @param density the density range for the planets
+     * @param center the center body
+     * @param radius the radius range for the planets
+     * @return the new set of planets in orbit
+     */
 	public static ArrayList<Planet> makeNewInOrbit(int num, float[] mass, float[] density, Planet center, float[] radius) {
 		ArrayList<Planet> ret = new ArrayList<>();
 		for (int i=0;i<num;i++) {
@@ -331,41 +469,42 @@ public class PlanetGenerator {
 		return ret;
 	}
 
-	public static ArrayList<Planet> mergeOverlappingPlanets(ArrayList<Planet> planets) {
-		ArrayList<Planet> ret = new ArrayList<>();
-		for (Planet planet : planets) {
-			ret.add(planet);
-		}
-		int remaining = planets.size();
-		for (int i=0;i<remaining;i++) {
-			for (int j=i+1;j<remaining;j++) {
-				if (planets.get(i).getRadius() + planets.get(j).getRadius() > Math.sqrt(Math.pow(planets.get(i).position.x - planets.get(j).position.x, 2) + Math.pow(planets.get(i).position.y - planets.get(j).position.y, 2) + Math.pow(planets.get(i).position.z - planets.get(j).position.z, 2))) {
-					planets.get(i).merge(planets.get(j));
-					ret.set(i, planets.get(i));
-					ret.remove(j);
-					remaining--;
-					j--;
-				}
-			}
-		}
-
-		System.out.println("Merged " + (planets.size() - remaining) + " planets");
-		return ret;
-	}
-
-
-	private static float randomInRange(float[] range, float density) {
+    /**
+     * Randomly selects a value from a range.
+     * @param range the range
+     * @param density the bias towards one side of the range. 1.0 is no bias, inf is all at lower value, 0 is all at higher value
+     * @return the randomly selected value
+     */
+	private static float randomInRange(float[] range, double density) {
 		return (float)(Math.pow(Math.random(), density)*(range[1]-range[0])+range[0]);
 	}
 
+    /**
+     * Randomly selects a value from a range.
+     * @param range the range
+     * @return the randomly selected value
+     */
 	private static float randomInRange(float[] range) {
-		return randomInRange(range, 1.0f);
+		return randomInRange(range, 1.0);
 	}
+
+    /**
+     * Randomly selects a value from a range.
+     * @param range the range
+     * @return the randomly selected value
+     */
 	private static int randomInRange(int[] range) {
 		float[] rangeFloat = {range[0], range[1]};
-		return (int) randomInRange(rangeFloat, 1.0f);
+		return (int) randomInRange(rangeFloat, 1.0);
 	}
-	private static int randomInRange(int[] range, float density) {
+
+    /**
+     * Randomly selects a value from a range.
+     * @param range the range
+     * @param density the bias towards one side of the range. 1.0 is no bias, inf is all at lower value, 0 is all at higher value
+     * @return the randomly selected value
+     */
+	private static int randomInRange(int[] range, double density) {
 		float[] rangeFloat = {range[0], range[1]};
 		return (int) randomInRange(rangeFloat, density);
 	}
