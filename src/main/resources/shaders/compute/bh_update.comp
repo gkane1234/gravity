@@ -1,16 +1,15 @@
-uniform uint firstPass;
-
-void resetKernel() {
+void updateKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid == 0) {
         if (firstPass==1u) {
+            //Reset Queues
             headIn=0u;
             tailIn = 0u;
             mergeQueueTail = 0u;
             mergeQueueHead = 0u;
-            sim.justDied = 0u;
         }
         else {
+            //Update Number of Bodies
             sim.numBodies -= sim.justDied;
             sim.justDied = 0u;
 

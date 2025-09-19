@@ -28,7 +28,7 @@ uint64_t mortonEncode3D(vec3 pNorm)
 }
 
 
-void encodeMortonKernel()
+void mortonEncodeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= sim.numBodies) return;

@@ -329,14 +329,14 @@ public class BoundedBarnesHut {
 
         //This is the SSBO that holds the histogram of the radix sort.
         RADIX_WG_HIST_SSBO = new SSBO(SSBO.RADIX_WG_HIST_SSBO_BINDING, () -> {
-            return numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES;
-        }, "WG_HIST_SSBO", new GLSLVariable(VariableType.UINT,"WGHist", numGroups() * (1+NUM_RADIX_BUCKETS)));
+            return numGroups() * (NUM_RADIX_BUCKETS) * Integer.BYTES;
+        }, "WG_HIST_SSBO", new GLSLVariable(VariableType.UINT,"WGHist", numGroups() * (NUM_RADIX_BUCKETS)));
         ssbos.put(RADIX_WG_HIST_SSBO.getName(), RADIX_WG_HIST_SSBO);
 
         //This is the SSBO that holds the scanned histogram of the radix sort.
         RADIX_WG_SCANNED_SSBO = new SSBO(SSBO.RADIX_WG_SCANNED_SSBO_BINDING, () -> {
-            return Integer.BYTES + numGroups() * (1+NUM_RADIX_BUCKETS) * Integer.BYTES + Integer.BYTES;
-        }, "WG_SCANNED_SSBO", new GLSLVariable(VariableType.UINT,"WGScanned", numGroups() * (1+NUM_RADIX_BUCKETS) + 1));
+            return Integer.BYTES + numGroups() * (NUM_RADIX_BUCKETS) * Integer.BYTES + Integer.BYTES;
+        }, "WG_SCANNED_SSBO", new GLSLVariable(VariableType.UINT,"WGScanned", numGroups() * (NUM_RADIX_BUCKETS) + 1));
         ssbos.put(RADIX_WG_SCANNED_SSBO.getName(), RADIX_WG_SCANNED_SSBO);
 
         //This is the SSBO that holds the total number of bodies in each bucket of the radix sort.
@@ -507,7 +507,7 @@ public class BoundedBarnesHut {
             return numGroups();
         });
         computeShaders.add(initKernel);
-        mortonKernel = new ComputeShader("KERNEL_MORTON", this);
+        mortonKernel = new ComputeShader("KERNEL_MORTON_ENCODE", this);
         mortonKernel.setUniforms(new Uniform[] {
         });
         mortonKernel.setSSBOs(new String[] {
@@ -646,7 +646,7 @@ public class BoundedBarnesHut {
         computeShaders.add(radixSortScatterKernel); 
 
 
-        buildBinaryRadixTreeKernel = new ComputeShader("KERNEL_BUILD_BINARY_RADIX_TREE", this);
+        buildBinaryRadixTreeKernel = new ComputeShader("KERNEL_TREE_BUILD_BINARY_RADIX_TREE", this);
         buildBinaryRadixTreeKernel.setUniforms(new Uniform[] {
 
         });
@@ -669,7 +669,7 @@ public class BoundedBarnesHut {
         computeShaders.add(buildBinaryRadixTreeKernel);
         //Compute COM and Location Kernels
 
-        initLeavesKernel = new ComputeShader("KERNEL_INIT_LEAVES", this);
+        initLeavesKernel = new ComputeShader("KERNEL_TREE_INIT_LEAVES", this);
 
         initLeavesKernel.setUniforms(new Uniform[] {
 
@@ -689,7 +689,7 @@ public class BoundedBarnesHut {
             return numGroups();
         });
         computeShaders.add(initLeavesKernel);
-        resetKernel = new ComputeShader("KERNEL_RESET", this);
+        resetKernel = new ComputeShader("KERNEL_UPDATE", this);
 
         resetKernel.setUniforms(new Uniform[] {
             resetKernelFirstPassUniform
@@ -707,7 +707,7 @@ public class BoundedBarnesHut {
             return 1;
         });
         computeShaders.add(resetKernel);
-        propagateNodesKernel = new ComputeShader("KERNEL_PROPAGATE_NODES", this);
+        propagateNodesKernel = new ComputeShader("KERNEL_TREE_PROPAGATE_NODES", this);
 
         propagateNodesKernel.setUniforms(new Uniform[] {
         });
@@ -729,7 +729,7 @@ public class BoundedBarnesHut {
             return workGroups;
         });
         computeShaders.add(propagateNodesKernel);
-        computeForceKernel = new ComputeShader("KERNEL_COMPUTE_FORCE", this);
+        computeForceKernel = new ComputeShader("KERNEL_FORCE_COMPUTE", this);
 
         computeForceKernel.setUniforms(new Uniform[] {
             thetaUniform,
@@ -738,6 +738,7 @@ public class BoundedBarnesHut {
             densityUniform,
             wrapAroundUniform,
             mergeToggleUniform,
+            softeningUniform,
         });
 
         computeForceKernel.setSSBOs(new String[] {
@@ -754,7 +755,7 @@ public class BoundedBarnesHut {
             return numGroups();
         });
         computeShaders.add(computeForceKernel);
-        mergeBodiesKernel = new ComputeShader("KERNEL_MERGE", this);
+        mergeBodiesKernel = new ComputeShader("KERNEL_MERGE_BODIES", this);
         mergeBodiesKernel.setUniforms(new Uniform[] {
             
         });

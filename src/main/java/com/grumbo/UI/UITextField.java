@@ -207,7 +207,8 @@ public class UITextField extends UIElement {
         else setTextFromValue(value);
     }
 
-    protected boolean hitTest(double mx, double my) {
+    @Override
+    public boolean hitTest(double mx, double my) {
         return mx >= x && mx <= x + width && my >= y && my <= y + height;
     }
 }

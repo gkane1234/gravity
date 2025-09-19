@@ -12,6 +12,9 @@ import com.grumbo.simulation.GPUSimulation;
  * @since 1.0
  */
 
+ //Features to implement:
+ // Make a branch with a true octree
+
  //Known issues:
  // galaxy generation seems to tear itself apart sometimes
  // the name of fixed ssbo objects is overwritten by the swapping ssbos

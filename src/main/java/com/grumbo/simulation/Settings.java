@@ -73,7 +73,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("dt", 6f, 6f); p.setEditable(true); properties.put("dt", p); }
 
 		// Softening parameter
-		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
+		{ Property<Float> p = Property.createFloatProperty("softening", 0.1f, 0.1f); p.setEditable(true); properties.put("softening", p); }
 
 		// Length of planet trails
 		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000, true));

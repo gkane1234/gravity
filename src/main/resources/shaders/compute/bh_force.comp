@@ -15,7 +15,7 @@ float invDist(vec3 r, float soft)
     float inv = inversesqrt(dist2);
     return inv;
 }
-void computeForce() 
+void forceComputeKernel() 
 {
     vec3 accel = vec3(0.0);
     uint gid = gl_GlobalInvocationID.x;
@@ -37,7 +37,7 @@ void computeForce()
         uint nodeIdx = stack[--stackSize];
         Node node = nodeIdx < sim.initialNumBodies ? leafNodes[nodeIdx] : internalNodes[nodeIdx-sim.initialNumBodies];
         vec3 r = node.comMass.xyz - body.posMass.xyz;
-        float oneOverDist = invDist(r, SOFTENING);
+        float oneOverDist = invDist(r, softening);
         AABB aabb = getAABB(node.aabb);
         vec3 extent = aabb.maxCorner - aabb.minCorner;
         float longestSide = max(extent.x, max(extent.y, extent.z));

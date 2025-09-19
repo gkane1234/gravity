@@ -1,10 +1,5 @@
 
 
-uint aliveHistSize()    { return numWorkGroups * NUM_BUCKETS; }
-uint aliveScannedSize() { return numWorkGroups * NUM_BUCKETS; }
-uint deadHistOffset()   { return aliveHistSize(); }
-uint deadScannedOffset(){ return aliveScannedSize(); }
-
 shared uint deadFlags[WG_SIZE];
 shared uint aliveFlags[WG_SIZE];
 
@@ -20,7 +15,7 @@ void deadCountKernel() {
     bool alive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
     bool dead = inRange && isEmpty(srcB.bodies[bodyIdx]);
     if (lid == 0u) {
-        wgHist[wgId + deadHistOffset()] = 0u;
+        wgHist[wgId] = 0u;
     }
 
     //Extra check for out of bounds. Instead make sure that initial positions are in bounds
@@ -45,7 +40,7 @@ void deadCountKernel() {
         for (uint i = 0u; i < WG_SIZE; ++i) {
             sum += deadFlags[i];
         }
-        atomicAdd(wgHist[wgId + deadHistOffset()], sum);
+        atomicAdd(wgHist[wgId], sum);
     }
     barrier();
     
@@ -59,8 +54,8 @@ void deadExclusiveScanKernel() {
     if (gl_LocalInvocationID.x == 0u) {
         uint sum = 0u;
         for (uint wg = 0u; wg < numWorkGroups; ++wg) {
-            uint v = wgHist[wg+ deadHistOffset()];
-            wgScanned[wg+ deadScannedOffset()] = sum;
+            uint v = wgHist[wg];
+            wgScanned[wg] = sum;
             sum += v;
         }
         sim.justDied += sum;
@@ -104,12 +99,12 @@ void deadScatterKernel() {
     }
 
     if (isDead) {
-        uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId+ deadScannedOffset()] + localDeadRank;
+        uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId] + localDeadRank;
         indexOut[dstIndex]  = bodyIdx;
 
     }
     else if (isAlive) {
-        uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId+ deadScannedOffset()] + localAliveRank;
+        uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId] + localAliveRank;
         indexOut[dstIndex]  = bodyIdx;
     }
 }

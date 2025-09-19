@@ -33,7 +33,7 @@ int safeLCP(int i, int j)
 }
 //Builds the binary radix tree by creating internal nodes
 //Also assigns parents to leaves
-void buildBinaryRadixTreeKernel()
+void treeBuildBinaryRadixTreeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= sim.numBodies - 1u) {
@@ -120,6 +120,125 @@ void buildBinaryRadixTreeKernel()
     internalNodes[internalIdx].bodiesContained = uint(max(i, j) - min(i, j) + 1);
     if (i == 0) {
         internalNodes[internalIdx].parentId = 0xFFFFFFFFu;
+    }
+}
+
+// #extension GL_ARB_shading_language_include : enable
+// #include "bh_common.comp"
+// Bottom-up reduction for COM and AABB
+
+// Sets the proper values for the leaf nodes
+// Enqueues internal nodes that have two leaves as children
+void treeInitLeafNodesKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+
+    if (gid == 0) {
+        sim.uintDebug[0]=0u;
+        sim.uintDebug[50]=0u;
+        tailIn = 0u;
+        headIn = 0u;
+        tailOut = 0u;
+        headOut = 0u;
+    }
+    if (gid >= sim.numBodies) return;
+
+    uint bodyIdx = indexIn[gid];
+    Body body = srcB.bodies[bodyIdx];
+
+    leafNodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
+    leafNodes[gid].aabb = packAABB(AABB(body.posMass.xyz, body.posMass.xyz));
+    leafNodes[gid].childA = 0xFFFFFFFFu;
+    leafNodes[gid].childB = 0xFFFFFFFFu;
+    leafNodes[gid].readyChildren = 0xFFFFFFFFu;
+    leafNodes[gid].nodeDepth = 0u;
+
+    uint parentIdx = leafNodes[gid].parentId;
+    uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
+    if (prev == 1u) {
+        uint idx = atomicAdd(tailIn, 1u);
+        itemsIn[idx] = parentIdx;
+    }
+}
+// Each pass of this kernel propagates COM and AABB one level up the tree
+//TODO: make this work in one pass
+void treePropagateNodesKernel()
+{
+    uint threadId = gl_GlobalInvocationID.x;
+    uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+
+    if (gl_GlobalInvocationID.x == 0u) {
+        if (internalNodes[0].readyChildren != 0xFFFFFFFFu) {
+            //atomicAdd(sim.uintDebug[0], 1u);
+
+        }
+        sim.uintDebug[1] = 0u;
+        headIn = 0u;
+        headOut = 0u;
+        tailOut = 0u;
+    }
+
+    memoryBarrierBuffer();
+   
+    uint workIdx = atomicAdd(headIn, 1u);
+    while (workIdx < tailIn) {
+        
+        uint internalNodeIdx = itemsIn[workIdx]-sim.initialNumBodies;
+        uint readyChildren = internalNodes[internalNodeIdx].readyChildren;
+        if (readyChildren == 0xFFFFFFFFu) {
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+        }
+
+        uint leftReadyChildren = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childA].readyChildren 
+                                                                                              : internalNodes[internalNodes[internalNodeIdx].childA-sim.initialNumBodies].readyChildren;
+        uint rightReadyChildren = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childB].readyChildren 
+                                                                                               : internalNodes[internalNodes[internalNodeIdx].childB-sim.initialNumBodies].readyChildren;
+        if (leftReadyChildren < 2u || rightReadyChildren < 2u) {
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+
+            
+        }
+        if (atomicCompSwap(internalNodes[internalNodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+        }
+        Node leftChild = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childA] 
+                                                                                       : internalNodes[internalNodes[internalNodeIdx].childA-sim.initialNumBodies];
+        Node rightChild = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childB] 
+                                                                                        : internalNodes[internalNodes[internalNodeIdx].childB-sim.initialNumBodies];
+        
+        vec4 leftCOM = leftChild.comMass;
+        vec4 rightCOM = rightChild.comMass;
+        float totalMass = leftCOM.w + rightCOM.w;
+        vec3 centerOfMass;
+        if (totalMass > 0.0) {
+            centerOfMass = (leftCOM.w * leftCOM.xyz + rightCOM.w * rightCOM.xyz) / totalMass;
+        } else {
+            centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
+        }
+        AABB leftAABB = getAABB(leftChild.aabb);
+        AABB rightAABB = getAABB(rightChild.aabb);
+        AABB newAABB = updateAABB(leftAABB, rightAABB);
+        internalNodes[internalNodeIdx].comMass = vec4(centerOfMass, totalMass);
+        internalNodes[internalNodeIdx].aabb = packAABB(newAABB);
+        internalNodes[internalNodeIdx].readyChildren = 0xFFFFFFFFu;
+        internalNodes[internalNodeIdx].nodeDepth = 1u+max(leftChild.nodeDepth, rightChild.nodeDepth);
+        uint parentIdx = internalNodes[internalNodeIdx].parentId;
+        if (parentIdx != 0xFFFFFFFFu) {
+            uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
+            if (prev == 1u) {
+                uint idx = atomicAdd(tailOut, 1u);
+                itemsOut[idx] = parentIdx;
+
+            }
+        }
+
+        workIdx = atomicAdd(headIn, 1u);
+
+        //atomicAdd(sim.uintDebug[1], 1u);
+        
     }
 }
 

@@ -159,7 +159,6 @@ public class Debug {
         String debugOutputs = "";
         for (Debug debug : debugs) {
             if (debug.isSelected()) {
-                System.out.println(debug.name);
                 debugOutputs += debug.getDebug() + "\n";
             }
         }

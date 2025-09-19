@@ -45,5 +45,5 @@
   "width" : 1000,
   "wrapAround" : false,
   "defaultTextColor" : -1,
-  "softening" : 0.001
+  "softening" : 0.1
 }
