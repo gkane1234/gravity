@@ -202,6 +202,11 @@ public class SettingsGenerator {
                     }
                     break;
                 }
+
+                case "selector":
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createSelectorProperty(\"%s\", \"%s\", \"%s\", %s, %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, buildOptionsArray(property.get("options")), editable));
+                    break;
                     
                 case "boolean":
                     code.append(String.format("\t\tproperties.put(\"%s\", Property.createBooleanProperty(\"%s\", %s, %s, %s));\n",
@@ -250,7 +255,24 @@ public class SettingsGenerator {
         code.append("\t}\n");
         return code.toString();
     }
-    
+
+    /**
+     * Builds the options array for a selector property.
+     * @param options the options to build the options array for
+     * @return the options array for a selector property
+     */
+    private static String buildOptionsArray(JsonNode options) {
+        StringBuilder optionsBuilder = new StringBuilder();
+        optionsBuilder.append("new String[]{");
+        for (int i = 0; i < options.size(); i++) {
+            optionsBuilder.append("\"" + options.get(i).asText() + "\"");
+            if (i < options.size() - 1) {
+                optionsBuilder.append(", ");
+            }
+        }
+        optionsBuilder.append("}");
+        return optionsBuilder.toString();
+    }
     /**
      * Generates the convenience methods for the Settings.java class.
      * @param properties the properties to generate the convenience methods for

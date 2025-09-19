@@ -1,7 +1,7 @@
 void updateKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid == 0) {
-        if (firstPass==1u) {
+        if (resetValuesOrDecrementDeadBodies==1u) {
             //Reset Queues
             headIn=0u;
             tailIn = 0u;

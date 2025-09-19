@@ -4,24 +4,6 @@
 layout(local_size_x = 256u) in;
 const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
 
-//Uniforms
-//Update uniforms:
-uniform uint firstPass;
-//Force uniforms:
-uniform float softening;
-uniform float theta;
-uniform float dt;
-uniform float elasticity;
-uniform float density;
-uniform float restitution;
-uniform bool collision;
-uniform bool mergeToggle;
-uniform bool wrapAround;
-//Radix sort uniforms:
-uniform uint passShift;
-//Common uniforms:
-uniform uint numWorkGroups;
-
 //To change these, you need to also change them in BoundedBarnesHut.java
 //Radix sort constants:
 const uint RADIX_BITS = 4u;
@@ -82,50 +64,77 @@ layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
 layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
 //Morton codes of the bodies of the simulation double buffered for dead partitioning and radix sort
-//  -Initialized with numBodies morton codes (In Java: numBodies * Long.BYTES)
+//  -Initialized with numBodies morton codes (uint64_t's) (In Java: numBodies * Long.BYTES)
 layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
 layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
 //Sorted index of the bodies of the simulation double buffered for dead partitioning and radix sort
-//  -Initialized with numBodies indices (In Java: numBodies * Integer.BYTES)
+//  -Initialized with numBodies indices (uints) (In Java: numBodies * Integer.BYTES)
 layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
 layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
 //Work queue for propagating node data up the tree from the leaves. Double buffered for performance.
-//  -Initialized with numBodies indices (In Java: (4 + numBodies) * Integer.BYTES)
+//  -Initialized with numBodies indices (uints) (In Java: (4 + numBodies) * Integer.BYTES)
 layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
 layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
-//Per work group histogram of the radix sort buckets Reused for dead counting 
+//Per work group histogram of the radix sort buckets. Reused for dead sorting 
 //  -Initialized with numWorkGroups * NUM_BUCKETS histogram bars (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
 layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
-//Per work group inclusive sum of the radix sort buckets across all work groups Reused for dead counting
+//Per work group inclusive sum of the radix sort buckets across all work groups. Reused for dead sorting
 //  -Initialized with numWorkGroups * NUM_BUCKETS inclusive sums (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
 layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
 //Radix bucket totals and global base for radix sort scatter
 //  -Initialized with numBodies buckets (uints) and numBodies global bases (uints) (In Java: NUM_BUCKETS * Integer.BYTES + NUM_BUCKETS * Integer.BYTES)
 layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
-//Merge queue for merging bodies
-//  -Initialized with numBodies bodies (In Java: numBodies * Integer.BYTES)
+//Merge queue for merging bodies identified in the force kernel
+//  -Initialized with numBodies pairs of indices (uint[2]'s) (In Java: numBodies * Integer.BYTES)
 layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
 //Merge body locks to avoid races when merging bodies
-//  -Initialized with numBodies bodies (In Java: numBodies * Integer.BYTES)
+//  -Initialized with numBodies locks (uints) (In Java: numBodies * Integer.BYTES)
 layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
 
 
+//Uniforms
+//Update uniforms:
+uniform uint resetValuesOrDecrementDeadBodies; //Used to determine if the update kernel is resetting values or decrementing dead bodies
+//Force uniforms: 
+uniform float softening; //Used to soften the force calculation (F ∝ (r+softening)^-2)
+uniform float theta; //Used to determine acceptance criterion for force calculation in node traversal
+uniform float dt; // Time step used to update the position and velocity of bodies
+uniform uint collisionMergingOrNeither; // Selects collision, merging, or neither. 0 = neither, 1 = collision, 2 = merging, 3 = both
+uniform float elasticity; //Elasticity of collisions
+uniform float restitution; //Restitution of overlapping bodies in collisions 
+uniform float bothCriterion; //Used to determine if the body is colliding or merging
+uniform bool wrapAround; //If the simulation wraps around or kills OOB bodies 
+//Radix sort uniforms:
+uniform uint passShift; //Pass shift for radix sort passes.
+//Common uniforms:
+uniform uint numWorkGroups; //Used to determine the number of work groups during the radix sort
+
+//Constants for the collisionMergingOrNeither uniform
+const uint NEITHER = 0u;
+const uint COLLISION = 1u;
+const uint MERGING = 2u;
+const uint BOTH = 3u;
+//Empty body constant for merged bodies or OOB bodies
 const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0));
 
+//Checks if a body is empty
 bool isEmpty(Body b) {
     return b.posMass.w == 0.0;
 }
 
+//Checks if a body is out of bounds
 bool outOfBounds(Body b) {
     return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
            b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
            b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
 }
 
+//Calculates the radius of a body
 float radius(Body b) {
     return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
 }
 
+//Creates an AABB that is the union of two AABBs
 AABB updateAABB(AABB a, AABB b) {
     AABB result;
     result.minCorner = min(a.minCorner, b.minCorner);
@@ -133,12 +142,13 @@ AABB updateAABB(AABB a, AABB b) {
     return result;
 }
 
-// Helper function to convert float[6] to AABB
+// Converts a float[6] to an AABB
 AABB getAABB(float[6] aabb) {
     return AABB(vec3(aabb[0], aabb[1], aabb[2]), vec3(aabb[3], aabb[4], aabb[5]));
 }
 
-// Helper function to convert AABB to uint[6]
+// Converts an AABB to a float[6]
 float[6] packAABB(AABB aabb) {
     return float[6](aabb.minCorner.x, aabb.minCorner.y, aabb.minCorner.z, aabb.maxCorner.x, aabb.maxCorner.y, aabb.maxCorner.z);
 }
+

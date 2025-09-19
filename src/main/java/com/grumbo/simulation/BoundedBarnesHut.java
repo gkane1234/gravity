@@ -56,18 +56,16 @@ public class BoundedBarnesHut {
     private Uniform<Float> thetaUniform;
     private Uniform<Float> dtUniform;
     private Uniform<Float> elasticityUniform;
-    private Uniform<Float> densityUniform;
     private Uniform<Float> restitutionUniform;
-    private Uniform<Boolean> collisionUniform;
+    private Uniform<Integer> collisionMergingOrNeitherUniform;
     private Uniform<Integer> passShiftUniform;
-    private Uniform<Integer> resetKernelFirstPassUniform;
+    private Uniform<Boolean> resetValuesOrDecrementDeadBodiesUniform;
     private Uniform<Boolean> wrapAroundUniform;
-    private Uniform<Boolean> mergeToggleUniform;
 
     // Uniform local variables
     private int radixSortPassShift;
     private int COMPropagationPassNumber;
-    private boolean resetKernelFirstPass;
+    private boolean resetValuesOrDecrementDeadBodies;
     // Compute Shaders
     private List<ComputeShader> computeShaders;
     private ComputeShader initKernel; // bh_init.comp
@@ -222,6 +220,8 @@ public class BoundedBarnesHut {
 
         // Compute the force on each body using the tree.
         computeForce();
+
+        System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("uintDebug"));
 
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
@@ -430,13 +430,11 @@ public class BoundedBarnesHut {
         uniforms.put("theta", thetaUniform);
         uniforms.put("dt", dtUniform);
         uniforms.put("elasticity", elasticityUniform);
-        uniforms.put("density", densityUniform);
         uniforms.put("restitution", restitutionUniform);
-        uniforms.put("collision", collisionUniform);
+        uniforms.put("collisionMergingOrNeither", collisionMergingOrNeitherUniform);
         uniforms.put("passShift", passShiftUniform);
-        uniforms.put("firstPass", resetKernelFirstPassUniform);
+        uniforms.put("resetValuesOrDecrementDeadBodies", resetValuesOrDecrementDeadBodiesUniform);
         uniforms.put("wrapAround", wrapAroundUniform);
-        uniforms.put("mergeToggle", mergeToggleUniform);
 
         numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
@@ -458,10 +456,6 @@ public class BoundedBarnesHut {
             return (float)Settings.getInstance().getElasticity();
         }, VariableType.FLOAT);
 
-        densityUniform = new Uniform<Float>("density", () -> {
-            return (float)Settings.getInstance().getDensity();
-        }, VariableType.FLOAT);
-
         restitutionUniform = new Uniform<Float>("restitution", () -> {
             return 0.2f;
         }, VariableType.FLOAT);
@@ -470,20 +464,26 @@ public class BoundedBarnesHut {
             return radixSortPassShift;
         }, VariableType.UINT);
 
-        collisionUniform = new Uniform<Boolean>("collision", () -> {
-            return false;
-        }, VariableType.BOOL);
-
-        resetKernelFirstPassUniform = new Uniform<Integer>("firstPass", () -> {
-            return resetKernelFirstPass ? 1 : 0;
+        collisionMergingOrNeitherUniform = new Uniform<Integer>("collisionMergingOrNeither", () -> {
+            String selected = Settings.getInstance().getCollisionMergingOrNeither();
+            switch (selected) {
+                case "none":
+                    return 0;
+                case "merge":
+                    return 2;
+                case "collision":
+                    return 1;
+                default:
+                    return 0;
+            }
         }, VariableType.UINT);
+
+        resetValuesOrDecrementDeadBodiesUniform = new Uniform<Boolean>("resetValuesOrDecrementDeadBodies", () -> {
+            return resetValuesOrDecrementDeadBodies ? true : false;
+        }, VariableType.BOOL);
 
         wrapAroundUniform = new Uniform<Boolean>("wrapAround", () -> {
             return Settings.getInstance().isWrapAround();
-        }, VariableType.BOOL);
-
-        mergeToggleUniform = new Uniform<Boolean>("mergeToggle", () -> {
-            return Settings.getInstance().isMergeBodies();
         }, VariableType.BOOL);
 
     }
@@ -692,7 +692,7 @@ public class BoundedBarnesHut {
         resetKernel = new ComputeShader("KERNEL_UPDATE", this);
 
         resetKernel.setUniforms(new Uniform[] {
-            resetKernelFirstPassUniform
+            resetValuesOrDecrementDeadBodiesUniform
         });
 
         resetKernel.setSSBOs(new String[] {
@@ -735,10 +735,9 @@ public class BoundedBarnesHut {
             thetaUniform,
             dtUniform,
             elasticityUniform,
-            densityUniform,
             wrapAroundUniform,
-            mergeToggleUniform,
             softeningUniform,
+            collisionMergingOrNeitherUniform,
         });
 
         computeForceKernel.setSSBOs(new String[] {
@@ -816,7 +815,7 @@ public class BoundedBarnesHut {
             }
 
         }
-        resetKernelFirstPass = true;
+        resetValuesOrDecrementDeadBodies = true;
         resetKernel.run();
         if (debug) {
             GPUSimulation.checkGLError("resetValuesPass");
@@ -839,7 +838,7 @@ public class BoundedBarnesHut {
                 resetKernel.addToPreDebugString("Decrementing dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
             }
         }
-        resetKernelFirstPass = false;
+        resetValuesOrDecrementDeadBodies = false;
         resetKernel.run();
         if (debug) {
             GPUSimulation.checkGLError("decrementDeadBodiesPass");

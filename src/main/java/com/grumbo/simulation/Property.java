@@ -23,12 +23,26 @@ public class Property<T> {
     private Predicate<T> validator;
     private boolean isNumeric;
     private boolean editable = true;
-    private String typeName; // e.g., "int", "double", "float", "boolean", "color", "doubleArray", "vector3f", "string"
+    private PropertyType typeName;
     private int numericalRounding;
     // Cached UI row
     private UIRow editorRow;
     private T cachedValue;
-    
+    private String[] options; // Options for a selector property
+    /**
+     * Enum for the type of the property.
+     */
+    private enum PropertyType {
+        INT,
+        DOUBLE,
+        FLOAT,
+        BOOLEAN,
+        COLOR,
+        DOUBLE_ARRAY,
+        VECTOR3F,
+        STRING,
+        SELECTOR;
+    }
     // Constructors
 
     /**
@@ -38,7 +52,7 @@ public class Property<T> {
      * @param defaultValue the default value of the property
      * @param numericalRounding the numerical rounding of the property
      */
-    public Property(String name, T value, T defaultValue, int numericalRounding) {
+    public Property(String name, T value, T defaultValue, int numericalRounding, String[] options) {
         this.name = name;
         this.value = value;
         this.defaultValue = defaultValue;
@@ -46,6 +60,29 @@ public class Property<T> {
         if (isNumeric) {
             this.numericalRounding = numericalRounding;
         }
+        this.options = options;
+    }
+
+        /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param numericalRounding the numerical rounding of the property
+     */
+    public Property(String name, T value, T defaultValue, String[] options) {
+        this(name, value, defaultValue, DEFAULT_ROUNDING, options);
+    }
+
+    /**
+     * Constructor for the Property class.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param numericalRounding the numerical rounding of the property
+     */
+    public Property(String name, T value, T defaultValue, int numericalRounding) {
+        this(name, value, defaultValue, numericalRounding, null);
     }
 
 
@@ -203,12 +240,12 @@ public class Property<T> {
      * Gets the type name of the property.
      * @return the type name of the property
      */
-    public String getTypeName() { return typeName; }
+    public String getTypeName() { return typeName.name(); }
     /**
      * Sets the type name of the property.
      * @param typeName the type name of the property
      */
-    public void setTypeName(String typeName) { this.typeName = typeName; }
+    public void setTypeName(String typeName) { this.typeName = PropertyType.valueOf(typeName); }
     /**
      * Gets the range status of the property.
      * @return the range status of the property
@@ -319,7 +356,7 @@ public class Property<T> {
      */
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue) {
         Property<Integer> p = new Property<>(name, value, defaultValue);
-        p.typeName = "int";
+        p.typeName = PropertyType.INT;
         return p;
     }
     
@@ -334,7 +371,7 @@ public class Property<T> {
      */
     public static Property<Integer> createIntProperty(String name, int value, int defaultValue, int min, int max) {
         Property<Integer> p = new Property<>(name, value, defaultValue, min, max);
-        p.typeName = "int";
+        p.typeName = PropertyType.INT;
         return p;
     }
     /**
@@ -366,7 +403,7 @@ public class Property<T> {
         Property<Integer> p = (min != null && max != null)
             ? new Property<>(name, value, defaultValue, min, max)
             : new Property<>(name, value, defaultValue);
-        p.typeName = "int";
+        p.typeName = PropertyType.INT;
         p.setEditable(editable);
         if (min != null) p.setMinValue(min);
         if (max != null) p.setMaxValue(max);
@@ -382,7 +419,7 @@ public class Property<T> {
      */
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue) {
         Property<Double> p = new Property<>(name, value, defaultValue);
-        p.typeName = "double";
+        p.typeName = PropertyType.DOUBLE;
         return p;
     }
     
@@ -397,7 +434,7 @@ public class Property<T> {
      */
     public static Property<Double> createDoubleProperty(String name, double value, double defaultValue, double min, double max) {
         Property<Double> p = new Property<>(name, value, defaultValue, min, max);
-        p.typeName = "double";
+        p.typeName = PropertyType.DOUBLE;
         return p;
     }
     /**
@@ -429,7 +466,7 @@ public class Property<T> {
         Property<Double> p = (min != null && max != null)
             ? new Property<>(name, value, defaultValue, min, max)
             : new Property<>(name, value, defaultValue);
-        p.typeName = "double";
+        p.typeName = PropertyType.DOUBLE;
         p.setEditable(editable);
         if (min != null) p.setMinValue(min);
         if (max != null) p.setMaxValue(max);
@@ -445,7 +482,7 @@ public class Property<T> {
      */
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue) {
         Property<Float> p = new Property<>(name, value, defaultValue);
-        p.typeName = "float";
+        p.typeName = PropertyType.FLOAT;
         return p;
     }
     
@@ -460,7 +497,7 @@ public class Property<T> {
      */
     public static Property<Float> createFloatProperty(String name, float value, float defaultValue, float min, float max) {
         Property<Float> p = new Property<>(name, value, defaultValue, min, max);
-        p.typeName = "float";
+        p.typeName = PropertyType.FLOAT;
         return p;
     }
     /**
@@ -492,7 +529,7 @@ public class Property<T> {
         Property<Float> p = (min != null && max != null)
             ? new Property<>(name, value, defaultValue, min, max)
             : new Property<>(name, value, defaultValue);
-        p.typeName = "float";
+        p.typeName = PropertyType.FLOAT;
         p.setEditable(editable);
         if (min != null) p.setMinValue(min);
         if (max != null) p.setMaxValue(max);
@@ -508,7 +545,7 @@ public class Property<T> {
      */
     public static Property<Boolean> createBooleanProperty(String name, boolean value, boolean defaultValue) {
         Property<Boolean> p = new Property<>(name, value, defaultValue);
-        p.typeName = "boolean";
+        p.typeName = PropertyType.BOOLEAN;
         return p;
     }
     /**
@@ -534,7 +571,7 @@ public class Property<T> {
      */
     public static Property<String> createStringProperty(String name, String value, String defaultValue) {
         Property<String> p = new Property<>(name, value, defaultValue);
-        p.typeName = "string";
+        p.typeName = PropertyType.STRING;
         return p;
     }
     /**
@@ -550,6 +587,22 @@ public class Property<T> {
         p.setEditable(editable);
         return p;
     }
+    /**
+     * Creates a selector property.
+     * @param name the name of the property
+     * @param value the value of the property
+     * @param defaultValue the default value of the property
+     * @param options the options for the selector property
+     * @param editable the editable status of the property
+     * @return the selector property
+     */
+    public static Property<String> createSelectorProperty(String name, String value, String defaultValue, String[] options, boolean editable) {
+        Property<String> p = new Property<>(name, value, defaultValue, options);
+        p.typeName = PropertyType.SELECTOR;
+        p.setEditable(editable);
+        p.options = options;
+        return p;
+    }
     
     /**
      * Creates a color property.
@@ -560,7 +613,7 @@ public class Property<T> {
      */
     public static Property<Color> createColorProperty(String name, Color value, Color defaultValue) {
         Property<Color> p = new Property<>(name, value, defaultValue);
-        p.typeName = "color";
+        p.typeName = PropertyType.COLOR;
         return p;
     }
     /**
@@ -586,7 +639,7 @@ public class Property<T> {
      */
     public static Property<Vector3f> createVector3fProperty(String name, Vector3f value, Vector3f defaultValue) {
         Property<Vector3f> p = new Property<>(name, value, defaultValue);
-        p.typeName = "vector3f";
+        p.typeName = PropertyType.VECTOR3F;
         return p;
     }
     /**
@@ -612,7 +665,7 @@ public class Property<T> {
      */
     public static Property<Color> createColorPropertyFromRGB(String name, int rgbValue, int defaultRGB) {
         Property<Color> prop = new Property<>(name, new Color(rgbValue), new Color(defaultRGB));
-        prop.typeName = "color";
+        prop.typeName = PropertyType.COLOR;
         // Add custom validator to ensure valid RGB values
         prop.validator = color -> color != null ;
         return prop;
@@ -675,14 +728,15 @@ public class Property<T> {
         }
         ArrayList<UIElement> elements;
         switch (typeName) {
-            case "int": elements = createIntEditorElements(); break;
-            case "double": elements = createDoubleEditorElements(); break;
-            case "float": elements = createFloatEditorElements(); break;
-            case "boolean": elements = createBooleanEditorElements(); break;
-            case "string": elements = createStringEditorElements(); break;
-            case "color": elements = createColorEditorElements(); break;
-            case "vector3f": elements = createVector3fEditorElements(); break;
-            case "doubleArray": elements = createDoubleArrayEditorElements(); break;
+            case INT: elements = createIntEditorElements(); break;
+            case DOUBLE: elements = createDoubleEditorElements(); break;
+            case FLOAT: elements = createFloatEditorElements(); break;
+            case BOOLEAN: elements = createBooleanEditorElements(); break;
+            case STRING: elements = createStringEditorElements(); break;
+            case COLOR: elements = createColorEditorElements(); break;
+            case VECTOR3F: elements = createVector3fEditorElements(); break;
+            case DOUBLE_ARRAY: elements = createDoubleArrayEditorElements(); break;
+            case SELECTOR: elements = createSelectorEditorElements(); break;
             default: elements = createStringEditorElements(); break;
         }
         editorRow = new UIRow(elements);
@@ -835,25 +889,36 @@ public class Property<T> {
         }
         return elements;
     }
-
+    /**
+     * Creates the editor elements for a boolean property.
+     * Essentially a selector property with two options.
+     * @return the editor elements for a boolean property
+     */
     private ArrayList<UIElement> createBooleanEditorElements() {
+        options = new String[]{"true", "false"};
+        boolean initialState = (Boolean) Settings.getInstance().getValue(name);
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        boolean initialState = (Boolean) Settings.getInstance().getValue(name);
-        UIButton toggle = new UIButton(initialState ? "On" : "Off");
-        toggle.setOnClick(() -> {
-            try {
-                boolean current = (Boolean) Settings.getInstance().getValue(name);
-                boolean newState = !current;
-                Settings.getInstance().setValue(name, newState);
+        UIButton[] buttons = new UIButton[options.length];
+        for (int i = 0; i < options.length; i++) {
+            String option = options[i];
+            UIButton button = new UIButton(option);
+            buttons[i] = button;
+        }
+        for (int i = 0; i < options.length; i++) {
+            final int index = i;
+            final String option = options[index];
+            buttons[i].setOnClick(() -> {
+                Settings.getInstance().setValue(name, option.equals("true") ? true : false);
                 Settings.getInstance().saveSettings();
-                toggle.setText(newState ? "On" : "Off");
-
-            } catch (Exception ignore) {
-                System.out.println("Error toggling boolean property: " + name);
-            }
-        });
-        elements.add(toggle);
+                for (int j = 0; j < options.length; j++) {
+                    buttons[j].setSelected(j == index);
+                }
+            });
+            buttons[i].setOnRelease(() -> {});
+            buttons[i].setSelected(i == (initialState ? 0 : 1));
+            elements.add(buttons[i]);
+        }
         return elements;
     }
 
@@ -871,6 +936,38 @@ public class Property<T> {
             Settings.getInstance().saveSettings();
         });
         elements.add(tf);
+        return elements;
+    }
+
+    /**
+     * Creates the editor elements for a selector property.
+     * @return the editor elements for a selector property
+     */
+    private ArrayList<UIElement> createSelectorEditorElements() {
+        ArrayList<UIElement> elements = new ArrayList<>();
+        elements.add(new UIText(name + ":"));
+        UIButton[] buttons = new UIButton[options.length];
+        String initialState = (String) Settings.getInstance().getValue(name);
+        for (int i = 0; i < options.length; i++) {
+            String option = options[i];
+            UIButton button = new UIButton(option);
+            buttons[i] = button;
+        }
+        for (int i = 0; i < options.length; i++) {
+            final int index = i;
+            final String option = options[index];
+            buttons[i].setOnClick(() -> {
+                Settings.getInstance().setValue(name, option);
+                Settings.getInstance().saveSettings();
+                for (int j = 0; j < options.length; j++) {
+                    buttons[j].setSelected(j == index);
+                }
+            });
+            buttons[i].setOnRelease(() -> {});
+            System.out.println("Initial state: " + initialState + " Option: " + option + " Index: " + i);
+            buttons[i].setSelected(initialState.equals(option));
+            elements.add(buttons[i]);
+        }
         return elements;
     }
 

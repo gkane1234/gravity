@@ -195,6 +195,13 @@
       "default": false,
       "description": "Wrap around",
       "editable": true
+    },
+    "collisionMergingOrNeither": {
+      "type": "selector",
+      "default": "none",
+      "options": ["none", "merge", "collision"],
+      "description": "Collision merging or neither",
+      "editable": true
     }
   }
 } 

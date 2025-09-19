@@ -24,14 +24,11 @@ void forceComputeKernel()
 
     uint bodyIdx = indexIn[gid];
 
-    //sim.uintDebug[gid] = bodyIdx;
-
     Body body = srcB.bodies[bodyIdx];
 
     uint stack[64];
     uint stackSize = 0;
     stack[stackSize++] = sim.initialNumBodies;
-
 
     while (stackSize > 0) {
         uint nodeIdx = stack[--stackSize];
@@ -48,22 +45,23 @@ void forceComputeKernel()
                 float bodyRadius = radius(body);
                 float otherRadius = radius(other);
                 float dist = length(r);
-                // if (collision && dist < bodyRadius + otherRadius) {
-                //     vec3 velocityDifference = other.velPad.xyz - body.velPad.xyz;
-                //     vec3 normal = normalize(r);
-                //     float vImpact = dot(velocityDifference, normal);
-                //     if (vImpact < 0) {
-                //         float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
-                //         float j = (1+elasticity)*mEff*vImpact;
-                //         body.velPad.xyz += normal * j / body.posMass.w;
-                //     }
-                //     float penetration = bodyRadius + otherRadius - dist;
-                //     if (penetration > 0) {
-                //         vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
-                //         body.posMass.xyz -= correction;
-                //     }
-                // } else 
-                if (mergeToggle && (dist < bodyRadius + otherRadius) && (bodyIdx < indexIn[nodeIdx])) {
+                if ((collisionMergingOrNeither == COLLISION) && dist < bodyRadius + otherRadius) {
+                    vec3 velocityDifference = other.velDensity.xyz - body.velDensity.xyz;
+                    vec3 normal = normalize(r);
+                    float vImpact = dot(velocityDifference, normal);
+                    if (vImpact < 0) {
+                        float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
+                        float j = (1+elasticity)*mEff*vImpact;
+                        body.velDensity.xyz += normal * j / body.posMass.w;
+                    }
+                    float penetration = bodyRadius + otherRadius - dist;
+                    if (penetration > 0) {
+                        vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
+                        body.posMass.xyz -= correction;
+                    }
+                } 
+                if ((collisionMergingOrNeither == MERGING) && (dist < bodyRadius + otherRadius) && (bodyIdx < indexIn[nodeIdx])) {
+                    
                     uint slot = atomicAdd(mergeQueueTail, 1u);
                     mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
                 }

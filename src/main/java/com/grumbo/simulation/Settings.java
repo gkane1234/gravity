@@ -67,13 +67,13 @@ public class Settings {
 		properties.put("follow", Property.createBooleanProperty("follow", false, false, true));
 
 		// Camera shift position
-		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("doubleArray"); p.setEditable(true); properties.put("shift", p); }
+		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("DOUBLE_ARRAY"); p.setEditable(true); properties.put("shift", p); }
 
 		// Time step
 		{ Property<Float> p = Property.createFloatProperty("dt", 6f, 6f); p.setEditable(true); properties.put("dt", p); }
 
 		// Softening parameter
-		{ Property<Float> p = Property.createFloatProperty("softening", 0.1f, 0.1f); p.setEditable(true); properties.put("softening", p); }
+		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
 
 		// Length of planet trails
 		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000, true));
@@ -149,6 +149,9 @@ public class Settings {
 
 		// Wrap around
 		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
+
+		// Collision merging or neither
+		properties.put("collisionMergingOrNeither", Property.createSelectorProperty("collisionMergingOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
 
 	}
 	/**
@@ -612,6 +615,19 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void toggleWrapAround() { setWrapAround(!isWrapAround()); }
+	/**
+	 * Gets the value of the property collisionMergingOrNeither.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public String getCollisionMergingOrNeither() { return getValue("collisionMergingOrNeither"); }
+	/**
+	 * Sets the value of the property collisionMergingOrNeither.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setCollisionMergingOrNeither(String value) { setValue("collisionMergingOrNeither", value); }
+
 	/**
 	 * Adds a property to the Settings class.
 	 * This method is automatically generated from defaultProperties.json
