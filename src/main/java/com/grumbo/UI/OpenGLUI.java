@@ -1,4 +1,4 @@
-package com.grumbo.UI;
+package com.grumbo.ui;
 
 import org.lwjgl.glfw.GLFW;
 import static org.lwjgl.glfw.GLFW.*;
