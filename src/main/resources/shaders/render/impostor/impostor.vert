@@ -1,5 +1,7 @@
 #version 430
-
+// =============================================================
+//                          Impostor vertex shader
+// =============================================================
 struct Body {
   vec4 posMass;
   vec4 velDensity;
@@ -27,15 +29,19 @@ out float vCenterClipW;
 out float ndcDepth;
 out float worldRadius;
 
-float cbrt(float x) { return pow(x, 1.0/3.0); }
 
 const float GLOW_RADIUS_FACTOR = 10;
 const float BOX_CORRECTION = 1.5;
-
+// Calculates the radius of a body
 float radius(Body b) {
     return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
 }
 
+// This vertex shader is used to render the impostor spheres.
+// They are created as a billboard quad that is scaled to the size of the body.
+// The quad is then mapped to the screen space and the depth is calculated.
+// The depth is then used to determine if the sphere is close enough to be rendered as opaque,
+// or far enough to be rendered as a glow.
 void main() {
   Body b = srcB.bodies[gl_InstanceID];
 

@@ -15,11 +15,11 @@ uniform int uPass; // 0 = sphere, 1 = glow
 
 
 out vec4 fragColor;
-
+// This fragment shader is used to render the impostor spheres.
+// It is done by rendering spheres as opaque in they are close,
+// and as an additive glow when they are far.
 void main() {
-    const float SOLAR_THRESHOLD = 10000;
     float r2 = dot(vMapping, vMapping);
-    const float MASS_FACTOR = 10000;
     const float bodyRenderDistance = 100000;
     if (r2 > 1.0) discard;
 
@@ -38,27 +38,18 @@ void main() {
         fragColor = vec4(color, 1.0);
     } else {
         // --- Glow pass ---
-        //fragColor = vec4(1.0,0,0,1);
         if (radius <= bodyToGlowRatio) discard;
-
-        // if (mass < SOLAR_THRESHOLD)
-        //     discard;
 
         float glowRadius = 1 - bodyToGlowRatio;
         float t = (radius - bodyToGlowRatio) / glowRadius;
-        //float fOfT = (t/(1-t));
         float glow = cos(3.14159*t)/2+1/2;
-
-        //map glow from 1 to 0 over glowRadius<t<1
-
-
-
 
         vec3 glowColor = vec3(0.5);
         fragColor = vec4(glowColor * glow, 1.0); // additive, alpha ignored
 
         
     }
+    // The rest of the code is used to reconstruct the proper perspective depth
     // Reconstruct NDC position of this fragment
     float tanHalfFovY = 1.0 / uProj[1][1];
     float tanHalfFovX = 1.0 / uProj[0][0];
