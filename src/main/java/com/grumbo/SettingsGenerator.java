@@ -241,7 +241,7 @@ public class SettingsGenerator {
                     }
                     arrayBuilder.append("}");
                     String javaArray = arrayBuilder.toString();
-                    code.append(String.format("\t\t{ Property<double[]> p = new Property<>(\"%s\", new double[]%s, new double[]%s); p.setTypeName(\"doubleArray\"); p.setEditable(%s); properties.put(\"%s\", p); }\n",
+                    code.append(String.format("\t\t{ Property<double[]> p = new Property<>(\"%s\", new double[]%s, new double[]%s); p.setTypeName(\"DOUBLE_ARRAY\"); p.setEditable(%s); properties.put(\"%s\", p); }\n",
                         propertyName, javaArray, javaArray, editable, propertyName));
                     break;
                 default:
@@ -432,13 +432,13 @@ public class SettingsGenerator {
                 \t\t\t\t}
                 \t\t\t\tmoduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
                 \t\t\t}
-                \t\t\tjava.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings.json");
+                \t\t\tjava.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings/settings.json");
                 \t\t\treturn settingsPath.toFile();
                 \t\t} catch (Exception e) {
                 \t\t\tjava.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
-                \t\t\tjava.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings.json");
+                \t\t\tjava.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings/settings.json");
                 \t\t\tif (!java.nio.file.Files.exists(candidate.getParent())) {
-                \t\t\t\tcandidate = userDir.resolve("src/main/resources/settings.json");
+                \t\t\t\tcandidate = userDir.resolve("src/main/resources/settings/settings.json");
                 \t\t\t}
                 \t\t\treturn candidate.toFile();
                 \t\t}

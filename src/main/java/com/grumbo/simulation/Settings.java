@@ -668,13 +668,13 @@ public class Settings {
 				}
 				moduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
 			}
-			java.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings.json");
+			java.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings/settings.json");
 			return settingsPath.toFile();
 		} catch (Exception e) {
 			java.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
-			java.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings.json");
+			java.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings/settings.json");
 			if (!java.nio.file.Files.exists(candidate.getParent())) {
-				candidate = userDir.resolve("src/main/resources/settings.json");
+				candidate = userDir.resolve("src/main/resources/settings/settings.json");
 			}
 			return candidate.toFile();
 		}
