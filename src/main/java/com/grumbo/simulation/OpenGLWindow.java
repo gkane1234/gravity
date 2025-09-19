@@ -1,13 +1,14 @@
 package com.grumbo.simulation;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
-import com.grumbo.UI.OpenGLUI;
+
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
 import com.grumbo.simulation.GPUSimulation;
+import com.grumbo.ui.OpenGLUI;
 
 /**
  * OpenGLWindow class creates the OpenGL window, manages window events, and draws the UI.

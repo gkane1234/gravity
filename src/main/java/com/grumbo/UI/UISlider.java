@@ -1,4 +1,4 @@
-package com.grumbo.UI;
+package com.grumbo.ui;
 
 import static org.lwjgl.opengl.GL11.*;
 import java.util.function.Consumer;

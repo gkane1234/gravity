@@ -1,4 +1,4 @@
-package com.grumbo.UI;
+package com.grumbo.ui;
 
 import java.util.ArrayList;
 import java.util.HashSet;

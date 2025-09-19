@@ -1,4 +1,4 @@
-package com.grumbo.UI;
+package com.grumbo.ui;
 
 /**
  * UIElement class is the base class for all UI elements.

@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.function.Predicate;
 import org.joml.Vector3f;
 
-import com.grumbo.UI.*;
+import com.grumbo.ui.*;
 
 /**
  * Property class used for accessing and setting the simulation settings.
