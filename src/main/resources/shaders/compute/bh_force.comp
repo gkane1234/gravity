@@ -1,84 +1,120 @@
-
-// Force computation and merging
+// =============================================================
+//                         Force computation
+// =============================================================
+// Acceptance criterion for node traversal
+// Decides whether to continue into the node or calculate force with the center of mass of the node
 bool acceptanceCriterion(float longestRadius, float invDist, float thetaVal)
-
 {
     // when longestRadius > distance, theta is greater than 1 so we always accept since we could be inside the node
     // when longestRadius < distance, theta is less than 1 so accept based on the ratio for example:
     // if theta is 0.5 and longestRadius is 10 and distance is 21, then we accept since 10 / 21 < 0.5
     return longestRadius * invDist < thetaVal;
 }
-
-float invDist(vec3 r, float soft)
+// Calculates the longest side of a node's AABB
+float getLongestSide(Node node) 
+{
+    AABB aabb = getAABB(node.aabb);
+    vec3 extent = aabb.maxCorner - aabb.minCorner;
+    return max(extent.x, max(extent.y, extent.z));
+}
+vec3 force(Node node, vec3 r, float oneOverDist)
+{
+    return node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+}
+// Calculates the inverse square root of the distance between two bodies with softening parameter
+float invDistWithSoftening(vec3 r, float soft)
 {
     float dist2 = dot(r, r) + soft;
     float inv = inversesqrt(dist2);
     return inv;
 }
+// Computes the force on a body using the Barnes-Hut algorithm
+// Also checks for collisions and merges
+// Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: softening, theta, dt, elasticity, wrapAround, collisionMergingOrNeither
+// SSBOs: BodiesIn, BodiesOut, IndexIn, Nodes, LeafNodes, InternalNodes, MergeQueue
+const uint STACK_SIZE = 64u;
 void forceComputeKernel() 
 {
-    vec3 accel = vec3(0.0);
+
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= sim.numBodies) return;
-
 
     uint bodyIdx = indexIn[gid];
 
     Body body = srcB.bodies[bodyIdx];
 
-    uint stack[64];
-    uint stackSize = 0;
-    stack[stackSize++] = sim.initialNumBodies;
+    uint stack[STACK_SIZE];
+    uint currentStackSize = 0u;
+    //Initialize the stack with the root node
+    stack[currentStackSize++] = sim.initialNumBodies;
 
-    while (stackSize > 0) {
-        uint nodeIdx = stack[--stackSize];
-        Node node = nodeIdx < sim.initialNumBodies ? leafNodes[nodeIdx] : internalNodes[nodeIdx-sim.initialNumBodies];
+    vec3 accel = vec3(0.0);
+
+    while (currentStackSize > 0u) {
+        uint nodeIdx = stack[--currentStackSize];
+        Node node = getNode(nodeIdx);
         vec3 r = node.comMass.xyz - body.posMass.xyz;
-        float oneOverDist = invDist(r, softening);
-        AABB aabb = getAABB(node.aabb);
-        vec3 extent = aabb.maxCorner - aabb.minCorner;
-        float longestSide = max(extent.x, max(extent.y, extent.z));
-        if (node.childA == 0xFFFFFFFFu) {
-            accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-            if (indexIn[nodeIdx] != bodyIdx) {
-                Body other = srcB.bodies[indexIn[nodeIdx]];
-                float bodyRadius = radius(body);
-                float otherRadius = radius(other);
-                float dist = length(r);
-                if ((collisionMergingOrNeither == COLLISION) && dist < bodyRadius + otherRadius) {
-                    vec3 velocityDifference = other.velDensity.xyz - body.velDensity.xyz;
-                    vec3 normal = normalize(r);
-                    float vImpact = dot(velocityDifference, normal);
-                    if (vImpact < 0) {
-                        float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
-                        float j = (1+elasticity)*mEff*vImpact;
-                        body.velDensity.xyz += normal * j / body.posMass.w;
-                    }
-                    float penetration = bodyRadius + otherRadius - dist;
-                    if (penetration > 0) {
-                        vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
-                        body.posMass.xyz -= correction;
-                    }
-                } 
-                if ((collisionMergingOrNeither == MERGING) && (dist < bodyRadius + otherRadius) && (bodyIdx < indexIn[nodeIdx])) {
-                    
-                    uint slot = atomicAdd(mergeQueueTail, 1u);
-                    mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
-                }
+        float oneOverDist = invDistWithSoftening(r, softening);
+        if (isInternalNode(node)) {
+            //Check to see if we should continue into the node using the longest radius of the AABB
+            //This is the standard method for a binary radix tree implementation
+            if (acceptanceCriterion(getLongestSide(node)/2, oneOverDist, theta)) {
+                accel += force(node, r, oneOverDist);
+            }
+            //Add the children to the stack
+            else {
+                stack[currentStackSize++] = node.childA;
+                stack[currentStackSize++] = node.childB;
             }
         }
-        else if (acceptanceCriterion(longestSide/2, oneOverDist, theta)) {
-            accel += node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
-        }
         else {
-            stack[stackSize++] = node.childA;
-            stack[stackSize++] = node.childB;
+            if (indexIn[nodeIdx] == bodyIdx) {
+                continue;
+            }
+            //If the node is a leaf node, we calculate the force and check for overlaps
+            accel += force(node, r, oneOverDist);
+
+            if (collisionMergingOrNeither == NEITHER) {
+                continue;
+            }
+        
+            Body other = srcB.bodies[indexIn[nodeIdx]];
+
+            float bodyRadius = radius(body);
+            float otherRadius = radius(other);
+            float dist = length(r);
+            float penetration = bodyRadius + otherRadius - dist; //The amount of overlap between the two bodies
+
+            if ((collisionMergingOrNeither == COLLISION) && (penetration > 0)) {
+                //Calculate the force of the collision
+                vec3 velocityDifference = other.velDensity.xyz - body.velDensity.xyz;
+                vec3 normal = normalize(r);
+                float vImpact = dot(velocityDifference, normal);
+                //If the bodies are moving towards each other, calculate and apply an impulse
+                if (vImpact < 0) {
+                    float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
+                    float impulse = (1+elasticity)*mEff*vImpact;
+                    body.velDensity.xyz += normal * impulse / body.posMass.w;
+                }
+                //Calculate the correction to the position of the body to avoid interpenetration using the overlap and the restitution coefficient
+                vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
+                body.posMass.xyz -= correction;
+            } 
+            //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel
+            if ((collisionMergingOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
+                uint slot = atomicAdd(mergeQueueTail, 1u);
+                mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
+            }
         }
+        
     }
 
-
+    //We don't have to wait for all threads to finish before updating the position since we are using two buffers
     vec3 newVel = body.velDensity.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
+
+    //Check for out of bounds for new position
     if (wrapAround) {
         newPos = mod(newPos-sim.bounds.minCorner, sim.bounds.maxCorner - sim.bounds.minCorner) + sim.bounds.minCorner;
     } else {
@@ -88,6 +124,10 @@ void forceComputeKernel()
             return;
         }
     }
+
+ 
+    
+    //Update the velocity and position of the body on the output buffer
     dstB.bodies[bodyIdx].velDensity.xyz = newVel;
     dstB.bodies[bodyIdx].velDensity.w = body.velDensity.w;
     dstB.bodies[bodyIdx].posMass.xyz = newPos;

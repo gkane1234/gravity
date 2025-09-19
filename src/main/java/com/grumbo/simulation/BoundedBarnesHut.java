@@ -69,14 +69,14 @@ public class BoundedBarnesHut {
     // Compute Shaders
     private List<ComputeShader> computeShaders;
     private ComputeShader initKernel; // bh_init.comp
-    private ComputeShader resetKernel; // bh_reset.comp
+    private ComputeShader updateKernel; // bh_update.comp
     private ComputeShader mortonKernel; // bh_morton.comp
     private ComputeShader deadCountKernel; // bh_dead.comp
     private ComputeShader deadExclusiveScanKernel; // bh_dead.comp
     private ComputeShader deadScatterKernel; // bh_dead.comp
     private ComputeShader radixSortHistogramKernel; // bh_radix.comp
-    private ComputeShader radixSortParallelScanKernel; // bh_radix.comp
-    private ComputeShader radixSortExclusiveScanKernel; // bh_radix.comp
+    private ComputeShader radixSortBucketScanKernel; // bh_radix.comp
+    private ComputeShader radixSortGlobalScanKernel; // bh_radix.comp
     private ComputeShader radixSortScatterKernel; // bh_radix.comp
     private ComputeShader buildBinaryRadixTreeKernel; // bh_tree.comp
     private ComputeShader initLeavesKernel; // bh_reduce.comp
@@ -591,36 +591,36 @@ public class BoundedBarnesHut {
         });
         
         computeShaders.add(radixSortHistogramKernel);
-        radixSortParallelScanKernel = new ComputeShader("KERNEL_RADIX_PARALLEL_SCAN", this);
-        radixSortParallelScanKernel.setUniforms(new Uniform[] {
+        radixSortBucketScanKernel = new ComputeShader("KERNEL_RADIX_BUCKET_SCAN", this);
+        radixSortBucketScanKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
         });
-        radixSortParallelScanKernel.setSSBOs(new String[] {
+        radixSortBucketScanKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
             "WG_HIST_SSBO",
             "WG_SCANNED_SSBO",
             "BUCKET_TOTALS_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
-        radixSortParallelScanKernel.setXWorkGroupsFunction(() -> {
+        radixSortBucketScanKernel.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
         
-        computeShaders.add(radixSortParallelScanKernel);    
-        radixSortExclusiveScanKernel = new ComputeShader("KERNEL_RADIX_EXCLUSIVE_SCAN", this);
-        radixSortExclusiveScanKernel.setUniforms(new Uniform[] {
+        computeShaders.add(radixSortBucketScanKernel);    
+        radixSortGlobalScanKernel = new ComputeShader("KERNEL_RADIX_GLOBAL_SCAN", this);
+        radixSortGlobalScanKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
         });
-        radixSortExclusiveScanKernel.setSSBOs(new String[] {
+        radixSortGlobalScanKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
             "BUCKET_TOTALS_SSBO",
             "SWAPPING_BODIES_IN_SSBO"
         });
-        radixSortExclusiveScanKernel.setXWorkGroupsFunction(() -> {
+        radixSortGlobalScanKernel.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
         
-        computeShaders.add(radixSortExclusiveScanKernel);
+        computeShaders.add(radixSortGlobalScanKernel);
         radixSortScatterKernel = new ComputeShader("KERNEL_RADIX_SCATTER", this);
 
         radixSortScatterKernel.setUniforms(new Uniform[] {
@@ -689,13 +689,13 @@ public class BoundedBarnesHut {
             return numGroups();
         });
         computeShaders.add(initLeavesKernel);
-        resetKernel = new ComputeShader("KERNEL_UPDATE", this);
+        updateKernel = new ComputeShader("KERNEL_UPDATE", this);
 
-        resetKernel.setUniforms(new Uniform[] {
+        updateKernel.setUniforms(new Uniform[] {
             resetValuesOrDecrementDeadBodiesUniform
         });
 
-        resetKernel.setSSBOs(new String[] {
+        updateKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
             "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
             "MERGE_QUEUE_SSBO",
@@ -703,10 +703,10 @@ public class BoundedBarnesHut {
             "SWAPPING_BODIES_OUT_SSBO"
         });
 
-        resetKernel.setXWorkGroupsFunction(() -> {
+        updateKernel.setXWorkGroupsFunction(() -> {
             return 1;
         });
-        computeShaders.add(resetKernel);
+        computeShaders.add(updateKernel);
         propagateNodesKernel = new ComputeShader("KERNEL_TREE_PROPAGATE_NODES", this);
 
         propagateNodesKernel.setUniforms(new Uniform[] {
@@ -723,8 +723,7 @@ public class BoundedBarnesHut {
             
         });
         propagateNodesKernel.setXWorkGroupsFunction(() -> {
-            //int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((numBodies() - 1)));
-            int maxPossibleNodes = Math.max(3*WORK_GROUP_SIZE+1,(int)((numBodies() - 1)/Math.pow(2,COMPropagationPassNumber)));
+            int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,COMPropagationPassNumber)));
             int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return workGroups;
         });
@@ -810,19 +809,19 @@ public class BoundedBarnesHut {
         long resetStartTime = 0;
         if (debug) {
             resetStartTime = System.nanoTime();
-            if (resetKernel.isPreDebugSelected()) {
-                resetKernel.setPreDebugString("Reseting values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (updateKernel.isPreDebugSelected()) {
+                updateKernel.setPreDebugString("Reseting values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
             }
 
         }
         resetValuesOrDecrementDeadBodies = true;
-        resetKernel.run();
+        updateKernel.run();
         if (debug) {
             GPUSimulation.checkGLError("resetValuesPass");
             glFinish();
             resetTime = System.nanoTime() - resetStartTime;
-            if (resetKernel.isPostDebugSelected()) {
-                resetKernel.setPostDebugString("Reset values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (updateKernel.isPostDebugSelected()) {
+                updateKernel.setPostDebugString("Reset values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
             }
         }
     }
@@ -834,18 +833,18 @@ public class BoundedBarnesHut {
         long decrementDeadBodiesStartTime = 0;
         if (debug) {
             decrementDeadBodiesStartTime = System.nanoTime();
-            if (resetKernel.isPreDebugSelected()) {
-                resetKernel.addToPreDebugString("Decrementing dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (updateKernel.isPreDebugSelected()) {
+                updateKernel.addToPreDebugString("Decrementing dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
             }
         }
         resetValuesOrDecrementDeadBodies = false;
-        resetKernel.run();
+        updateKernel.run();
         if (debug) {
             GPUSimulation.checkGLError("decrementDeadBodiesPass");
             glFinish();
             decrementDeadBodiesTime = System.nanoTime() - decrementDeadBodiesStartTime;
-            if (resetKernel.isPostDebugSelected()) {
-                resetKernel.addToPostDebugString("Decremented dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (updateKernel.isPostDebugSelected()) {
+                updateKernel.addToPostDebugString("Decremented dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
             }
         }
     }
@@ -966,35 +965,35 @@ public class BoundedBarnesHut {
                 if (radixSortHistogramKernel.isPostDebugSelected()) {
                     radixSortHistogramKernel.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (radixSortParallelScanKernel.isPreDebugSelected()) {
-                    radixSortParallelScanKernel.addToPreDebugString("Scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortBucketScanKernel.isPreDebugSelected()) {
+                    radixSortBucketScanKernel.addToPreDebugString("Scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 2: Scan
-            radixSortParallelScanKernel.run();
+            radixSortBucketScanKernel.run();
             if (debug) {
-                GPUSimulation.checkGLError("radixSortParallelScanPass" + pass);
+                GPUSimulation.checkGLError("radixSortBucketScanPass" + pass);
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
                 radixSortScanExclusiveStartTime = System.nanoTime();
-                if (radixSortParallelScanKernel.isPostDebugSelected()) {
-                    radixSortParallelScanKernel.addToPostDebugString("Scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortBucketScanKernel.isPostDebugSelected()) {
+                    radixSortBucketScanKernel.addToPostDebugString("Scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (radixSortExclusiveScanKernel.isPreDebugSelected()) {
-                    radixSortExclusiveScanKernel.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortGlobalScanKernel.isPreDebugSelected()) {
+                    radixSortGlobalScanKernel.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
-            radixSortExclusiveScanKernel.run();
+            radixSortGlobalScanKernel.run();
 
             if (debug) {
-                GPUSimulation.checkGLError("radixSortExclusiveScanPass" + pass);
+                GPUSimulation.checkGLError("radixSortGlobalScanPass" + pass);
                 glFinish();
                 radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
                 radixSortScatterStartTime = System.nanoTime();
-                if (radixSortExclusiveScanKernel.isPostDebugSelected()) {
-                    radixSortExclusiveScanKernel.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (radixSortGlobalScanKernel.isPostDebugSelected()) {
+                    radixSortGlobalScanKernel.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
                 if (radixSortScatterKernel.isPreDebugSelected()) {
                     radixSortScatterKernel.addToPreDebugString("Scattering morton codes Pass "+pass+": "+RADIX_BUCKET_TOTALS_SSBO.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");

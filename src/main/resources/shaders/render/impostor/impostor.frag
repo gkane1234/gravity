@@ -1,5 +1,7 @@
 #version 430
-
+// =============================================================
+//                          Impostor fragment shader
+// =============================================================
 in vec2 vMapping;
 in float bodyToGlowRatio;
 in float worldRadius;

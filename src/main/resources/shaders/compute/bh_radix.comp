@@ -1,10 +1,14 @@
-//Alive - Dead partitioning kernels
-//Sorts the morton codes of the alive bodies
-//Dead bodies will be sorted to the end of the array
-//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// =============================================================
+//                      Radix Sort
+// =============================================================
+
+
 
 shared uint hist[NUM_BUCKETS];
-//Radix sort kernels
+//Counts the number of bodies in each radix bucket
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: passShift
+// SSBOs: MortonIn, RadixWGHist
 void radixHistogramKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
@@ -12,7 +16,6 @@ void radixHistogramKernel()
     uint wgId = gl_WorkGroupID.x;
 
     //reset the histogram for this workgroup
-
     if (lid < NUM_BUCKETS) hist[lid] = 0u; 
 
     barrier();
@@ -20,8 +23,8 @@ void radixHistogramKernel()
     bool inRange = gid < sim.numBodies;
 
     if (inRange) {
-        uint64_t key = mortonIn[gid];
-        uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u));
+        uint64_t key = mortonIn[gid]; //get the morton code for the body
+        uint digit = uint((key >> passShift) & (NUM_BUCKETS - 1u)); //get the digit code for the radix bucket the body belongs to
         atomicAdd(hist[digit], 1u);
     }
     
@@ -31,16 +34,22 @@ void radixHistogramKernel()
         wgHist[wgId * NUM_BUCKETS + lid] = hist[lid];
     }
 }
-//Dispached with (ceil(NUM_RADIX_BUCKETS*NUM_WORK_GROUPS/WORK_GROUP_SIZE),0,0) with NUM_RADIX_BUCKETS = 2^RADIX_BITS where RADIX_BITS=4
-//Histogram is of size NUM_RADIX_BUCKETS * NUM_WORK_GROUPS
-//Want to dispach that many threads to do inclusive sum
+//Scan of the per workgroup histogram to save inclusive sums for each bucket
+//Counts the running total (inclusive sum) of the number of bodies in each radix bucket across the workgroups
+//Works in three steps:
+//1. Sum the histogram of the workgroups in contiguous regions (of size ceil(numWorkGroups/WG_SIZE))
+//2. Do a Kogge-Stone inclusive sum of the threadSums
+//3. Propagate the threadSums to each region by repeating the inclusive contiguous sum
+//Dispached with (NUM_RADIX_BUCKETS,0,0)
+// Uniforms: numWorkGroups
+// SSBOs: RadixWGHist, RadixWGScanned, RadixBucketTotals
 shared uint threadSums[WG_SIZE];
-void radixParallelScanKernel()
+void radixBucketScanKernel()
 {
 
     uint lid = gl_LocalInvocationID.x;
     uint wgid = gl_WorkGroupID.x;
-    uint regionSize = (numWorkGroups + WG_SIZE -1 ) / WG_SIZE;
+    uint regionSize = (numWorkGroups + WG_SIZE -1 ) / WG_SIZE; //ceil(numWorkGroups/WG_SIZE)
 
     uint regionStart = lid*regionSize;
     uint bucket = wgid;
@@ -60,7 +69,7 @@ void radixParallelScanKernel()
 
 
     //Kogge-Stone inclusive sum of the threadSums
-
+    //adds the one the came before it, then the one two before it, then 4 before it, etc.
     for (uint offset = 1u; offset < WG_SIZE; offset <<= 1u) {
         uint add = (lid >= offset) ? threadSums[lid-offset] : 0u;
         barrier();
@@ -68,10 +77,10 @@ void radixParallelScanKernel()
         barrier();
     }
 
-    uint base = threadSums[lid]-regionSum;
+    uint localBase = threadSums[lid]-regionSum; //the base for this thread in the workgroup
 
-    //Propagate the threadSums to each region and repeat inclusive contiguous sum
-    uint runningTotal = base;
+    //Propagate the threadSums to each region and repeat inclusive contiguous sum to populate the wgScanned buffer
+    uint runningTotal = localBase;
     for (uint i=0; i<regionSize; i++) {
         uint nextIndex = bucket+NUM_BUCKETS*(regionStart+i);
         if (nextIndex < NUM_BUCKETS*numWorkGroups) {
@@ -79,14 +88,15 @@ void radixParallelScanKernel()
             runningTotal+=wgHist[nextIndex];
         }
     }
-
+  
     if (lid == WG_SIZE-1) {
-        bucketTotals[bucket] = threadSums[WG_SIZE-1u];
+        bucketTotals[bucket] = threadSums[WG_SIZE-1u]; //the total for this bucket
     }
 }
+//Exclusive scan of the bucket totals to calculate the global base for each bucket
 //Dispached with (1,0,0)
 shared uint temp[WG_SIZE];
-void radixExclusiveScanKernel()
+void radixGlobalScanKernel()
 { 
     //load the bucket total for each bucket
     uint lid = gl_LocalInvocationID.x;
@@ -114,8 +124,10 @@ void radixExclusiveScanKernel()
     }
 
 }
-
+//Scatter the morton codes and indicies into their correct positions for this passShift
 //Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: passShift
+// SSBOs: MortonIn, IndexIn, RadixWGScanned, RadixBucketTotals, MortonOut, IndexOut
 shared uint digits[WG_SIZE];
 void radixScatterKernel()
 {

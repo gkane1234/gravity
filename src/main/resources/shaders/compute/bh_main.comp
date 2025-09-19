@@ -2,9 +2,9 @@
 #extension GL_NV_gpu_shader5 : enable
 #extension GL_ARB_shading_language_include : enable
 // =============================================================
-// Main function for the compute shaders used to dispatch the appropriate kernel
+//                          Main function
 // =============================================================
-
+// Main function for the compute shaders used to dispatch the appropriate kernel
 // Kernels are separated into several files:
 // 0. Common resources and definitions (bh_common.comp)
 //     a. Uniform definitions
@@ -24,8 +24,8 @@
 //     c. Dead Scatter Kernel
 // 5. Radix Sort (bh_radix.comp)
 //     a. Radix Histogram Kernel
-//     b. Radix Parallel Scan Kernel
-//     c. Radix Exclusive Scan Kernel
+//     b. Radix Bucket Scan Kernel
+//     c. Radix Global Scan Kernel
 //     d. Radix Scatter Kernel
 // 6. Tree Building (bh_tree.comp)
 //     a. Build Binary Radix Tree Kernel
@@ -65,10 +65,10 @@ void main()
     deadScatterKernel();
 #elif defined(KERNEL_RADIX_HIST)
     radixHistogramKernel();
-#elif defined(KERNEL_RADIX_PARALLEL_SCAN)
-    radixParallelScanKernel();
-#elif defined(KERNEL_RADIX_EXCLUSIVE_SCAN)
-    radixExclusiveScanKernel();
+#elif defined(KERNEL_RADIX_BUCKET_SCAN)
+    radixBucketScanKernel();
+#elif defined(KERNEL_RADIX_GLOBAL_SCAN)
+    radixGlobalScanKernel();
 #elif defined(KERNEL_RADIX_SCATTER)
     radixScatterKernel();
 #elif defined(KERNEL_TREE_BUILD_BINARY_RADIX_TREE)

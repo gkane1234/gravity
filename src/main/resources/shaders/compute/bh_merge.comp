@@ -1,4 +1,7 @@
-
+// =============================================================
+//                         Merge bodies
+// =============================================================
+// Merges two bodies into one
 Body mergeBodies(Body body1, Body body2) {
     Body mergedBody;    
     float newMass = body1.posMass.w + body2.posMass.w;
@@ -18,6 +21,12 @@ Body mergeBodies(Body body1, Body body2) {
     mergedBody.velDensity.w = (body1.posMass.w+body2.posMass.w)/(body1.posMass.w/body1.velDensity.w+body2.posMass.w/body2.velDensity.w);
     return mergedBody;
 }
+// Traverses the merge queue and merges the bodies.
+//Note this takes from and reads to the output buffer since we are using modified data from the force kernel.
+// This is not a deterministic kernel, and will simply skip over pairs if there is a race condition.
+// Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: None
+// SSBOs: BodiesIn, BodiesOut, MergeQueue, MergeBodyLocks
 void mergeBodiesKernel() {
     for (;;) {
         // Atomically claim a queue slot
@@ -35,25 +44,26 @@ void mergeBodiesKernel() {
         uint second = max(iA, iB);
 
         if (atomicCompSwap(bodyLocks[first], 0u, 1u) != 0u) {
-            // could not lock first
-            continue;
+            // could not lock first, already locked
+            continue; // Skip this pair
         }
         if (atomicCompSwap(bodyLocks[second], 0u, 1u) != 0u) {
+            // could not lock second, already locked
             // release first, then skip
             bodyLocks[first] = 0u;
-            continue;
+            continue; // Skip this pair
         }
 
         // Both locked
-        Body body1 = dstB.bodies[iA];
-        Body body2 = dstB.bodies[iB];
+        Body body1 = dstB.bodies[iA]; //Takes from the output buffer
+        Body body2 = dstB.bodies[iB]; //Takes from the output buffer
 
-        if (!isEmpty(body1) && !isEmpty(body2)) {
+        if (!isEmpty(body1) && !isEmpty(body2)) {   
             Body merged = mergeBodies(body1, body2);
-            dstB.bodies[iA] = merged;
-            dstB.bodies[iB] = EMPTY_BODY;
+            dstB.bodies[iA] = merged; //Writes to the output buffer
+            dstB.bodies[iB] = EMPTY_BODY; //Writes to the output buffer
 
-            atomicAdd(sim.merged, 1u);
+            atomicAdd(sim.merged, 1u); //Increment the number of merged bodies for simulation tracking
         }
 
         // Unlock both

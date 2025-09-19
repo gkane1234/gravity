@@ -1,10 +1,20 @@
-
+// =============================================================
+//                         Initialization
+// =============================================================
+// Initialization kernel runs once at the beginning of the simulation
+// Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: None
+// SSBOs: BodiesIn, BodiesOut, IndexIn, IndexOut
 void initKernel() {
     uint gid = gl_GlobalInvocationID.x;
-    indexIn[gid] = gid;
+    //Set the index of the body in the input buffer
+    //This will become the index of its sorted position after the radix sort/dead body counting.
+    indexIn[gid] = gid; 
+    
     //Initial check for out of bounds
     if (outOfBounds(srcB.bodies[gid])) {
         srcB.bodies[gid] = EMPTY_BODY;
     }
+    //Copy the input buffer to the output buffer
     dstB.bodies[gid] = srcB.bodies[gid];
 }

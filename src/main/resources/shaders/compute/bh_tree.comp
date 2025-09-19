@@ -1,5 +1,8 @@
-// Binary radix tree build and helpers
+// =============================================================
+//                      Tree Building
+// =============================================================
 
+//Calculates the longest common prefix of two 64-bit integers
 uint longestCommonPrefix(uint64_t a, uint64_t b)
 {
     if (a == b) return 64u;
@@ -13,6 +16,7 @@ uint longestCommonPrefix(uint64_t a, uint64_t b)
     }
 }
 
+//Calculates the longest common prefix of two morton codes
 int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(sim.numBodies) || j >= int(sim.numBodies)) return -1;
@@ -33,6 +37,9 @@ int safeLCP(int i, int j)
 }
 //Builds the binary radix tree by creating internal nodes
 //Also assigns parents to leaves
+//Dispached with (numGroups,0,0)
+// Uniforms: None
+// SSBOs: SimulationValues, BodiesIn , MortonIn, IndexIn, InternalNodes, LeafNodes
 void treeBuildBinaryRadixTreeKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
@@ -53,7 +60,7 @@ void treeBuildBinaryRadixTreeKernel()
         return;
     }
 
-
+    //This algorithm is taken from a paper by Kerras et al.
     const int i = int(gid);
 
     int lcpRight = safeLCP(i, i + 1);
@@ -123,19 +130,16 @@ void treeBuildBinaryRadixTreeKernel()
     }
 }
 
-// #extension GL_ARB_shading_language_include : enable
-// #include "bh_common.comp"
-// Bottom-up reduction for COM and AABB
-
-// Sets the proper values for the leaf nodes
-// Enqueues internal nodes that have two leaves as children
+//Sets the proper values for the leaf nodes
+//Enqueues internal nodes to the work queue that have children leaves
+//Dispached with (numGroups,0,0)
+// Uniforms: None
+// SSBOs: SimulationValues, BodiesIn, IndexIn, LeafNodes, WorkQueueIn
 void treeInitLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-
+    //Reset the work queue
     if (gid == 0) {
-        sim.uintDebug[0]=0u;
-        sim.uintDebug[50]=0u;
         tailIn = 0u;
         headIn = 0u;
         tailOut = 0u;
@@ -155,24 +159,26 @@ void treeInitLeafNodesKernel()
 
     uint parentIdx = leafNodes[gid].parentId;
     uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
-    if (prev == 1u) {
+    if (prev == 1u) { //meaning the current value is 2.
+        //Enqueue the internal node to the work queue
         uint idx = atomicAdd(tailIn, 1u);
         itemsIn[idx] = parentIdx;
     }
 }
 // Each pass of this kernel propagates COM and AABB one level up the tree
-//TODO: make this work in one pass
+//Dispached with a varying number of workgroups given by:
+// int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,COMPropagationPassNumber)));
+// int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+// Essentially it assumes each pass the number of workgroups needs halves, with a minimum of 4 workgroups.
+// Uniforms: None
+// SSBOs: SimulationValues, InternalNodes, LeafNodes, WorkQueueIn, WorkQueueOut
 void treePropagateNodesKernel()
 {
     uint threadId = gl_GlobalInvocationID.x;
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0u) {
-        if (internalNodes[0].readyChildren != 0xFFFFFFFFu) {
-            //atomicAdd(sim.uintDebug[0], 1u);
-
-        }
-        sim.uintDebug[1] = 0u;
+        //Reset the work queue
         headIn = 0u;
         headOut = 0u;
         tailOut = 0u;
@@ -185,30 +191,31 @@ void treePropagateNodesKernel()
         
         uint internalNodeIdx = itemsIn[workIdx]-sim.initialNumBodies;
         uint readyChildren = internalNodes[internalNodeIdx].readyChildren;
-        if (readyChildren == 0xFFFFFFFFu) {
+        if (readyChildren == 0xFFFFFFFFu) { //Already processed, take the next item
             workIdx = atomicAdd(headIn, 1u);
             continue;
         }
-
-        uint leftReadyChildren = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childA].readyChildren 
-                                                                                              : internalNodes[internalNodes[internalNodeIdx].childA-sim.initialNumBodies].readyChildren;
-        uint rightReadyChildren = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childB].readyChildren 
-                                                                                               : internalNodes[internalNodes[internalNodeIdx].childB-sim.initialNumBodies].readyChildren;
-        if (leftReadyChildren < 2u || rightReadyChildren < 2u) {
+        
+        uint leftReadyChildren = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? 
+            leafNodes[internalNodes[internalNodeIdx].childA].readyChildren : 0xFFFFFFFFu; //Leaf nodes ready children is 0xFFFFFFFF
+        uint rightReadyChildren = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? 
+            leafNodes[internalNodes[internalNodeIdx].childB].readyChildren : 0xFFFFFFFFu; //Leaf nodes ready children is 0xFFFFFFFF
+        if (leftReadyChildren < 2u || rightReadyChildren < 2u) { //If the children are not ready, take the next item
             workIdx = atomicAdd(headIn, 1u);
             continue;
 
             
         }
-        if (atomicCompSwap(internalNodes[internalNodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) {
+        if (atomicCompSwap(internalNodes[internalNodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) { //If someone else has this node, take the next item
             workIdx = atomicAdd(headIn, 1u);
             continue;
         }
-        Node leftChild = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childA] 
-                                                                                       : internalNodes[internalNodes[internalNodeIdx].childA-sim.initialNumBodies];
-        Node rightChild = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? leafNodes[internalNodes[internalNodeIdx].childB] 
-                                                                                        : internalNodes[internalNodes[internalNodeIdx].childB-sim.initialNumBodies];
+
+        //Get the children
+        Node leftChild = getNode(internalNodes[internalNodeIdx].childA);
+        Node rightChild = getNode(internalNodes[internalNodeIdx].childB);
         
+        //update the COM and AABB
         vec4 leftCOM = leftChild.comMass;
         vec4 rightCOM = rightChild.comMass;
         float totalMass = leftCOM.w + rightCOM.w;
@@ -221,25 +228,20 @@ void treePropagateNodesKernel()
         AABB leftAABB = getAABB(leftChild.aabb);
         AABB rightAABB = getAABB(rightChild.aabb);
         AABB newAABB = updateAABB(leftAABB, rightAABB);
+        //Set the values for the internal node
         internalNodes[internalNodeIdx].comMass = vec4(centerOfMass, totalMass);
         internalNodes[internalNodeIdx].aabb = packAABB(newAABB);
         internalNodes[internalNodeIdx].readyChildren = 0xFFFFFFFFu;
         internalNodes[internalNodeIdx].nodeDepth = 1u+max(leftChild.nodeDepth, rightChild.nodeDepth);
         uint parentIdx = internalNodes[internalNodeIdx].parentId;
-        if (parentIdx != 0xFFFFFFFFu) {
-            uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
-            if (prev == 1u) {
-                uint idx = atomicAdd(tailOut, 1u);
+        if (parentIdx != 0xFFFFFFFFu) { //If not the root
+            uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u); //Increment the ready children of the parent
+            if (prev == 1u) { //meaning the current value is 2.
+                uint idx = atomicAdd(tailOut, 1u); //Enqueue the parent to the work queue
                 itemsOut[idx] = parentIdx;
 
             }
         }
-
-        workIdx = atomicAdd(headIn, 1u);
-
-        //atomicAdd(sim.uintDebug[1], 1u);
-        
+        workIdx = atomicAdd(headIn, 1u); //Take the next item
     }
 }
-
-

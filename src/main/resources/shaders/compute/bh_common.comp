@@ -1,5 +1,5 @@
 // =============================================================
-// Common definitions, structs, buffers, and helpers
+//      Common definitions, structs, buffers, and helpers
 // =============================================================
 layout(local_size_x = 256u) in;
 const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
@@ -151,4 +151,11 @@ AABB getAABB(float[6] aabb) {
 float[6] packAABB(AABB aabb) {
     return float[6](aabb.minCorner.x, aabb.minCorner.y, aabb.minCorner.z, aabb.maxCorner.x, aabb.maxCorner.y, aabb.maxCorner.z);
 }
-
+// Gets a node from the leaf or internal nodes buffer depending on the index
+Node getNode(uint nodeIdx) {
+    return nodeIdx < sim.initialNumBodies ? leafNodes[nodeIdx] : internalNodes[nodeIdx-sim.initialNumBodies];
+}
+// Checks if a node is an internal node
+bool isInternalNode(Node node) {
+    return node.childA != 0xFFFFFFFFu;
+}
