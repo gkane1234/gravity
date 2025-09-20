@@ -12,17 +12,7 @@ import com.grumbo.simulation.GPUSimulation;
  * @since 1.0
  */
 
- //Features to implement:
- // Make a branch with a true octree
 
- //Known issues:
- // galaxy generation seems to tear itself apart sometimes
- // the name of fixed ssbo objects is overwritten by the swapping ssbos
- // Radix sort dispatches with too many workgroups when the number of bodies goes down which matters a lot because of the amount of inop threads
- // Most shaders dispatch with too many workgroups when the number of bodies goes down
- // # merged, # lost to oob not calculated correctly at times (sometimes #lost is negative)
- // Radix bits cannot be changed from 4
- // Camera is jumpy especially when far away
 public class Main {
     public static void main(String[] args) {
         GPUSimulation gpuSimulation = new GPUSimulation();
