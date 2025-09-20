@@ -1,0 +1,80 @@
+#version 430
+// =============================================================
+//                          Impostor vertex shader
+// =============================================================
+struct Body {
+  vec4 posMass;
+  vec4 velDensity;
+};
+
+layout(std430, binding = 3) readonly buffer SrcBodies {
+  Body bodies[];
+} srcB;
+
+uniform mat4 uModelView;
+uniform mat4 uProj;
+uniform float uPointScale; // world radius scale (applied to cbrt(mass))
+uniform vec3 uCameraPos;
+uniform vec3 uCameraFront;
+uniform float uFovY; // radians
+uniform float uAspect; // width/height
+
+
+
+out vec2 vMapping;
+out float bodyToGlowRatio;
+out float mass;
+out vec3 vCenterView;
+out float vCenterClipW;
+out float ndcDepth;
+out float worldRadius;
+
+
+const float GLOW_RADIUS_FACTOR = 10;
+const float BOX_CORRECTION = 1.5;
+// Calculates the radius of a body
+float radius(Body b) {
+    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+}
+
+// This vertex shader is used to render the impostor spheres.
+// They are created as a billboard quad that is scaled to the size of the body.
+// The quad is then mapped to the screen space and the depth is calculated.
+// The depth is then used to determine if the sphere is close enough to be rendered as opaque,
+// or far enough to be rendered as a glow.
+void main() {
+  Body b = srcB.bodies[gl_InstanceID];
+
+
+  vec3 center = b.posMass.xyz;
+  mass = b.posMass.w;
+  float trueRadius = radius(b);
+  worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
+  bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
+
+  // Transform center to view space
+  vec4 centerView4 = uModelView * vec4(center, 1.0);
+  vCenterView = centerView4.xyz;
+
+  // Project to clip
+  vec4 centerClip = uProj * centerView4;
+  vCenterClipW = centerClip.w;
+
+  // Which corner of the quad
+  int vid = gl_VertexID & 3;
+  if (vid == 0) vMapping = vec2(-1.0, -1.0) * BOX_CORRECTION;
+  else if (vid == 1) vMapping = vec2(-1.0,  1.0) * BOX_CORRECTION;
+  else if (vid == 2) vMapping = vec2( 1.0, -1.0) * BOX_CORRECTION;
+  else               vMapping = vec2( 1.0,  1.0) * BOX_CORRECTION;
+
+  // Compute projected quad size
+  float camDist = length(vCenterView);
+  float ndcScaleY = worldRadius / (camDist * tan(0.5 * uFovY));
+  float ndcScaleX = ndcScaleY / max(uAspect, 1e-6);
+
+  vec2 ndcOffset = vMapping * vec2(ndcScaleX, ndcScaleY);
+  vec2 clipOffset = ndcOffset * centerClip.w;
+
+  gl_Position = vec4(centerClip.xy + clipOffset, centerClip.z, centerClip.w);
+
+}

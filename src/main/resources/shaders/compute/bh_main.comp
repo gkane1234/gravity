@@ -1,0 +1,92 @@
+#version 430
+#extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_shading_language_include : enable
+// =============================================================
+//                          Main function
+// =============================================================
+// Main function for the compute shaders used to dispatch the appropriate kernel
+// Kernels are separated into several files:
+// 0. Common resources and definitions (bh_common.comp)
+//     a. Uniform definitions
+//     b. SSBO bindings
+//     c. Common definitions of structs and functions
+// 1. Initialization (bh_init.comp)
+//     a. Init Kernel
+// 2. Updating Values (bh_update.comp)
+//     a. Update Kernel (acts as two kernels)
+//          i. Reset Queues 
+//          ii. Update Number of Bodies
+// 3. Morton Encoding (bh_morton.comp)
+//     a. Encode Morton Kernel
+// 4. Dead Body Counting (bh_dead.comp)
+//     a. Dead Count Kernel
+//     b. Dead Exclusive Scan Kernel
+//     c. Dead Scatter Kernel
+// 5. Radix Sort (bh_radix.comp)
+//     a. Radix Histogram Kernel
+//     b. Radix Bucket Scan Kernel
+//     c. Radix Global Scan Kernel
+//     d. Radix Scatter Kernel
+// 6. Tree Building (bh_tree.comp)
+//     a. Build Binary Radix Tree Kernel
+//     b. Init Leaf Nodes Kernel
+//     c. Propagate Nodes Kernel
+// 7. Force Computation (bh_force.comp)
+//     a. Compute Force Kernel (also updates position and velocity of bodies)
+// 8. Merging Bodies (bh_merge.comp)
+//     a. Merge Bodies Kernel
+// 9. Debugging (bh_debug.comp)
+//     a. Debug Kernel
+
+
+#include "bh_common.comp"
+#include "bh_init.comp"
+#include "bh_morton.comp"
+#include "bh_radix.comp"
+#include "bh_tree.comp"
+#include "bh_force.comp"
+#include "bh_debug.comp"
+#include "bh_merge.comp"
+#include "bh_update.comp"
+#include "bh_dead.comp"
+void main()
+{
+#ifdef KERNEL_INIT
+    initKernel();
+#elif defined(KERNEL_UPDATE)
+    updateKernel();
+#elif defined(KERNEL_MORTON_ENCODE)
+    mortonEncodeKernel();
+#elif defined(KERNEL_DEAD_COUNT)
+    deadCountKernel();
+#elif defined(KERNEL_DEAD_EXCLUSIVE_SCAN)
+    deadExclusiveScanKernel();
+#elif defined(KERNEL_DEAD_SCATTER)
+    deadScatterKernel();
+#elif defined(KERNEL_RADIX_HIST)
+    radixHistogramKernel();
+#elif defined(KERNEL_RADIX_BUCKET_SCAN)
+    radixBucketScanKernel();
+#elif defined(KERNEL_RADIX_GLOBAL_SCAN)
+    radixGlobalScanKernel();
+#elif defined(KERNEL_RADIX_SCATTER)
+    radixScatterKernel();
+#elif defined(KERNEL_TREE_BUILD_BINARY_RADIX_TREE)
+    treeBuildBinaryRadixTreeKernel();
+#elif defined(KERNEL_TREE_INIT_LEAVES)
+    treeInitLeafNodesKernel();
+#elif defined(KERNEL_TREE_PROPAGATE_NODES)
+    treePropagateNodesKernel();
+#elif defined(KERNEL_FORCE_COMPUTE)
+    forceComputeKernel();
+#elif defined(KERNEL_MERGE_BODIES)
+    mergeBodiesKernel();
+#elif defined(KERNEL_DEBUG)
+    debugKernel();
+#else
+    // no-op
+#endif
+}
+
+
+

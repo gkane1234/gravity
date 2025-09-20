@@ -1,0 +1,247 @@
+// =============================================================
+//                      Tree Building
+// =============================================================
+
+//Calculates the longest common prefix of two 64-bit integers
+uint longestCommonPrefix(uint64_t a, uint64_t b)
+{
+    if (a == b) return 64u;
+    uint64_t x = a ^ b;
+    uint highBits = uint(x >> 32);
+    uint lowBits = uint(x);
+    if (highBits != 0u) {
+        return 31u - findMSB(uint(highBits));
+    } else {
+        return 63u - findMSB(uint(lowBits));
+    }
+}
+
+//Calculates the longest common prefix of two morton codes
+int safeLCP(int i, int j)
+{
+    if (i < 0 || j < 0 || i >= int(sim.numBodies) || j >= int(sim.numBodies)) return -1;
+    
+    uint64_t mortonI = mortonIn[i];
+    uint64_t mortonJ = mortonIn[j];
+
+    if (mortonI == mortonJ) {
+        uint iu = uint(i);
+        uint ju = uint(j);
+        if (iu == ju) {
+            return 64;
+        } else {
+            return 64 + (31 - findMSB(iu ^ ju));
+        }
+    }
+    return int(longestCommonPrefix(mortonI, mortonJ));
+}
+//Builds the binary radix tree by creating internal nodes
+//Also assigns parents to leaves
+//Dispached with (numGroups,0,0)
+// Uniforms: None
+// SSBOs: SimulationValues, BodiesIn , MortonIn, IndexIn, InternalNodes, LeafNodes
+void treeBuildBinaryRadixTreeKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= sim.numBodies - 1u) {
+        // For when there is only one body
+        if (gid == 0) {
+            internalNodes[0].parentId = 0xFFFFFFFFu;
+            internalNodes[0].childA = 0;
+            internalNodes[0].childB = 0xFFFFFFFFu;
+            internalNodes[0].readyChildren = 1u;
+            internalNodes[0].comMass = vec4(0.0);
+            internalNodes[0].aabb = packAABB(AABB(vec3(1e38), vec3(-1e38)));
+            internalNodes[0].nodeDepth = 0u;
+            internalNodes[0].bodiesContained = 0u;
+            leafNodes[0].parentId = sim.initialNumBodies;
+
+        }
+        return;
+    }
+
+    //This algorithm is taken from a paper by Kerras et al.
+    const int i = int(gid);
+
+    int lcpRight = safeLCP(i, i + 1);
+    int lcpLeft = safeLCP(i, i - 1);
+    int direction = (lcpLeft > lcpRight) ? -1 : 1;
+
+    int deltaMin = safeLCP(i, i - direction);
+    int lmax = 2;
+    while (safeLCP(i, i + direction * lmax) > deltaMin) {
+        lmax *= 2;
+    }
+
+    int l = 0;
+    int t = lmax / 2;
+    while (t > 0) {
+        if (safeLCP(i, i + direction * (l + t)) > deltaMin) {
+            l = l + t;
+        }
+        t /= 2;
+    }
+    int j = i + l * direction;
+
+    int deltaNode = safeLCP(i, j);
+    int s = 0;
+    t = l;
+    while (t>1) {
+        t = (t + 1) / 2;
+        if (safeLCP(i, i + (s + t) * direction) > deltaNode) {
+            s += t;
+        }
+    }
+    int gamma = i + s*direction + min(direction,0);
+
+    uint leftChild, rightChild;
+    if (min(i,j)==gamma) {
+        leftChild = uint(gamma);
+    } else {
+        leftChild = uint(gamma) + sim.initialNumBodies;
+    }
+    if (max(i,j)==gamma+1) {
+        rightChild = uint(gamma+1);
+    } else {
+        rightChild = uint(gamma+1) + sim.initialNumBodies;
+    }
+
+    uint internalIdx = uint(i);// + sim.initialNumBodies;
+    uint globalIdx = internalIdx + sim.initialNumBodies;
+    internalNodes[internalIdx].childA = leftChild;
+    internalNodes[internalIdx].childB = rightChild;
+    internalNodes[internalIdx].readyChildren = 0u;
+    internalNodes[internalIdx].comMass = vec4(0.0);
+    internalNodes[internalIdx].aabb = packAABB(AABB(vec3(1e38), vec3(-1e38)));
+    if (leftChild < sim.initialNumBodies) {
+        leafNodes[leftChild].parentId = globalIdx;
+    } else {
+        internalNodes[leftChild-sim.initialNumBodies].parentId = globalIdx;
+    }
+    if (rightChild < sim.initialNumBodies) {
+        leafNodes[rightChild].parentId = globalIdx;
+    } else {
+        internalNodes[rightChild-sim.initialNumBodies].parentId = globalIdx;
+    }
+    internalNodes[internalIdx].nodeDepth = uint(min(i, j));
+    internalNodes[internalIdx].bodiesContained = uint(max(i, j) - min(i, j) + 1);
+    if (i == 0) {
+        internalNodes[internalIdx].parentId = 0xFFFFFFFFu;
+    }
+}
+
+//Sets the proper values for the leaf nodes
+//Enqueues internal nodes to the work queue that have children leaves
+//Dispached with (numGroups,0,0)
+// Uniforms: None
+// SSBOs: SimulationValues, BodiesIn, IndexIn, LeafNodes, WorkQueueIn
+void treeInitLeafNodesKernel()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    //Reset the work queue
+    if (gid == 0) {
+        tailIn = 0u;
+        headIn = 0u;
+        tailOut = 0u;
+        headOut = 0u;
+    }
+    if (gid >= sim.numBodies) return;
+
+    uint bodyIdx = indexIn[gid];
+    Body body = srcB.bodies[bodyIdx];
+
+    leafNodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
+    leafNodes[gid].aabb = packAABB(AABB(body.posMass.xyz, body.posMass.xyz));
+    leafNodes[gid].childA = 0xFFFFFFFFu;
+    leafNodes[gid].childB = 0xFFFFFFFFu;
+    leafNodes[gid].readyChildren = 0xFFFFFFFFu;
+    leafNodes[gid].nodeDepth = 0u;
+
+    uint parentIdx = leafNodes[gid].parentId;
+    uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
+    if (prev == 1u) { //meaning the current value is 2.
+        //Enqueue the internal node to the work queue
+        uint idx = atomicAdd(tailIn, 1u);
+        itemsIn[idx] = parentIdx;
+    }
+}
+// Each pass of this kernel propagates COM and AABB one level up the tree
+//Dispached with a varying number of workgroups given by:
+// int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,COMPropagationPassNumber)));
+// int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
+// Essentially it assumes each pass the number of workgroups needs halves, with a minimum of 4 workgroups.
+// Uniforms: None
+// SSBOs: SimulationValues, InternalNodes, LeafNodes, WorkQueueIn, WorkQueueOut
+void treePropagateNodesKernel()
+{
+    uint threadId = gl_GlobalInvocationID.x;
+    uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+
+    if (gl_GlobalInvocationID.x == 0u) {
+        //Reset the work queue
+        headIn = 0u;
+        headOut = 0u;
+        tailOut = 0u;
+    }
+
+    memoryBarrierBuffer();
+   
+    uint workIdx = atomicAdd(headIn, 1u);
+    while (workIdx < tailIn) {
+        
+        uint internalNodeIdx = itemsIn[workIdx]-sim.initialNumBodies;
+        uint readyChildren = internalNodes[internalNodeIdx].readyChildren;
+        if (readyChildren == 0xFFFFFFFFu) { //Already processed, take the next item
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+        }
+        
+        uint leftReadyChildren = internalNodes[internalNodeIdx].childA < sim.initialNumBodies ? 
+            leafNodes[internalNodes[internalNodeIdx].childA].readyChildren : 0xFFFFFFFFu; //Leaf nodes ready children is 0xFFFFFFFF
+        uint rightReadyChildren = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? 
+            leafNodes[internalNodes[internalNodeIdx].childB].readyChildren : 0xFFFFFFFFu; //Leaf nodes ready children is 0xFFFFFFFF
+        if (leftReadyChildren < 2u || rightReadyChildren < 2u) { //If the children are not ready, take the next item
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+
+            
+        }
+        if (atomicCompSwap(internalNodes[internalNodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) { //If someone else has this node, take the next item
+            workIdx = atomicAdd(headIn, 1u);
+            continue;
+        }
+
+        //Get the children
+        Node leftChild = getNode(internalNodes[internalNodeIdx].childA);
+        Node rightChild = getNode(internalNodes[internalNodeIdx].childB);
+        
+        //update the COM and AABB
+        vec4 leftCOM = leftChild.comMass;
+        vec4 rightCOM = rightChild.comMass;
+        float totalMass = leftCOM.w + rightCOM.w;
+        vec3 centerOfMass;
+        if (totalMass > 0.0) {
+            centerOfMass = (leftCOM.w * leftCOM.xyz + rightCOM.w * rightCOM.xyz) / totalMass;
+        } else {
+            centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
+        }
+        AABB leftAABB = getAABB(leftChild.aabb);
+        AABB rightAABB = getAABB(rightChild.aabb);
+        AABB newAABB = updateAABB(leftAABB, rightAABB);
+        //Set the values for the internal node
+        internalNodes[internalNodeIdx].comMass = vec4(centerOfMass, totalMass);
+        internalNodes[internalNodeIdx].aabb = packAABB(newAABB);
+        internalNodes[internalNodeIdx].readyChildren = 0xFFFFFFFFu;
+        internalNodes[internalNodeIdx].nodeDepth = 1u+max(leftChild.nodeDepth, rightChild.nodeDepth);
+        uint parentIdx = internalNodes[internalNodeIdx].parentId;
+        if (parentIdx != 0xFFFFFFFFu) { //If not the root
+            uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u); //Increment the ready children of the parent
+            if (prev == 1u) { //meaning the current value is 2.
+                uint idx = atomicAdd(tailOut, 1u); //Enqueue the parent to the work queue
+                itemsOut[idx] = parentIdx;
+
+            }
+        }
+        workIdx = atomicAdd(headIn, 1u); //Take the next item
+    }
+}

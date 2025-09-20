@@ -95,6 +95,47 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.grumbo.Main</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includeScope>runtime</includeScope>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <overWriteIfNewer>true</overWriteIfNewer>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <executions>
@@ -116,6 +157,13 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
+        <configuration>
+          <mainClass>com.grumbo.Main</mainClass>
+          <options>
+            <option>-Xmx24g</option>
+            <option>-Xms1g</option>
+          </options>
+        </configuration>
         <executions>
           <execution>
             <id>generate-settings</id>
@@ -126,15 +174,12 @@
             <configuration>
               <mainClass>com.grumbo.SettingsGenerator</mainClass>
               <arguments>
-                <argument>${project.basedir}/src/main/resources/defaultProperties.json</argument>
-                <argument>${project.basedir}/src/main/java/com/grumbo/Settings.java</argument>
+                <argument>${project.basedir}/src/main/resources/settings/defaultProperties.json</argument>
+                <argument>${project.basedir}/src/main/java/com/grumbo/simulation/Settings.java</argument>
               </arguments>
             </configuration>
           </execution>
         </executions>
-                <configuration>
-                    <mainClass>com.grumbo.Main</mainClass>
-                </configuration>
             </plugin>
         </plugins>
     </build>

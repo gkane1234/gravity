@@ -1,0 +1,112 @@
+// =============================================================
+//                      Dead body Partitioning
+// =============================================================
+
+shared uint deadFlags[WG_SIZE];
+shared uint aliveFlags[WG_SIZE];
+
+
+//Counts the number of dead bodies in a particular workgroup
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: None
+// SSBOs: BodiesIn, BodiesOut, IndexIn, wgHist
+void deadCountKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+
+    bool inRange = gid < sim.numBodies;
+    uint bodyIdx = indexIn[gid];
+    bool alive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
+    bool dead = inRange && isEmpty(srcB.bodies[bodyIdx]);
+
+    //Reset the histogram for this workgroup. We are using a histogram with one bucket as analogous to radix sort.
+    if (lid == 0u) {
+        wgHist[wgId] = 0u;
+    }
+
+    // make sure that the body is set to empty correctly on both buffers
+    if (dead) {
+       srcB.bodies[bodyIdx] = EMPTY_BODY;
+       dstB.bodies[bodyIdx] = EMPTY_BODY;
+    }
+    //Set the dead flag for this thread in workgroup shared memory
+    deadFlags[lid] = dead ? 1u : 0u;
+    barrier();
+
+    if (lid == 0u) {
+        //Sum the dead flags for this workgroup
+        uint sum = 0u;
+        for (uint i = 0u; i < WG_SIZE; ++i) {
+            sum += deadFlags[i];
+        }
+        wgHist[wgId] = sum;
+    }
+}
+
+//Calculates the exclusive sum of the dead bodies per workgroup
+//Dispached with (1,0,0)
+// Uniforms: numWorkGroups
+// SSBOs: wgHist, wgScanned
+// This doesn't take long enough to be worth optimizing, but it could be done with the Kogge-Stone algorithm as in radix sort.
+void deadExclusiveScanKernel() {
+    if (gl_LocalInvocationID.x == 0u) {
+        uint sum = 0u;
+        //Sum the dead bodies per workgroup
+        for (uint wg = 0u; wg < numWorkGroups; ++wg) {
+            uint v = wgHist[wg];
+            wgScanned[wg] = sum;
+            sum += v;
+        }
+        //This is the total number of dead bodies for this frame
+        sim.justDied = sum;
+    }
+    
+}
+
+//Partitions the dead and alive bodies into the correct positions
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: numWorkGroups
+// SSBOs: wgScanned, BodiesIn, IndexOut
+void deadScatterKernel() {
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+    uint gid = gl_GlobalInvocationID.x;
+    bool inRange = (gid < sim.numBodies);
+    uint bodyIdx = indexIn[gid];
+    bool isDead  = inRange && isEmpty(srcB.bodies[bodyIdx]);
+    bool isAlive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
+    //Calculate alive and dead flags analogously to deadCountKernel
+    if (isDead) {
+        deadFlags[lid] = 1u;
+    }
+    else {
+        deadFlags[lid] = 0u;
+    }
+    aliveFlags[lid] = isAlive ? 1u : 0u;
+
+    barrier();
+    //Calculate the local rank for the dead and alive bodies
+    uint localDeadRank = 0u;
+    for (uint i = 0u; i < lid; ++i) {
+        if (deadFlags[i] == 1u) {
+            localDeadRank++;
+        }
+    }
+    uint localAliveRank = 0u;
+    for (uint i = 0u; i < lid; ++i) {
+        if (aliveFlags[i] == 1u) {
+            localAliveRank++;
+        }
+    }
+    //Place the dead and alive bodies in the correct positions
+    if (isDead) {
+        uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId] + localDeadRank;
+        indexOut[dstIndex]  = bodyIdx;
+
+    } 
+    else if (isAlive) {
+        uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId] + localAliveRank;
+        indexOut[dstIndex]  = bodyIdx;
+    }
+}

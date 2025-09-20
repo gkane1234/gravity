@@ -10,9 +10,16 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-
+/**
+ * SettingsGenerator - Generates the Settings.java class from the defaultProperties.json file.
+ */
 public class SettingsGenerator {
     
+    /**
+     * Main method - Generates the Settings.java class from the defaultProperties.json file.
+     * Needs the appropriate aruements to run. For example:
+     * src/main/resources/settings/defaultProperties.json src/main/java/com/grumbo/simulation/Settings.java
+     */
     public static void main(String[] args) {
         if (args.length != 2) {
             System.out.println("Usage: SettingsGenerator <input-json> <output-java>");
@@ -31,7 +38,12 @@ public class SettingsGenerator {
             System.exit(1);
         }
     }
-    
+    /**
+     * Generates the Settings.java class from the defaultProperties.json file.
+     * @param jsonFile the json file to read from
+     * @param javaFile the java file to write to
+     * @throws IOException if the file cannot be read or written
+     */
     public static void generateSettingsClass(String jsonFile, String javaFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode root = mapper.readTree(new File(jsonFile));
@@ -62,9 +74,14 @@ public class SettingsGenerator {
         Files.write(Paths.get(javaFile), code.toString().getBytes());
     }
     
+    /**
+     * Generates the class header for the Settings.java class.
+     * @return the class header for the Settings.java class
+     */
     private static String generateClassHeader() {
-        return """            
-            package com.grumbo;
+        return """
+            // ===== AUTO-GENERATED: Settings.java =====
+            package com.grumbo.simulation;
 
             import java.awt.Color;
             import java.io.File;
@@ -74,15 +91,17 @@ public class SettingsGenerator {
             import com.fasterxml.jackson.databind.ObjectMapper;
             import java.util.ArrayList;
             import org.joml.Vector3f;
-            import java.net.URL;
-            import java.nio.file.Path;
-            import java.nio.file.Paths;
-            import java.nio.file.Files;
             
-
+            /**
+             * Settings - Class for storing and accessing the simulation settings as singleton objects.
+             * This class is automatically generated from defaultProperties.json
+             * Any changes made here will be overwritten when regenerating EXCEPT for the methods in the "preserved" section at the bottom of the file.
+             * @author Grumbo
+             * @version 1.0
+             * @since 1.0
+             */
             public class Settings {
                 
-                private static final String SETTINGS_FILE = getSettingsFile().getAbsolutePath();
                 private static Settings instance;
                 
                 // Property map to store all settings
@@ -93,12 +112,20 @@ public class SettingsGenerator {
                     loadSettings();
                 }
                 
+                /**
+                 * Gets the instance of the Settings class object for a given property.
+                 * @return the instance of the Settings class
+                 */
                 public static Settings getInstance() {
                     if (instance == null) {
                         instance = new Settings();
                     }
                     return instance;
                 }
+                /**
+                 * Gets the names of all the properties in the Settings class.
+                 * @return the names of all the properties in the Settings class
+                 */
                 public ArrayList<String> getPropertyNames() {
                     return new ArrayList<>(properties.keySet());
                 }
@@ -106,11 +133,18 @@ public class SettingsGenerator {
             """;
     }
     
+    /**
+     * Generates the initializeProperties method for the Settings.java class.
+     * @param properties the properties to generate the initializeProperties method for
+     * @return the initializeProperties method for the Settings.java class
+     */
     private static String generateInitializeProperties(JsonNode properties) {
         StringBuilder code = new StringBuilder();
-        code.append("\t// ===== AUTO-GENERATED: Property Initialization =====\n");
-        code.append("\t// This section is automatically generated from defaultProperties.json\n");
-        code.append("\t// Any changes made here will be overwritten when regenerating\n");
+        code.append("\t/**\n");
+        code.append("\t * Initializes the properties as read from defaultProperties.json.\n");
+        code.append("\t * This method is automatically generated from defaultProperties.json\n");
+        code.append("\t * Any changes made here will be overwritten when regenerating\n");
+        code.append("\t */\n");
         code.append("\tprivate void initializeProperties() {\n");
         
         Iterator<Map.Entry<String, JsonNode>> fields = properties.fields();
@@ -168,6 +202,11 @@ public class SettingsGenerator {
                     }
                     break;
                 }
+
+                case "selector":
+                    code.append(String.format("\t\tproperties.put(\"%s\", Property.createSelectorProperty(\"%s\", \"%s\", \"%s\", %s, %s));\n",
+                        propertyName, propertyName, defaultValue, defaultValue, buildOptionsArray(property.get("options")), editable));
+                    break;
                     
                 case "boolean":
                     code.append(String.format("\t\tproperties.put(\"%s\", Property.createBooleanProperty(\"%s\", %s, %s, %s));\n",
@@ -202,7 +241,7 @@ public class SettingsGenerator {
                     }
                     arrayBuilder.append("}");
                     String javaArray = arrayBuilder.toString();
-                    code.append(String.format("\t\t{ Property<double[]> p = new Property<>(\"%s\", new double[]%s, new double[]%s); p.setTypeName(\"doubleArray\"); p.setEditable(%s); properties.put(\"%s\", p); }\n",
+                    code.append(String.format("\t\t{ Property<double[]> p = new Property<>(\"%s\", new double[]%s, new double[]%s); p.setTypeName(\"DOUBLE_ARRAY\"); p.setEditable(%s); properties.put(\"%s\", p); }\n",
                         propertyName, javaArray, javaArray, editable, propertyName));
                     break;
                 default:
@@ -214,15 +253,39 @@ public class SettingsGenerator {
         }
         
         code.append("\t}\n");
-        code.append("\t// ===== END AUTO-GENERATED: Property Initialization =====\n\n");
         return code.toString();
     }
-    
+
+    /**
+     * Builds the options array for a selector property.
+     * @param options the options to build the options array for
+     * @return the options array for a selector property
+     */
+    private static String buildOptionsArray(JsonNode options) {
+        StringBuilder optionsBuilder = new StringBuilder();
+        optionsBuilder.append("new String[]{");
+        for (int i = 0; i < options.size(); i++) {
+            optionsBuilder.append("\"" + options.get(i).asText() + "\"");
+            if (i < options.size() - 1) {
+                optionsBuilder.append(", ");
+            }
+        }
+        optionsBuilder.append("}");
+        return optionsBuilder.toString();
+    }
+    /**
+     * Generates the convenience methods for the Settings.java class.
+     * @param properties the properties to generate the convenience methods for
+     * @param existingContent the existing content of the Settings.java class
+     * @return the convenience methods for the Settings.java class
+     */
     private static String generateConvenienceMethods(JsonNode properties, String existingContent) {
         StringBuilder code = new StringBuilder();
-        code.append("\t// ===== AUTO-GENERATED: Generic Getter/Setter Methods =====\n");
-        code.append("\t// These methods provide type-safe access to properties\n");
-        code.append("\t// Any changes made here will be overwritten when regenerating\n");
+        code.append("\t/**\n");
+        code.append("\t * Gets the value of a given property.\n");
+        code.append("\t * This method is automatically generated from defaultProperties.json\n");
+        code.append("\t * Any changes made here will be overwritten when regenerating\n");
+        code.append("\t */\n");
         code.append("\t@SuppressWarnings(\"unchecked\")\n");
         code.append("\tpublic <T> T getValue(String propertyName) {\n");
         code.append("\t\tProperty<T> prop = (Property<T>) properties.get(propertyName);\n");
@@ -232,6 +295,11 @@ public class SettingsGenerator {
         code.append("\t\treturn prop.getValue();\n");
         code.append("\t}\n\n");
         
+        code.append("\t/**\n");
+        code.append("\t * Sets the value of a given property.\n");
+        code.append("\t * This method is automatically generated from defaultProperties.json\n");
+        code.append("\t * Any changes made here will be overwritten when regenerating\n");
+        code.append("\t */\n");
         code.append("\t@SuppressWarnings(\"unchecked\")\n");
         code.append("\tpublic <T> void setValue(String propertyName, T value) {\n");
         code.append("\t\tProperty<T> prop = (Property<T>) properties.get(propertyName);\n");
@@ -240,11 +308,6 @@ public class SettingsGenerator {
         code.append("\t\t}\n");
         code.append("\t\tprop.setValue(value);\n");
         code.append("\t}\n");
-        code.append("\t// ===== END AUTO-GENERATED: Generic Getter/Setter Methods =====\n\n");
-        
-        code.append("\t// ===== AUTO-GENERATED: Property-Specific Getter/Setter Methods =====\n");
-        code.append("\t// These methods are automatically generated for each property in defaultProperties.json\n");
-        code.append("\t// Any changes made here will be overwritten when regenerating\n");
         
         // Get list of methods that are already in preserved section
         Set<String> preservedMethods = getPreservedMethodNames(existingContent);
@@ -261,11 +324,21 @@ public class SettingsGenerator {
             // Generate getter
             String javaType = getJavaType(type);
             String getterName = getGetterName(propertyName, type);
+            code.append("\t/**\n");
+            code.append("\t * Gets the value of the property " + propertyName + ".\n");
+            code.append("\t * This method is automatically generated from defaultProperties.json\n");
+            code.append("\t * Any changes made here will be overwritten when regenerating\n");
+            code.append("\t */\n");
             code.append(String.format("\tpublic %s %s() { return getValue(\"%s\"); }\n", 
                 javaType, getterName, propertyName));
             
             // Generate setter
             String setterName = "set" + capitalize(propertyName);
+            code.append("\t/**\n");
+            code.append("\t * Sets the value of the property " + propertyName + ".\n");
+            code.append("\t * This method is automatically generated from defaultProperties.json\n");
+            code.append("\t * Any changes made here will be overwritten when regenerating\n");
+            code.append("\t */\n");
             code.append(String.format("\tpublic void %s(%s value) { setValue(\"%s\", value); }\n", 
                 setterName, javaType, propertyName));
             code.append("\n");
@@ -274,58 +347,73 @@ public class SettingsGenerator {
             if (type.equals("boolean")) {
                 String toggleMethodName = "toggle" + capitalize(propertyName);
                 if (!preservedMethods.contains(toggleMethodName)) {
+                    code.append("\t/**\n");
+                    code.append("\t * Toggles the value of the property " + propertyName + ".\n");
+                    code.append("\t * This method is automatically generated from defaultProperties.json\n");
+                    code.append("\t * Any changes made here will be overwritten when regenerating\n");
+                    code.append("\t */\n");
                     code.append(String.format("\tpublic void %s() { set%s(!is%s()); }\n", 
                         toggleMethodName, capitalize(propertyName), capitalize(propertyName)));
                 }
             }
         }
         
-        code.append("\t// ===== END AUTO-GENERATED: Property-Specific Getter/Setter Methods =====\n\n");
         return code.toString();
     }
     
+    /**
+     * Generates the class footer for the Settings.java class.
+     * @param existingContent the existing content of the Settings.java class
+     * @return the class footer for the Settings.java class
+     */
     private static String generateClassFooter(String existingContent) {
         StringBuilder footer = new StringBuilder();
-        
-        // Add fixed methods that are always included
-        footer.append("\t// ===== FIXED: Non-Configurable Values =====\n");
-        footer.append("\t// These methods return fixed values that are not configurable\n");
-        footer.append("\tpublic int getNumThreads() { return 100; }\n");
-        footer.append("\t// ===== END FIXED: Non-Configurable Values =====\n\n");
+
+         // Add utility methods
+         footer.append("\t/**\n");
+         footer.append("\t * Adds a property to the Settings class.\n");
+         footer.append("\t * This method is automatically generated from defaultProperties.json\n");
+         footer.append("\t * Any changes made here will be overwritten when regenerating\n");
+         footer.append("\t */\n");
+         footer.append("\tpublic <T> void addProperty(String name, Property<T> property) {\n");
+         footer.append("\t\tproperties.put(name, property);\n");
+         footer.append("\t}\n\n");
+         
+         footer.append("\t/**\n");
+         footer.append("\t * Gets a property from the Settings class.\n");
+         footer.append("\t * This method is automatically generated from defaultProperties.json\n");
+         footer.append("\t * Any changes made here will be overwritten when regenerating\n");
+         footer.append("\t */\n");
+         footer.append("\tpublic Property<?> getProperty(String name) {\n");
+         footer.append("\t\treturn properties.get(name);\n");
+         footer.append("\t}\n");
+         
+         // Add loadSettings and saveSettings methods
+         footer.append(generateLoadSaveMethods());
+
         
         // Extract and preserve existing convenience methods from the old file
         String preservedMethods = extractPreservedMethods(existingContent);
         if (!preservedMethods.isEmpty()) {
-            footer.append("\t// ===== PRESERVED: Custom Convenience Methods =====\n");
+            footer.append("\t// ===== PRESERVED METHODS =====\n");
             footer.append(preservedMethods);
-            footer.append("\t// ===== END PRESERVED: Custom Convenience Methods =====\n\n");
+            footer.append("\t// ===== END PRESERVED METHODS =====\n\n");
         }
-        
-        // Add utility methods
-        footer.append("\t// ===== AUTO-GENERATED: Utility Methods =====\n");
-        footer.append("\t// These utility methods are always included\n");
-        footer.append("\t// Any changes made here will be overwritten when regenerating\n");
-        footer.append("\tpublic <T> void addProperty(String name, Property<T> property) {\n");
-        footer.append("\t\tproperties.put(name, property);\n");
-        footer.append("\t}\n\n");
-        
-        footer.append("\tpublic Property<?> getProperty(String name) {\n");
-        footer.append("\t\treturn properties.get(name);\n");
-        footer.append("\t}\n");
-        footer.append("\t// ===== END AUTO-GENERATED: Utility Methods =====\n\n");
-        
-        // Add loadSettings and saveSettings methods at the very bottom
-        footer.append(generateLoadSaveMethods());
         footer.append("}\n");
-        
         return footer.toString();
     }
     
+    /**
+     * Generates the loadSettings and saveSettings methods for the Settings.java class.
+     * @return the loadSettings and saveSettings methods for the Settings.java class
+     */
     private static String generateLoadSaveMethods() {
         return """
-                \t// ===== AUTO-GENERATED: Load/Save Methods =====
-                \t// These methods handle JSON serialization/deserialization
-                \t// Any changes made here will be overwritten when regenerating
+                \t/**
+                \t * Loads the settings file.
+                \t * This method is automatically generated from defaultProperties.json
+                \t * Any changes made here will be overwritten when regenerating
+                \t */
                 \tprivate static File getSettingsFile() {
                 \t\ttry {
                 \t\t\tjava.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
@@ -344,17 +432,22 @@ public class SettingsGenerator {
                 \t\t\t\t}
                 \t\t\t\tmoduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
                 \t\t\t}
-                \t\t\tjava.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings.json");
+                \t\t\tjava.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings/settings.json");
                 \t\t\treturn settingsPath.toFile();
                 \t\t} catch (Exception e) {
                 \t\t\tjava.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
-                \t\t\tjava.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings.json");
+                \t\t\tjava.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings/settings.json");
                 \t\t\tif (!java.nio.file.Files.exists(candidate.getParent())) {
-                \t\t\t\tcandidate = userDir.resolve("src/main/resources/settings.json");
+                \t\t\t\tcandidate = userDir.resolve("src/main/resources/settings/settings.json");
                 \t\t\t}
                 \t\t\treturn candidate.toFile();
                 \t\t}
                 \t}
+                \t/**
+                \t * Loads the settings from the settings file.
+                \t * This method is automatically generated from defaultProperties.json
+                \t * Any changes made here will be overwritten when regenerating
+                \t */
                 \tpublic void loadSettings() {
                 \t\tFile file = getSettingsFile();
                 \t\tif (file.exists()) {
@@ -421,6 +514,11 @@ public class SettingsGenerator {
                 \t\t}
                 \t}
                 \t
+                \t/**
+                \t * Saves the settings to the settings file.
+                \t * This method is automatically generated from defaultProperties.json
+                \t * Any changes made here will be overwritten when regenerating
+                \t */
                 \tpublic void saveSettings() {
                 \t\ttry {
                 \t\t\tObjectMapper mapper = new ObjectMapper();
@@ -442,16 +540,19 @@ public class SettingsGenerator {
                 \t\t\tFile parent = file.getParentFile();
                 \t\t\tif (parent != null) { parent.mkdirs(); }
                 \t\t\tmapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonData);
-                \t\t\tSystem.out.println("Settings saved to " + file.getAbsolutePath());
                 \t\t} catch (IOException e) {
                 \t\t\tSystem.err.println("Failed to save settings: " + e.getMessage());
                 \t\t}
                 \t}
-                \t// ===== END AUTO-GENERATED: Load/Save Methods =====
                 \t
                 """;
     }
     
+    /**
+     * Extracts the preserved methods from the existing content of the Settings.java class.
+     * @param existingContent the existing content of the Settings.java class
+     * @return the preserved methods from the existing content of the Settings.java class
+     */
     private static String extractPreservedMethods(String existingContent) {
         if (existingContent.isEmpty()) {
             return "";
@@ -460,18 +561,16 @@ public class SettingsGenerator {
         StringBuilder preserved = new StringBuilder();
         String[] lines = existingContent.split("\n");
         boolean inPreservedSection = false;
-        boolean foundPreservedStart = false;
         
         for (String line : lines) {
             // Look for the start of preserved section - be more specific
-            if (line.contains("// ===== PRESERVED: Custom Convenience Methods =====")) {
+            if (line.contains("// ===== PRESERVED METHODS =====")) {
                 inPreservedSection = true;
-                foundPreservedStart = true;
                 continue; // Skip the header line itself
             }
             
             // Look for the end of preserved section - be more specific
-            if (line.contains("// ===== END PRESERVED: Custom Convenience Methods =====")) {
+            if (line.contains("// ===== END PRESERVED METHODS =====")) {
                 inPreservedSection = false;
                 break;
             }
@@ -484,6 +583,11 @@ public class SettingsGenerator {
         return preserved.toString();
     }
     
+    /**
+     * Gets the Java type for a given JSON type.
+     * @param jsonType the JSON type to get the Java type for
+     * @return the Java type for a given JSON type
+     */
     private static String getJavaType(String jsonType) {
         switch (jsonType) {
             case "int": return "int";
@@ -497,6 +601,12 @@ public class SettingsGenerator {
         }
     }
     
+    /**
+     * Gets the getter name for a given property name and type.
+     * @param propertyName the property name to get the getter name for
+     * @param type the type of the property to get the getter name for
+     * @return the getter name for a given property name and type
+     */
     private static String getGetterName(String propertyName, String type) {
         if (type.equals("boolean")) {
             return "is" + capitalize(propertyName);
@@ -505,6 +615,11 @@ public class SettingsGenerator {
         }
     }
     
+    /**
+     * Capitalizes a given string.
+     * @param str the string to capitalize
+     * @return the capitalized string
+     */
     private static String capitalize(String str) {
         if (str == null || str.isEmpty()) {
             return str;
@@ -512,6 +627,11 @@ public class SettingsGenerator {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
     
+    /**
+     * Gets the preserved method names from the existing content of the Settings.java class.
+     * @param existingContent the existing content of the Settings.java class
+     * @return the preserved method names from the existing content of the Settings.java class
+     */
     private static Set<String> getPreservedMethodNames(String existingContent) {
         Set<String> methodNames = new HashSet<>();
         if (existingContent.isEmpty()) {
@@ -523,13 +643,13 @@ public class SettingsGenerator {
         
         for (String line : lines) {
             // Look for the start of preserved section - be more specific
-            if (line.contains("// ===== PRESERVED: Custom Convenience Methods =====")) {
+            if (line.contains("// ===== PRESERVED METHODS =====")) {
                 inPreservedSection = true;
                 continue;
             }
             
             // Look for the end of preserved section - be more specific
-            if (line.contains("// ===== END PRESERVED: Custom Convenience Methods =====")) {
+            if (line.contains("// ===== END PRESERVED METHODS =====")) {
                 inPreservedSection = false;
                 break;
             }

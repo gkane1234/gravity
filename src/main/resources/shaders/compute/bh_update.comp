@@ -1,0 +1,27 @@
+// =============================================================
+//                          Update kernel 
+// =============================================================
+
+// This kernel is used to reset the queues and update the number of bodies
+// Dispached with (1,0,0)
+// Uniforms: resetValuesOrDecrementDeadBodies
+// SSBOs: SimulationValues, MergeQueue, WorkQueueIn
+
+void updateKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid == 0) {
+        if (resetValuesOrDecrementDeadBodies==1u) {
+            //Reset Queues
+            headIn=0u;
+            tailIn = 0u;
+            mergeQueueTail = 0u;
+            mergeQueueHead = 0u;
+        }
+        else {
+            //Update Number of Bodies
+            sim.numBodies -= sim.justDied;
+            sim.justDied = 0u;
+
+    }
+        }
+}
