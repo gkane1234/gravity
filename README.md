@@ -17,8 +17,7 @@ All calculations during the simulation are done using compute shaders in GLSL
 
 ## Issues:
 
- Known issues:
- 1.galaxy generation seems to tear itself apart sometimes
+ 1.  galaxy generation seems to tear itself apart sometimes
  2. the name of fixed ssbo objects is overwritten by the swapping ssbos
  3. Radix sort dispatches with too many workgroups when the number of bodies goes down which matters a lot because of the amount of inop threads
  4. Most shaders dispatch with too many workgroups when the number of bodies goes down
