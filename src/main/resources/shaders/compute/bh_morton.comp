@@ -32,6 +32,111 @@ uint64_t mortonEncode3D(vec3 pNorm)
     uint zi = uint(floor(fz));
     return morton3D64(xi, yi, zi);
 }
+shared AABB sharedAABB[WG_SIZE];
+//Collapses the AABB's from shared memory into one AABB at sharedAABB[0]
+//Done in parallel for each workgroup
+void collapseSharedAABB() {
+    uint lid = gl_LocalInvocationID.x;
+    uint activePairs = WG_SIZE;
+    while (activePairs > 1u) {
+        uint stride = activePairs / 2u;
+        if (lid < stride) {
+            uint other = lid + stride;
+            sharedAABB[lid] = updateAABB(sharedAABB[lid], sharedAABB[other]);
+        }
+        barrier();
+        activePairs = stride;
+    }
+}
+
+
+//Updates the AABB of the alive bodies in the simulation
+//Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Uniforms: None
+// SSBOs: BodiesIn, BodiesOut, IndexIn, IndexOut, InternalNodes
+void mortonAABBRepopulateKernel() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+
+    if (2*gid >= sim.numBodies) {
+        sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+        return;
+    }
+
+    //Load AABB's into the shared memory
+    //We combine two bodies into each AABB to save time
+
+    uint leftBodyIdx = indexIn[2*gid];
+
+    if (2*gid+1 >= sim.numBodies) {
+        // Only one body left
+        if (isEmpty(srcB.bodies[leftBodyIdx])) {
+            sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+        } else {
+            vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
+            sharedAABB[lid] = AABB(pos, pos);
+        }
+    } else {
+        uint rightBodyIdx = indexIn[2*gid+1];
+        bool leftEmpty  = isEmpty(srcB.bodies[leftBodyIdx]);
+        bool rightEmpty = isEmpty(srcB.bodies[rightBodyIdx]);
+
+        if (leftEmpty && rightEmpty) {
+            sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+        } else if (rightEmpty) {
+            vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
+            sharedAABB[lid] = AABB(pos, pos);
+        } else if (leftEmpty) {
+            vec3 pos = srcB.bodies[rightBodyIdx].posMass.xyz;
+            sharedAABB[lid] = AABB(pos, pos);
+        } else {
+            vec3 pos0 = srcB.bodies[leftBodyIdx].posMass.xyz;
+            vec3 pos1 = srcB.bodies[rightBodyIdx].posMass.xyz;
+            sharedAABB[lid] = AABB(min(pos0, pos1), max(pos0, pos1));
+        }
+    }
+    barrier();
+
+    collapseSharedAABB();
+
+    if (lid == 0u) {
+        uint wgId = gl_WorkGroupID.x;
+        if (wgId < numWorkGroups)
+            internalNodes[wgId].aabb = packAABB(sharedAABB[0]);
+    }
+}
+
+
+//Collapses the AABB's from shared memory into the AABB of the simulation
+void mortonAABBCollapseKernel() {
+
+    uint lid = gl_LocalInvocationID.x;
+    uint wgId = gl_WorkGroupID.x;
+    uint regionSize = (numWorkGroups + WG_SIZE -1 ) / WG_SIZE; //ceil(numWorkGroups/WG_SIZE)
+    
+    uint regionStart = lid*regionSize;
+
+
+    if (regionStart >= numWorkGroups) {
+        sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+        return;
+    }
+
+
+    AABB newAABB = unpackAABB(internalNodes[regionStart].aabb);
+    for (uint i = regionStart+1; i < min(regionStart + regionSize, numWorkGroups); ++i) {
+        newAABB = updateAABB(newAABB, unpackAABB(internalNodes[i].aabb));
+    }
+    sharedAABB[lid] = newAABB;
+
+    barrier();
+
+    collapseSharedAABB();
+
+    if (lid == 0u) {
+        sim.bounds = sharedAABB[0];
+    }
+}
 
 
 // Encodes a 3D position into a 64-bit Morton code

@@ -225,8 +225,8 @@ void treePropagateNodesKernel()
         } else {
             centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
         }
-        AABB leftAABB = getAABB(leftChild.aabb);
-        AABB rightAABB = getAABB(rightChild.aabb);
+        AABB leftAABB = unpackAABB(leftChild.aabb);
+        AABB rightAABB = unpackAABB(rightChild.aabb);
         AABB newAABB = updateAABB(leftAABB, rightAABB);
         //Set the values for the internal node
         internalNodes[internalNodeIdx].comMass = vec4(centerOfMass, totalMass);

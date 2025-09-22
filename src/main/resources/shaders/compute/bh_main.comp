@@ -16,23 +16,25 @@
 //     a. Update Kernel (acts as two kernels)
 //          i. Reset Queues 
 //          ii. Update Number of Bodies
-// 3. Morton Encoding (bh_morton.comp)
-//     a. Encode Morton Kernel
-// 4. Dead Body Counting (bh_dead.comp)
+// 3. Dead Body Counting (bh_dead.comp)
 //     a. Dead Count Kernel
 //     b. Dead Exclusive Scan Kernel
 //     c. Dead Scatter Kernel
+// 4. Morton Encoding (bh_morton.comp)
+//     a. Morton AABB Repopulate Kernel
+//     b. Morton AABB Collapse Kernel
+//     b. Morton Encode Kernel
 // 5. Radix Sort (bh_radix.comp)
 //     a. Radix Histogram Kernel
 //     b. Radix Bucket Scan Kernel
 //     c. Radix Global Scan Kernel
 //     d. Radix Scatter Kernel
 // 6. Tree Building (bh_tree.comp)
-//     a. Build Binary Radix Tree Kernel
-//     b. Init Leaf Nodes Kernel
-//     c. Propagate Nodes Kernel
+//     a. Tree Build Binary Radix Tree Kernel
+//     b. Tree Init Leaf Nodes Kernel
+//     c. Tree Propagate Nodes Kernel
 // 7. Force Computation (bh_force.comp)
-//     a. Compute Force Kernel (also updates position and velocity of bodies)
+//     a. Force Compute Kernel (also updates position and velocity of bodies)
 // 8. Merging Bodies (bh_merge.comp)
 //     a. Merge Bodies Kernel
 // 9. Debugging (bh_debug.comp)
@@ -55,6 +57,10 @@ void main()
     initKernel();
 #elif defined(KERNEL_UPDATE)
     updateKernel();
+#elif defined(KERNEL_MORTON_AABB_REPOPULATE)
+    mortonAABBRepopulateKernel();
+#elif defined(KERNEL_MORTON_AABB_COLLAPSE)
+    mortonAABBCollapseKernel();
 #elif defined(KERNEL_MORTON_ENCODE)
     mortonEncodeKernel();
 #elif defined(KERNEL_DEAD_COUNT)

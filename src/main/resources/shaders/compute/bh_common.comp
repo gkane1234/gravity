@@ -30,7 +30,7 @@ struct AABB {
 struct Node {
     //center of mass (x,y,z) and mass (w)
     vec4 comMass;
-    //stored as a uint[6] to avoid padding
+    //stored as a float[6] to avoid padding
     float[6] aabb;
     //children of the node
     uint childA;
@@ -81,9 +81,8 @@ layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
 //Per work group inclusive sum of the radix sort buckets across all work groups. Reused for dead sorting
 //  -Initialized with numWorkGroups * NUM_BUCKETS inclusive sums (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
 layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
-//Radix bucket totals and global base for radix sort scatter
 //  -Initialized with numBodies buckets (uints) and numBodies global bases (uints) (In Java: NUM_BUCKETS * Integer.BYTES + NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
+layout(std430, binding = 13) buffer RadixBucketTotalsAndAABB  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
 //Merge queue for merging bodies identified in the force kernel
 //  -Initialized with numBodies pairs of indices (uint[2]'s) (In Java: numBodies * Integer.BYTES)
 layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
@@ -104,6 +103,7 @@ uniform float elasticity; //Elasticity of collisions
 uniform float restitution; //Restitution of overlapping bodies in collisions 
 uniform float bothCriterion; //Used to determine if the body is colliding or merging
 uniform bool wrapAround; //If the simulation wraps around or kills OOB bodies 
+uniform uint staticOrDynamic; //If the simulation is static or dynamic
 //Radix sort uniforms:
 uniform uint passShift; //Pass shift for radix sort passes.
 //Common uniforms:
@@ -114,6 +114,9 @@ const uint NEITHER = 0u;
 const uint COLLISION = 1u;
 const uint MERGING = 2u;
 const uint BOTH = 3u;
+//Constants for the dynamic uniform
+const uint STATIC = 0u;
+const uint DYNAMIC = 1u;
 //Empty body constant for merged bodies or OOB bodies
 const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0));
 
@@ -143,7 +146,7 @@ AABB updateAABB(AABB a, AABB b) {
 }
 
 // Converts a float[6] to an AABB
-AABB getAABB(float[6] aabb) {
+AABB unpackAABB(float[6] aabb) {
     return AABB(vec3(aabb[0], aabb[1], aabb[2]), vec3(aabb[3], aabb[4], aabb[5]));
 }
 

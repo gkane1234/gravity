@@ -241,7 +241,7 @@ public class GLSLVariable{
         validateIndex(index);
         int baseOffset = baseByteOffset + index * byteSize;
         if (dataType != VariableType.STRUCT) {
-            return String.format("%s %d: %s", includeName ? name+" " : "", index, dataType.getDataAsString(buffer, baseOffset));
+            return String.format("%s%s", includeName ? name+" " : "", dataType.getDataAsString(buffer, baseOffset));
         }
         return readSingleAsString(buffer, baseOffset, includeName);
     }
@@ -261,9 +261,9 @@ public class GLSLVariable{
         StringBuilder sb = new StringBuilder();
         sb.append(name+" ");
         for (int i = startIndex; i < endIndex; i++) {
-            sb.append(i+": ");
+            if (endIndex > 1) sb.append(i+": ");
             sb.append(getDataAsStringAt(buffer, baseByteOffset, i, false));
-            sb.append(", ");
+            if (i < endIndex - 1) sb.append(", ");
         }
         return sb.toString();
     }

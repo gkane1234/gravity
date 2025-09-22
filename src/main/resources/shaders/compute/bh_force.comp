@@ -13,7 +13,7 @@ bool acceptanceCriterion(float longestRadius, float invDist, float thetaVal)
 // Calculates the longest side of a node's AABB
 float getLongestSide(Node node) 
 {
-    AABB aabb = getAABB(node.aabb);
+    AABB aabb = unpackAABB(node.aabb);
     vec3 extent = aabb.maxCorner - aabb.minCorner;
     return max(extent.x, max(extent.y, extent.z));
 }
@@ -114,14 +114,16 @@ void forceComputeKernel()
     vec3 newVel = body.velDensity.xyz + accel * dt;
     vec3 newPos = body.posMass.xyz + newVel * dt;
 
-    //Check for out of bounds for new position
-    if (wrapAround) {
-        newPos = mod(newPos-sim.bounds.minCorner, sim.bounds.maxCorner - sim.bounds.minCorner) + sim.bounds.minCorner;
-    } else {
-        if (outOfBounds(body)) {
-            dstB.bodies[bodyIdx] = EMPTY_BODY;
-            atomicAdd(sim.outOfBounds, 1u);
-            return;
+    //Check for out of bounds for new position in a static simulation
+    if (staticOrDynamic == STATIC) {
+        if (wrapAround) {
+            newPos = mod(newPos-sim.bounds.minCorner, sim.bounds.maxCorner - sim.bounds.minCorner) + sim.bounds.minCorner;
+        } else {
+            if (outOfBounds(body)) {
+                dstB.bodies[bodyIdx] = EMPTY_BODY;
+                atomicAdd(sim.outOfBounds, 1u);
+                return;
+            }
         }
     }
 

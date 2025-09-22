@@ -11,6 +11,7 @@
   "collisionMergingOrNeither" : "none",
   "mouseWheelSensitivity" : 20.0,
   "sphereSegments" : 12,
+  "dynamic" : "dynamic",
   "pitch" : 0.0,
   "mouseRotationSensitivity" : 0.2,
   "defaultPlanetColor" : -9585169,
@@ -32,7 +33,7 @@
   "cameraPos" : {
     "x" : 0.0,
     "y" : 0.0,
-    "z" : 100.0,
+    "z" : 150100.0,
     "finite" : true
   },
   "cameraMoveSpeed" : 5.0,

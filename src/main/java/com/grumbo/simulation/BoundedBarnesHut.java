@@ -61,6 +61,7 @@ public class BoundedBarnesHut {
     private Uniform<Integer> passShiftUniform;
     private Uniform<Boolean> resetValuesOrDecrementDeadBodiesUniform;
     private Uniform<Boolean> wrapAroundUniform;
+    private Uniform<Integer> staticOrDynamicUniform;
 
     // Uniform local variables
     private int radixSortPassShift;
@@ -70,7 +71,9 @@ public class BoundedBarnesHut {
     private List<ComputeShader> computeShaders;
     private ComputeShader initKernel; // bh_init.comp
     private ComputeShader updateKernel; // bh_update.comp
-    private ComputeShader mortonKernel; // bh_morton.comp
+    private ComputeShader mortonAABBRepopulateKernel; // bh_morton.comp
+    private ComputeShader mortonAABBCollapseKernel; // bh_morton.comp
+    private ComputeShader mortonEncodeKernel; // bh_morton.comp
     private ComputeShader deadCountKernel; // bh_dead.comp
     private ComputeShader deadExclusiveScanKernel; // bh_dead.comp
     private ComputeShader deadScatterKernel; // bh_dead.comp
@@ -135,6 +138,10 @@ public class BoundedBarnesHut {
     private long renderingTime;
     private long resetTime;
     private long decrementDeadBodiesTime;
+    private long mortonAABBupdateBoundsTime;
+    private long mortonAABBRepopulateBoundsTime;
+    private long mortonAABBCollapseBoundsTime;
+    private long mortonCodeGenerationTime;
     private long mortonTime;
     private long deadTime;
     private long deadCountTime;
@@ -186,8 +193,11 @@ public class BoundedBarnesHut {
      * Step the simulation.
      */
     public void step() {
-        // If debugging, check the time taken to render the simulation. Which takes place after the algorithm is run.
-        if (debug) {
+
+        String dynamicOrStatic = Settings.getInstance().getDynamic();
+
+         // If debugging, check the time taken to render the simulation. Which takes place after the algorithm is run.
+         if (debug) {
             renderingTimeCheck();
         }
 
@@ -206,6 +216,11 @@ public class BoundedBarnesHut {
         // Decrements the number of dead bodies from the total number of bodies.
         decrementDeadBodies();
 
+        if (dynamicOrStatic.equals("dynamic")) {
+            // Update the bounds of the simulation.
+            updateBounds();
+        }
+
         // Generate the morton codes for the alive bodies.
         generateMortonCodes();
         
@@ -219,9 +234,8 @@ public class BoundedBarnesHut {
         computeCOMAndLocation();
 
         // Compute the force on each body using the tree.
+        // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
-
-        System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("uintDebug"));
 
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
@@ -237,6 +251,7 @@ public class BoundedBarnesHut {
 
         this.steps++;
 
+        System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("bounds"));
     }
 
     /* --------- Initialization --------- */
@@ -435,7 +450,7 @@ public class BoundedBarnesHut {
         uniforms.put("passShift", passShiftUniform);
         uniforms.put("resetValuesOrDecrementDeadBodies", resetValuesOrDecrementDeadBodiesUniform);
         uniforms.put("wrapAround", wrapAroundUniform);
-
+        uniforms.put("staticOrDynamic", staticOrDynamicUniform);
         numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
         }, VariableType.UINT);
@@ -486,6 +501,18 @@ public class BoundedBarnesHut {
             return Settings.getInstance().isWrapAround();
         }, VariableType.BOOL);
 
+        staticOrDynamicUniform = new Uniform<Integer>("staticOrDynamic", () -> {
+            String selected = Settings.getInstance().getDynamic();
+            switch (selected) {
+                case "static":
+                    return 0;
+                case "dynamic":
+                    return 1;
+                default:
+                    return 0;
+            }
+        }, VariableType.UINT);
+
     }
 
     /**
@@ -507,20 +534,48 @@ public class BoundedBarnesHut {
             return numGroups();
         });
         computeShaders.add(initKernel);
-        mortonKernel = new ComputeShader("KERNEL_MORTON_ENCODE", this);
-        mortonKernel.setUniforms(new Uniform[] {
+        mortonAABBRepopulateKernel = new ComputeShader("KERNEL_MORTON_AABB_REPOPULATE", this);
+        mortonAABBRepopulateKernel.setUniforms(new Uniform[] {
+
         });
-        mortonKernel.setSSBOs(new String[] {
+        mortonAABBRepopulateKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
+            "SWAPPING_BODIES_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
+            "INTERNAL_NODES_SSBO",
+        });
+        mortonAABBRepopulateKernel.setXWorkGroupsFunction(() -> {
+            return numGroups();
+        });
+        computeShaders.add(mortonAABBRepopulateKernel);
+        mortonAABBCollapseKernel = new ComputeShader("KERNEL_MORTON_AABB_COLLAPSE", this);
+        mortonAABBCollapseKernel.setUniforms(new Uniform[] {
+            numWorkGroupsUniform
+        });
+        mortonAABBCollapseKernel.setSSBOs(new String[] {
+            "VALUES_SSBO",
+            "SWAPPING_BODIES_IN_SSBO",
+            "SWAPPING_INDEX_IN_SSBO",
+            "INTERNAL_NODES_SSBO",
+        });
+        mortonAABBCollapseKernel.setXWorkGroupsFunction(() -> {
+            return 1;
+        });
+        computeShaders.add(mortonAABBCollapseKernel);
+        mortonEncodeKernel = new ComputeShader("KERNEL_MORTON_ENCODE", this);
+        mortonEncodeKernel.setUniforms(new Uniform[] {
+        });
+        mortonEncodeKernel.setSSBOs(new String[] {
             "VALUES_SSBO",
             "SWAPPING_MORTON_IN_SSBO",
             "SWAPPING_BODIES_IN_SSBO",
             "SWAPPING_INDEX_IN_SSBO",
 
         });
-        mortonKernel.setXWorkGroupsFunction(() -> {
+        mortonEncodeKernel.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        computeShaders.add(mortonKernel);   
+        computeShaders.add(mortonEncodeKernel);   
         deadCountKernel = new ComputeShader("KERNEL_DEAD_COUNT", this);
         deadCountKernel.setUniforms(new Uniform[] {
             numWorkGroupsUniform
@@ -737,6 +792,7 @@ public class BoundedBarnesHut {
             wrapAroundUniform,
             softeningUniform,
             collisionMergingOrNeitherUniform,
+            staticOrDynamicUniform,
         });
 
         computeForceKernel.setSSBOs(new String[] {
@@ -903,24 +959,66 @@ public class BoundedBarnesHut {
     }
 
     /**
+     * Update the bounds of the simulation. In bh_morton.comp
+     */
+    private void updateBounds() {
+        if (debug) {
+            mortonAABBRepopulateBoundsTime = System.nanoTime();
+            if (mortonAABBRepopulateKernel.isPreDebugSelected()) {
+                mortonAABBRepopulateKernel.addToPreDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            }
+        }
+        mortonAABBRepopulateKernel.run();
+        if (debug) {
+            GPUSimulation.checkGLError("MortonAABBRepopulateKernel");
+            glFinish();
+            if (mortonAABBRepopulateKernel.isPostDebugSelected()) {
+                mortonAABBRepopulateKernel.addToPostDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            }
+            mortonAABBRepopulateBoundsTime = System.nanoTime() - mortonAABBRepopulateBoundsTime;
+        }
+
+        if (debug) {
+            if (mortonAABBCollapseKernel.isPreDebugSelected()) {
+                mortonAABBCollapseKernel.addToPreDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            }
+            mortonAABBCollapseBoundsTime = System.nanoTime();
+        }
+        mortonAABBCollapseKernel.run();
+
+        if (debug) {
+            GPUSimulation.checkGLError("MortonAABBCollapseKernel");
+            glFinish();
+            if (mortonAABBCollapseKernel.isPostDebugSelected()) {
+                mortonAABBCollapseKernel.addToPostDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            }
+            mortonAABBCollapseBoundsTime = System.nanoTime() - mortonAABBCollapseBoundsTime;
+            mortonAABBupdateBoundsTime = mortonAABBRepopulateBoundsTime + mortonAABBCollapseBoundsTime;
+        }
+
+
+    }
+
+    /**
      * Generate the morton codes for the alive bodies. In bh_morton.comp
      */
     private void generateMortonCodes() {
         if (debug) {
-            mortonTime = System.nanoTime();
-            if (mortonKernel.isPreDebugSelected()) {
-                mortonKernel.setPreDebugString("Generating morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            mortonCodeGenerationTime = System.nanoTime();
+            if (mortonEncodeKernel.isPreDebugSelected()) {
+                mortonEncodeKernel.addToPreDebugString("Generating morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
         }
 
-        mortonKernel.run();
+        mortonEncodeKernel.run();
         if (debug) {
             GPUSimulation.checkGLError("generateMortonCodes");
-            if (mortonKernel.isPostDebugSelected()) {
-                mortonKernel.setPostDebugString("Generated morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (mortonEncodeKernel.isPostDebugSelected()) {
+                mortonEncodeKernel.addToPostDebugString("Generated morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             glFinish();
-            mortonTime = System.nanoTime() - mortonTime;
+            mortonCodeGenerationTime = System.nanoTime() - mortonCodeGenerationTime;
+            mortonTime = mortonCodeGenerationTime + mortonAABBupdateBoundsTime;
         }
 
     }
@@ -1121,6 +1219,8 @@ public class BoundedBarnesHut {
                 computeForceKernel.setPreDebugString("Computing force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
             }
         }
+
+        System.out.println(staticOrDynamicUniform.getValue());
 
         computeForceKernel.run();
         if (debug) {
@@ -1346,6 +1446,11 @@ public class BoundedBarnesHut {
         long totalTime = mortonTime + radixSortTime + buildTreeTime + propagateNodesTime + computeForceTime + deadTime + renderingTime + resetTime + mergeBodiesTime;
         long percentRendering = (renderingTime * 100) / totalTime;
         long percentReset = (resetTime * 100) / totalTime;
+        long percentDecrementDeadBodies = (decrementDeadBodiesTime * 100) / totalTime;
+        long percentRepopulateBounds = (mortonAABBRepopulateBoundsTime * 100) / totalTime;
+        long percentCollapseBounds = (mortonAABBCollapseBoundsTime * 100) / totalTime;
+        long percentUpdateBounds = (mortonAABBupdateBoundsTime * 100) / totalTime;
+        long percentMortonCodeGeneration = (mortonCodeGenerationTime * 100) / totalTime;
         long percentMorton = (mortonTime * 100) / totalTime;
         long percentDead = (deadTime * 100) / totalTime;
         long percentDeadCount = (deadCountTime * 100) / totalTime;
@@ -1366,6 +1471,10 @@ public class BoundedBarnesHut {
         return renderingTime/oneMillion + " ms (" + percentRendering + "%)" +":Rendering\n" + 
                resetTime/oneMillion + " ms (" + percentReset + "%)" +":Reset\n" + 
                mortonTime/oneMillion + " ms (" + percentMorton + "%)" +":Morton\n" +
+               "\t" + mortonAABBupdateBoundsTime/oneMillion + " ms (" + percentUpdateBounds + "%)" +":Update Bounds\n" +
+               "\t\t" + mortonAABBRepopulateBoundsTime/oneMillion + " ms (" + percentRepopulateBounds + "%)" +":Repopulate Bounds\n" +
+               "\t\t" + mortonAABBCollapseBoundsTime/oneMillion + " ms (" + percentCollapseBounds + "%)" +":Collapse Bounds\n" +
+               "\t" + mortonCodeGenerationTime/oneMillion + " ms (" + percentMortonCodeGeneration + "%)" +":Morton Code Generation\n" +
                deadTime/oneMillion + " ms (" + percentDead + "%)" +":Dead\n" +
                "\t" + deadCountTime/oneMillion + " ms (" + percentDeadCount + "%)" +":Count\n" +
                "\t" + deadExclusiveScanTime/oneMillion + " ms (" + percentDeadExclusiveScan + "%)" +":Exclusive Scan\n" +
@@ -1381,7 +1490,12 @@ public class BoundedBarnesHut {
                "\t" + propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":Propagate Nodes\n" +
                computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
                mergeBodiesTime/oneMillion + " ms (" + percentMergeBodies + "%)" +":Merge Bodies\n" +
-               totalTime/oneMillion + " ms" +":Total\n";
+               totalTime/oneMillion + " ms" +":Total\n" +
+               //"Simulation Bounds: " + SIMULATION_VALUES_SSBO.getDataAsString("bounds")+"\n" +
+               "X Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[0]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[0]+"\n" +
+               "Y Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[1]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[1]+"\n" +
+               "Z Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[2]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[2]+"\n" +
+               "Bodies: " + (SIMULATION_VALUES_SSBO.getIntegerData("numBodies"));
     }
 
 

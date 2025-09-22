@@ -153,6 +153,9 @@ public class Settings {
 		// Collision merging or neither
 		properties.put("collisionMergingOrNeither", Property.createSelectorProperty("collisionMergingOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
 
+		// Dynamic
+		properties.put("dynamic", Property.createSelectorProperty("dynamic", "static", "static", new String[]{"static", "dynamic"}, true));
+
 	}
 	/**
 	 * Gets the value of a given property.
@@ -627,6 +630,19 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setCollisionMergingOrNeither(String value) { setValue("collisionMergingOrNeither", value); }
+
+	/**
+	 * Gets the value of the property dynamic.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public String getDynamic() { return getValue("dynamic"); }
+	/**
+	 * Sets the value of the property dynamic.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setDynamic(String value) { setValue("dynamic", value); }
 
 	/**
 	 * Adds a property to the Settings class.

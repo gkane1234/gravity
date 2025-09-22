@@ -3,6 +3,8 @@ package com.grumbo.gpu;
 import static org.lwjgl.opengl.GL43C.*;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * SSBO class for creating SSBO objects on the GPU
@@ -303,14 +305,41 @@ public class SSBO {
 
     public Object[] getData(String variableName) {
         return getData(variableName, true);
+    } 
+
+    public Integer getIntegerData(String variableName, boolean updateCache) {
+        return (Integer)getData(variableName, 0, 1, updateCache)[0];
+    }
+    public Integer getIntegerData(String variableName) {
+        return getIntegerData(variableName, true);
+    }
+
+    public Long getLongData(String variableName, boolean updateCache) {
+        return (Long)getData(variableName, 0, 1, updateCache)[0];
+    }
+    public Long getLongData(String variableName) {
+        return getLongData(variableName, true);
+    }
+
+    public Float getFloatData(String variableName, boolean updateCache) {
+        return (Float)getData(variableName, 0, 1, updateCache)[0];
+    }
+    public Float getFloatData(String variableName) {
+        return getFloatData(variableName, true);
+    }
+
+    public Object[][] getData(String[] variableNames, int startIndex, int endIndex, boolean updateCache) {
+        List<Object[]> data = new ArrayList<>();
+        for (int i = 0; i < variableNames.length; i++) {
+            if (getData(variableNames[i], startIndex, endIndex, updateCache) != null) {
+                data.add(getData(variableNames[i], startIndex, endIndex, updateCache));
+            }
+        }
+        return data.toArray(new Object[0][]);
     }
 
     public Object[][] getData(String[] variableNames, boolean updateCache) {
-        Object[][] data = new Object[variableNames.length][];
-        for (int i = 0; i < variableNames.length; i++) {
-            data[i] = getData(variableNames[i], updateCache);
-        }
-        return data;
+        return getData(variableNames, 0, SSBOLayoutMap.get(variableNames[0]).size, updateCache);
     }
 
 
@@ -318,13 +347,7 @@ public class SSBO {
         return getData(variableNames, true);
     }
 
-    public Object[][] getData(String[] variableNames, int startIndex, int endIndex, boolean updateCache) {
-        Object[][] data = new Object[variableNames.length][];
-        for (int i = 0; i < variableNames.length; i++) {
-            data[i] = getData(variableNames[i], startIndex, endIndex, updateCache);
-        }
-        return data;
-    }
+
 
 
     public Object[][] getData(String[] variableNames, int startIndex, int endIndex) {
