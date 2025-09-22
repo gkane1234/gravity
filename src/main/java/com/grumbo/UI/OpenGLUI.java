@@ -198,8 +198,8 @@ public class OpenGLUI {
             if (mouseCaptured) {
                 firstMouse = true;
             }},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F1, () -> {showStats = !showStats;},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {
+
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F1, () -> {
             if (openGlWindow.getState() == GPUSimulation.State.PAUSED) {
                 openGlWindow.setState(GPUSimulation.State.RUNNING);
                 System.out.println("Switched to continuous simulation mode");
@@ -208,11 +208,13 @@ public class OpenGLUI {
                 System.out.println("Switched to frame advance mode - press ENTER to advance frames");
             }
         },false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {recordCurrentBodies = !recordCurrentBodies;},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F7, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {showStats = !showStats;},false));
+        //keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {recordCurrentBodies = !recordCurrentBodies;},false));
+
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
     }
 
@@ -469,23 +471,8 @@ public class OpenGLUI {
 
         boolean newFrame = lastSteps != openGlWindow.gpuSimulation.getSteps();
 
-        if (recordCurrentBodies && newFrame) {
-            openGlWindow.gpuSimulation.updateCurrentBodies();
-
-        }
-        
-        // Format stats string
-        int curBodies = openGlWindow.gpuSimulation.currentBodies();
-        int jMerged = openGlWindow.gpuSimulation.merged();
-        int lostToOutOfBounds = openGlWindow.gpuSimulation.outOfBounds();
-        String statsText = String.format("FPS: %.1f\nBodies: %d\nMerged: %d\nLost to out of bounds: %d", openGlWindow.getFPS(), curBodies, jMerged, lostToOutOfBounds);
-        
-
-        if (newFrame) {
-            lastSteps = openGlWindow.gpuSimulation.getSteps();
-            lastDifference = lastBodies - curBodies;
-            lastBodies = curBodies;
-        }
+     
+        String statsText = String.format("FPS: %.1f", openGlWindow.getFPS());
 
 
         
@@ -515,7 +502,7 @@ public class OpenGLUI {
         }
 
         // Draw frame advance indicator in top-right corner
-        String indicatorText = "FRAME ADVANCE MODE\n Press ENTER to advance";
+        String indicatorText = "SIMULATION PAUSED\n ENTER: FRAME ADVANCE";
         
         int x = Settings.getInstance().getWidth() - (int)font.getTextWidth(indicatorText.split("\n")[1]) - 20;
         int y = 20;
