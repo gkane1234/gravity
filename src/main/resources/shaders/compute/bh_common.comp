@@ -120,6 +120,14 @@ const uint DYNAMIC = 1u;
 //Empty body constant for merged bodies or OOB bodies
 const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0));
 
+//Numerical Constants
+const float PI = 3.14159265358979323846;
+const float THREE_OVER_FOUR_PI_TO_THE_THIRD = 0.6203504909; 
+const float GRAVITATIONAL_CONSTANT = 6.67430e-11; //m^3 kg^-1 s^-2
+const float STELLAR_DENSITY = 1.408e3; //kg/m^3
+const float SOLAR_MASS = 1.989e30; //kg
+
+
 //Checks if a body is empty
 bool isEmpty(Body b) {
     return b.posMass.w == 0.0;
@@ -132,9 +140,22 @@ bool outOfBounds(Body b) {
            b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
 }
 
+float density(Body b) {
+    return b.velDensity.w*STELLAR_DENSITY;
+}
+
+float mass(Body b) {
+    return b.posMass.w*SOLAR_MASS;
+}
+
+float mass(Node node) {
+    return node.comMass.w*SOLAR_MASS;
+}
+
 //Calculates the radius of a body
 float radius(Body b) {
-    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+
+    return THREE_OVER_FOUR_PI_TO_THE_THIRD * pow((mass(b)/density(b)), 1.0/3.0);
 }
 
 //Creates an AABB that is the union of two AABBs

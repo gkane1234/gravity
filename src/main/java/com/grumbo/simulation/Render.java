@@ -200,12 +200,12 @@ public class Render {
      * @param bodiesOutSSBO the bodies out SSBO
      */
     private void bindWithCorrectOffset(SSBO bodiesOutSSBO) {
-        int RENDERING_SSBO_OFFSET = Body.HEADER_SIZE;
+        int RENDERING_OFFSET = Body.HEADER_SIZE;
         glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-            SSBO.BODIES_OUT_SSBO_BINDING,
+            SSBO.BODIES_OUT_BINDING,
             bodiesOutSSBO.getBufferLocation(),
-            RENDERING_SSBO_OFFSET,
-            (long)gpuSimulation.numBodies() * Body.STRUCT_SIZE * Float.BYTES);
+            RENDERING_OFFSET,
+            (long)gpuSimulation.initialNumBodies() * Body.STRUCT_SIZE * Float.BYTES);
     }
 
     /**
@@ -218,7 +218,7 @@ public class Render {
         // MVP will be sent by caller before rendering
         bindWithCorrectOffset(bodiesOutSSBO);
         glBindVertexArray(vao);
-        glDrawArrays(GL_POINTS, 0, gpuSimulation.numBodies());
+        glDrawArrays(GL_POINTS, 0, gpuSimulation.initialNumBodies());
         glUseProgram(0);
     }
 
@@ -266,7 +266,7 @@ public class Render {
         // cameraToClipMatrix is set by caller via setCameraToClip
         bindWithCorrectOffset(bodiesOutSSBO);
         glBindVertexArray(vao);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.numBodies());
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.initialNumBodies());
 
     }
 
@@ -282,7 +282,7 @@ public class Render {
         glUniform1f(uSphereRadiusScaleLocation, sphereRadiusScale);
         // Distance/color uniforms
         glUniform3f(uSphereCameraPosLocation, Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
-        int instanceCount = Math.min(gpuSimulation.numBodies(), maxMeshInstances);
+        int instanceCount = Math.min(gpuSimulation.initialNumBodies(), maxMeshInstances);
         glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
         glBindVertexArray(0);
         glUseProgram(0);
@@ -301,7 +301,7 @@ public class Render {
         glUseProgram(regionsProgram);
         // Bind nodes SSBO at binding 4
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, NodesSSBO.getBufferLocation());
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.INTERNAL_NODES_SSBO_BINDING, NodesSSBO.getBufferLocation());
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SSBO.INTERNAL_NODES_BINDING, NodesSSBO.getBufferLocation());
         // Start after leaves
         
         glUniform2i(uRegionsMinMaxDepthLocation, Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
@@ -309,7 +309,7 @@ public class Render {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, ValuesSSBO.getBufferLocation());
 
         glBindVertexArray(regionsVao);
-        int instanceCount = Math.max(0, gpuSimulation.numBodies() - 1);
+        int instanceCount = Math.max(0, gpuSimulation.initialNumBodies() - 1);
         if (instanceCount > 0) {
             glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0L, instanceCount);
         }

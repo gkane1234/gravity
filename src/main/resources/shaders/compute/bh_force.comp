@@ -17,9 +17,10 @@ float getLongestSide(Node node)
     vec3 extent = aabb.maxCorner - aabb.minCorner;
     return max(extent.x, max(extent.y, extent.z));
 }
+
 vec3 force(Node node, vec3 r, float oneOverDist)
 {
-    return node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+    return GRAVITATIONAL_CONSTANT*mass(node) * r * oneOverDist * oneOverDist * oneOverDist;
 }
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
@@ -34,6 +35,7 @@ float invDistWithSoftening(vec3 r, float soft)
 // Uniforms: softening, theta, dt, elasticity, wrapAround, collisionMergingOrNeither
 // SSBOs: BodiesIn, BodiesOut, IndexIn, Nodes, LeafNodes, InternalNodes, MergeQueue
 const uint STACK_SIZE = 64u;
+
 void forceComputeKernel() 
 {
 
@@ -66,6 +68,7 @@ void forceComputeKernel()
             else {
                 stack[currentStackSize++] = node.childA;
                 stack[currentStackSize++] = node.childB;
+                atomicAdd(sim.uintDebug[0], 1u);
             }
         }
         else {
@@ -93,12 +96,12 @@ void forceComputeKernel()
                 float vImpact = dot(velocityDifference, normal);
                 //If the bodies are moving towards each other, calculate and apply an impulse
                 if (vImpact < 0) {
-                    float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
+                    float mEff = 1/(1/mass(body) + 1/mass(other));
                     float impulse = (1+elasticity)*mEff*vImpact;
-                    body.velDensity.xyz += normal * impulse / body.posMass.w;
+                    body.velDensity.xyz += normal * impulse / mass(body);
                 }
                 //Calculate the correction to the position of the body to avoid interpenetration using the overlap and the restitution coefficient
-                vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
+                vec3 correction = (penetration / (mass(body) + mass(other))) * restitution * normal;
                 body.posMass.xyz -= correction;
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel

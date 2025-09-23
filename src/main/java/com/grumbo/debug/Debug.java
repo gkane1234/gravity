@@ -155,17 +155,20 @@ public class Debug {
      * @param frame the frame
      */
     public static void addDebugToFile(int frame) {
-        debugFileString += "--------------------------------Frame " + frame + "--------------------------------\n";
+        String header = "--------------------------------Frame " + frame + "--------------------------------\n";
+
         String debugOutputs = "";
+        int numSelectedDebugs = 0;
         for (Debug debug : debugs) {
             if (debug.isSelected()) {
                 debugOutputs += debug.getDebug() + "\n";
+                numSelectedDebugs++;
             }
         }
-        if (debugOutputs.length() == 0) {
+        if (debugOutputs.length() == numSelectedDebugs) {
             return;
         }
-        debugFileString += debugOutputs;
+        debugFileString += header + debugOutputs;
         saveDebug();
     }
 

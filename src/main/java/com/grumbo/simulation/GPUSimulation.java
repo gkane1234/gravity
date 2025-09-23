@@ -17,7 +17,7 @@ import com.grumbo.debug.Debug;
 import com.grumbo.record.Recording;
 import com.grumbo.gpu.SSBO;
 import static org.lwjgl.opengl.GL43.*;
-
+import com.grumbo.gpu.GPU;
 /**
  * GPUSimulation class for the GPU simulation.
  * Runs the simulation loop and manages the simulation state.
@@ -50,8 +50,9 @@ public class GPUSimulation {
         STOPPED
     }
 
-    private boolean debug = true;
     public State state = State.PAUSED;
+
+    private boolean debug;
 
     // Recording
     private Recording recording;
@@ -76,11 +77,11 @@ public class GPUSimulation {
 
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
-            //"KERNEL_INIT",
-            //"KERNEL_MORTON",
-            //"KERNEL_DEAD_COUNT",
-            //"KERNEL_DEAD_EXCLUSIVE_SCAN",
-            //"KERNEL_DEAD_SCATTER",
+            "KERNEL_INIT",
+            "KERNEL_MORTON",
+            "KERNEL_DEAD_COUNT",
+            "KERNEL_DEAD_EXCLUSIVE_SCAN",
+            "KERNEL_DEAD_SCATTER",
             //"KERNEL_RADIX_HIST",
             //"KERNEL_RADIX_PARALLEL_SCAN",
             //"KERNEL_RADIX_EXCLUSIVE_SCAN",
@@ -153,7 +154,7 @@ public class GPUSimulation {
 
     public static PlanetGenerator createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 110;
+        int numDisks = 2;
         int[] numPlanetsRange = {250_000,250_000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {5f, 15f};
@@ -173,7 +174,7 @@ public class GPUSimulation {
         boolean giveOrbitalVelocity = true;
 
 
-        int centerDiskPlanets = 6_000_000;
+        int centerDiskPlanets = 600_000;
         float[] centerDiskRadius = {100, 50000};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
@@ -240,9 +241,9 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 30_000_00;
+        int numAlive = 5_000_000;
         for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(10000*java.lang.Math.random()), (float)(10000*java.lang.Math.random()), (float)(10000*java.lang.Math.random()), 0, 0, 0, 100));
+            newPlanets.add(new Planet((float)(10000000*java.lang.Math.random()), (float)(10000000*java.lang.Math.random()), (float)(10000000*java.lang.Math.random()), 0, 0, 0, 0.0000000000000000000001f));
         }
 
         Collections.shuffle(newPlanets);
@@ -259,6 +260,7 @@ public class GPUSimulation {
 
     private void init() {
         openGlWindow.init();
+        GPU.initGPU(this);
         boundedBarnesHut.init();
         render.init();
     }
@@ -283,6 +285,7 @@ public class GPUSimulation {
         init();
         System.out.println("Debugs connected:");
         Debug.outputAllConnectedDebugs();
+        
         while (state != State.STOPPED) {
             step();
             openGlWindow.step();
@@ -303,20 +306,24 @@ public class GPUSimulation {
         if (state == State.RUNNING) {
             boundedBarnesHut.step();
             checkGLError("after boundedBarnesHut.step");
-            render.render(boundedBarnesHut.getOutputSSBO(), state);
+            
+            render.render(GPU.SSBO_SWAPPING_BODIES_IN, state);
             checkGLError("after render");
             captureIfRecording();
         }
 
         if (state == State.PAUSED) {
-            render.render(boundedBarnesHut.getOutputSSBO(), state);
+
+            //System.out.println(GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,10));
+            
+            render.render(GPU.SSBO_SWAPPING_BODIES_IN, state);
             checkGLError("after render");
         }
 
         if (state == State.FRAME_ADVANCE) {
             checkGLError("after boundedBarnesHut.step");
             boundedBarnesHut.step();
-            render.render(boundedBarnesHut.getOutputSSBO(), state);
+            render.render(GPU.SSBO_SWAPPING_BODIES_IN, state);
             checkGLError("after render");
             captureIfRecording();
             state = State.PAUSED;
@@ -366,7 +373,7 @@ public class GPUSimulation {
      * Gets the number of bodies in the simulation.
      * @return the number of bodies in the simulation.
      */
-    public int numBodies() {
+    public int initialNumBodies() {
         return planetGenerator.getNumPlanets();
     }
 
@@ -378,12 +385,12 @@ public class GPUSimulation {
      */
     public void updateCurrentBodies() { //Note: this is EXTREMELY slow.
 
-        if (boundedBarnesHut == null || boundedBarnesHut.getValuesSSBO() == null) {
-            currentBodies = numBodies();
+        if (boundedBarnesHut == null || GPU.SSBO_SIMULATION_VALUES == null) {
+            currentBodies = initialNumBodies();
 
             return;
         }
-        SSBO valuesSSBO = boundedBarnesHut.getValuesSSBO();
+        SSBO valuesSSBO = GPU.SSBO_SIMULATION_VALUES;
         valuesSSBO.refreshCache();
         Object[][] header = valuesSSBO.getData(new String[] {
             "numBodies",
@@ -398,6 +405,23 @@ public class GPUSimulation {
         outOfBounds = (Integer)header[2][0];
 
     }
+
+    /**
+     * Gets the bounds of the simulation.
+     * @return the bounds of the simulation.
+     */
+    public float[][] getBounds() {
+        return boundedBarnesHut.getBounds();
+    }
+
+    /**
+     * Gets the bounded barnes hut.
+     * @return the bounded barnes hut.
+     */
+    public BoundedBarnesHut getBoundedBarnesHut() {
+        return boundedBarnesHut;
+    }
+
 
     /**
      * Gets the current number of bodies in the simulation.
@@ -453,7 +477,7 @@ public class GPUSimulation {
      * @return the internal nodes SSBO for the Barnes Hut tree.
      */
     public com.grumbo.gpu.SSBO barnesHutNodesSSBO() {
-        return boundedBarnesHut.getInternalNodesSSBO();
+        return GPU.SSBO_INTERNAL_NODES;
     }
 
     /**
@@ -461,7 +485,7 @@ public class GPUSimulation {
      * @return the values SSBO for the simulation.
      */
     public com.grumbo.gpu.SSBO barnesHutValuesSSBO() {
-        return boundedBarnesHut.getValuesSSBO();
+        return GPU.SSBO_SIMULATION_VALUES;
     }
 
     /**
@@ -471,15 +495,6 @@ public class GPUSimulation {
     // public void uploadPlanetsData(PlanetGenerator planetGenerator) {
     //     boundedBarnesHut.uploadPlanetsData(planetGenerator);
     // }
-
-    /**
-     * Resizes the buffers and uploads the planet data to the GPU.
-     * @param planetGenerator the planet generator.
-     */
-    public void resizeBuffersAndUpload(PlanetGenerator planetGenerator) {
-        this.planetGenerator = planetGenerator;
-        boundedBarnesHut.reInitComputeSSBOsAndSwappingBuffers();
-    }
 
 
     /**
@@ -554,7 +569,7 @@ public class GPUSimulation {
      */
     public void cleanup() {
 
-        boundedBarnesHut.cleanup();
+        GPU.cleanup();
         render.cleanup();
         if (isRecording) {
             stopRecording();

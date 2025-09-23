@@ -36,22 +36,22 @@ public class SSBO {
     // layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
     // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
 
-    public static final int LEAF_NODES_SSBO_BINDING = 0;
-    public static final int INTERNAL_NODES_SSBO_BINDING = 1;
-    public static final int SIMULATION_VALUES_SSBO_BINDING = 2;
-    public static final int BODIES_IN_SSBO_BINDING = 3;
-    public static final int BODIES_OUT_SSBO_BINDING = 4;
-    public static final int MORTON_IN_SSBO_BINDING = 5;
-    public static final int MORTON_OUT_SSBO_BINDING = 6;
-    public static final int INDEX_IN_SSBO_BINDING = 7;
-    public static final int INDEX_OUT_SSBO_BINDING = 8;
-    public static final int PROPAGATE_WORK_QUEUE_IN_SSBO_BINDING = 9;
-    public static final int PROPAGATE_WORK_QUEUE_OUT_SSBO_BINDING = 10;
-    public static final int RADIX_WG_HIST_SSBO_BINDING = 11;
-    public static final int RADIX_WG_SCANNED_SSBO_BINDING = 12;
-    public static final int RADIX_BUCKET_TOTALS_SSBO_BINDING = 13;
-    public static final int MERGE_QUEUE_SSBO_BINDING = 14;
-    public static final int MERGE_BODY_LOCKS_SSBO_BINDING = 15;
+    public static final int LEAF_NODES_BINDING = 0;
+    public static final int INTERNAL_NODES_BINDING = 1;
+    public static final int SIMULATION_VALUES_BINDING = 2;
+    public static final int BODIES_IN_BINDING = 3;
+    public static final int BODIES_OUT_BINDING = 4;
+    public static final int MORTON_IN_BINDING = 5;
+    public static final int MORTON_OUT_BINDING = 6;
+    public static final int INDEX_IN_BINDING = 7;
+    public static final int INDEX_OUT_BINDING = 8;
+    public static final int PROPAGATE_WORK_QUEUE_IN_BINDING = 9;
+    public static final int PROPAGATE_WORK_QUEUE_OUT_BINDING = 10;
+    public static final int RADIX_WG_HIST_BINDING = 11;
+    public static final int RADIX_WG_SCANNED_BINDING = 12;
+    public static final int RADIX_BUCKET_TOTALS_BINDING = 13;
+    public static final int MERGE_QUEUE_BINDING = 14;
+    public static final int MERGE_BODY_LOCKS_BINDING = 15;
 
 
     // Buffer location of the SSBO

@@ -5,13 +5,14 @@
 in vec2 vMapping;
 in float bodyToGlowRatio;
 in float worldRadius;
-in float mass;
+in vec3 color;
 in vec3 vCenterView;
 in float vCenterClipW;
 
 uniform mat4 uProj;
 
 uniform int uPass; // 0 = sphere, 1 = glow
+
 
 
 out vec4 fragColor;
@@ -31,10 +32,9 @@ void main() {
 
         if (length(vCenterView) > bodyRenderDistance) discard;
 
-        vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
-        float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
-
-        vec3 color = vec3(0.8 + 0.2 * diffuse);
+        // vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
+        // float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
+        // vec3 color = vec3(0.8 + 0.2 * diffuse);
         fragColor = vec4(color, 1.0);
     } else {
         // --- Glow pass ---
@@ -42,10 +42,9 @@ void main() {
 
         float glowRadius = 1 - bodyToGlowRatio;
         float t = (radius - bodyToGlowRatio) / glowRadius;
-        float glow = cos(3.14159*t)/2+1/2;
+        float glow = 2;
 
-        vec3 glowColor = vec3(0.5);
-        fragColor = vec4(glowColor * glow, 1.0); // additive, alpha ignored
+        fragColor = vec4(color * glow, 1.0); // additive, alpha ignored
 
         
     }

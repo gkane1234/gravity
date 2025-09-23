@@ -16,25 +16,13 @@ import com.grumbo.debug.Debug;
  * It is also used to upload uniforms and SSBOs to the GPU.
  * It is also used to run the compute shader.
  */
-public class ComputeShader {
-    private static Debug debug = new Debug("ComputeShaderCode",0);
-    private int program;
-    private int computeShader;
-    private Uniform<?>[] uniforms;
-    private String[] ssboNames;
-    private xWorkGroupsFunction xWorkGroupsFunction;
-    private BoundedBarnesHut boundedBarnesHut;
-    private Debug preDebug;
-    private Debug postDebug;
+public class ComputeShader extends Shader {
+    
+    private static Debug debug = new Debug("ComputeShader");
 
-    private String kernelName;
+;
 
-    /**
-     * xWorkGroupsFunction is a function that returns the number of work groups to dispatch.
-     */
-    public interface xWorkGroupsFunction {
-        int getXWorkGroups();
-    }
+
 
     /**
      * Constructor for the ComputeShader class.
@@ -46,21 +34,7 @@ public class ComputeShader {
      * @param BoundedBarnesHut the BoundedBarnesHut simulation object
      */
     public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BoundedBarnesHut boundedBarnesHut) {
-        this.program = program;
-        this.computeShader = glCreateShader(GL_COMPUTE_SHADER);
-        glShaderSource(computeShader, getSource(kernelName));
-        glCompileShader(computeShader);
-        checkShader(computeShader);
-        glAttachShader(program, computeShader);
-        glLinkProgram(program);
-        checkProgram(program);
-        this.uniforms = uniforms;
-        this.ssboNames = ssboNames;
-        this.xWorkGroupsFunction = xWorkGroupsFunction;
-        this.boundedBarnesHut = boundedBarnesHut;
-        this.preDebug = new Debug("PRE " + kernelName);
-        this.postDebug = new Debug("POST " + kernelName);
-        this.kernelName = kernelName;
+        super(program, kernelName, uniforms, ssboNames, xWorkGroupsFunction);
     }
 
     /**
@@ -73,195 +47,19 @@ public class ComputeShader {
         this(glCreateProgram(), kernelName, null, null, null, boundedBarnesHut);
     }
 
-    /**
-     * Debugs the SSBOs after the compute shader has run.
-     * @param numOutputs the number of outputs to print from each SSBO
-     */
-    public void debug(int numOutputs) {
-        for (String ssboName : ssboNames) {
-            System.out.println(ssboName + ":");
-            System.out.println(boundedBarnesHut.ssbos.get(ssboName).getDataAsString(ssboName, 0, numOutputs, true));
-        }
-    }
-
-    public boolean isPreDebugSelected() {
-        return this.preDebug.isSelected();
-    }
-    
-    public boolean isPostDebugSelected() {
-        return this.postDebug.isSelected();
-    }
-
-    public void setPreDebugString(String preDebug) {
-        if (isPreDebugSelected()) {
-            this.preDebug.setDebugString(preDebug);
-        }
-
-    }
-    
-    public void setPostDebugString(String postDebug) {
-        if (isPostDebugSelected()) {
-            this.postDebug.setDebugString(postDebug);
-        }
-    }
-
-    public void addToPreDebugString(String preDebug) {
-        if (isPreDebugSelected()) {
-            this.preDebug.addToDebugString(preDebug);
-        }
-    }
-    
-    public void addToPostDebugString(String postDebug) {
-        if (isPostDebugSelected()) {
-            this.postDebug.addToDebugString(postDebug);
-        }
-    }
-
-    public void clearPreDebug() {
-        if (isPreDebugSelected()) {
-            this.preDebug.clearDebugString();
-        }
-    }
-    
-    public void clearPostDebug() {
-        if (isPostDebugSelected()) {
-            this.postDebug.clearDebugString();
-        }
-    }
-
-
-
-    /**
-     * Runs the compute shader and debugs the SSBOs after the compute shader has run, with 10 outputs from each SSBO.
-     */
-    public void runDebug() {
-        runDebug(10);
-    }
-    /**
-     * Runs the compute shader and debugs the SSBOs before and after the compute shader has run.
-     * @param numOutputs the number of outputs to print from each SSBO
-     */
-    public void runDebug(int numOutputs) {
-        System.out.println("Debugging compute shader: " + program);
-        System.out.println("SSBOs before run:");
-        debug(numOutputs);
-        run();
-        System.out.println("SSBOs after run:");
-        debug(numOutputs);
-    }
-
-    /**
-     * Runs the compute shader and adds a memory barrier.
-     */
-    public void run() {
-        runBarrierless();
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-    }
-
-    /**
-     * Runs the compute shader and does not add a memory barrier.
-     */
-    public void runBarrierless() {
-        glUseProgram(program);
-        if (uniforms != null) {
-            for (Uniform<?> uniform : uniforms) {
-               
-                uniform.uploadToShader(program);
-            }
-        }
-        if (ssboNames != null) {
-            for (String ssboName : ssboNames) {
-
-                boundedBarnesHut.ssbos.get(ssboName).bind();
-            }
-        }
-        
-        glDispatchCompute(xWorkGroupsFunction.getXWorkGroups(), 1, 1);
-
-    }
-
-    /**
-     * Sets the uniforms for the compute shader.
-     * @param uniforms the uniforms to set
-     */
-    public void setUniforms(Uniform<?>[] uniforms) {
-        this.uniforms = uniforms;
-    }
-
-
-    /**
-     * Sets the SSBOs for the compute shader.
-     * @param ssboNames the names of the SSBOs to set
-     */
-    public void setSSBOs(String[] ssboNames) {
-        this.ssboNames = ssboNames;
-    }
-
-    /**
-     * Sets the function that returns the number of work groups to dispatch.
-     * @param xWorkGroupsFunction the function to set
-     */
-    public void setXWorkGroupsFunction(xWorkGroupsFunction xWorkGroupsFunction) {
-        this.xWorkGroupsFunction = xWorkGroupsFunction;
-    }
-
-    /**
-     * Gets the uniforms for the compute shader.
-     * @return the uniforms
-     */
-    public Uniform<?>[] getUniforms() {
-        return uniforms;
-    }
-
-    /**
-     * Gets the SSBOs for the compute shader.
-     * @return the SSBOs
-     */
-    public String[] getSSBOs() {
-        return ssboNames;
-    }
-
-    /**
-     * Deletes the compute shader.
-     */
-    public void delete() {
-        glDeleteProgram(program);
-        glDeleteShader(computeShader);
-    }
-
-    /**
-     * Checks if the shader compiled successfully.
-     * @param shader the shader to check
-     */
-    public static  void checkShader(int shader) {
-        if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
-            System.err.println("Shader compilation failed: " + glGetShaderInfoLog(shader));
-        }
-    }
-
-    /**
-     * Checks if the program linked successfully.
-     * @param program the program to check
-     */
-    public static void checkProgram(int program) {
-        if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
-            System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
-        }
-    }
 
     /**
      * Gets the compute shader source.
      * @param kernelName the name of the kernel to get the source for
      * @return the compute shader source
      */
-    public static String getSource(String kernelName) {
-        String source = insertDefineAfterVersion(getComputeShaderSource(), kernelName);
-        debug.setDebugString(source);
-        //System.out.println(source);
-        return source;
+    @Override
+    public String getSource(String kernelName) {
+        return insertDefineAfterVersion(getComputeShaderSource(), kernelName);
     }
 
+
+    
     /**
      * Gets the compute shader source.
      * @return the compute shader source
@@ -270,39 +68,15 @@ public class ComputeShader {
         // Entry point shader that includes all shared code and phase kernels
         String entryPath = "src/main/resources/shaders/compute/bh_main.comp";
         try {
-            return includeShaders(entryPath);
+            String source = hashtagIncludeShaders(entryPath);
+            debug.addToDebugString(source);
+            return source;
         } catch (IOException e) {
             throw new RuntimeException("Failed to read Barnes-Hut compute shader: " + e.getMessage());
         }
     }
 
-    /**
-     * Used by getComputeShaderSource() to add the appropriate #include source code.
-     * @param filePath the path to the shader
-     * @return the shader with the appropriate #include source code
-     * @throws IOException if the shader cannot be read
-     */
-    private static String includeShaders(String filePath) throws IOException {
-        // Very small preprocessor supporting lines of the form: #include "relative/path.glsl"
-        Path path = Paths.get(filePath);
-        StringBuilder out = new StringBuilder();
-        for (String line : Files.readAllLines(path)) {
-            String trimmed = line.trim();
-            if (trimmed.startsWith("#include\"") || trimmed.startsWith("#include \"")) {
-                int start = trimmed.indexOf('"');
-                int end = trimmed.lastIndexOf('"');
-                if (start >= 0 && end > start) {
-                    String includeRel = trimmed.substring(start + 1, end);
-                    Path includePath = path.getParent().resolve(includeRel);
-                    out.append(includeShaders(includePath.toString()));
-                    out.append('\n');
-                    continue;
-                }
-            }
-            out.append(line).append('\n');
-        }
-        return out.toString();
-    }
+
 
     /**
      * Inserts the define after the version and extension lines in order to load the appropriate compute shader.
@@ -328,4 +102,10 @@ public class ComputeShader {
         String defineLine = "#define " + defineValue + "\n";
         return shaderSource.substring(0, insertPos) + defineLine + shaderSource.substring(insertPos);
     }
+
+
+
+
+
+
 }

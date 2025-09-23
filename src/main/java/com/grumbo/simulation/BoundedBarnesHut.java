@@ -36,102 +36,21 @@ import static org.lwjgl.opengl.GL43C.*;
  * 7. Merge the bodies, leaving empty bodies where they are.
  */
 public class BoundedBarnesHut {
-
-    // Simulation params
-    //To change these, you need to also change their definitions in the compute shader
-    private static final int WORK_GROUP_SIZE = 256;
-    private static final int RADIX_BITS = 4;
-    private static final int NUM_RADIX_BUCKETS = (int)Math.pow(2, RADIX_BITS); // 16 when RADIX_BITS=4
-
-    // These can be freely changed here
-    private static final int PROPAGATE_NODES_ITERATIONS = 64;
-
     private static final int NUM_DEBUG_OUTPUTS = 100;
 
 
     // Uniforms
     public Map<String, Uniform<?>> uniforms;
-    private Uniform<Integer> numWorkGroupsUniform;
-    private Uniform<Float> softeningUniform;
-    private Uniform<Float> thetaUniform;
-    private Uniform<Float> dtUniform;
-    private Uniform<Float> elasticityUniform;
-    private Uniform<Float> restitutionUniform;
-    private Uniform<Integer> collisionMergingOrNeitherUniform;
-    private Uniform<Integer> passShiftUniform;
-    private Uniform<Boolean> resetValuesOrDecrementDeadBodiesUniform;
-    private Uniform<Boolean> wrapAroundUniform;
-    private Uniform<Integer> staticOrDynamicUniform;
+
 
     // Uniform local variables
-    private int radixSortPassShift;
-    private int COMPropagationPassNumber;
-    private boolean resetValuesOrDecrementDeadBodies;
-    // Compute Shaders
-    private List<ComputeShader> computeShaders;
-    private ComputeShader initKernel; // bh_init.comp
-    private ComputeShader updateKernel; // bh_update.comp
-    private ComputeShader mortonAABBRepopulateKernel; // bh_morton.comp
-    private ComputeShader mortonAABBCollapseKernel; // bh_morton.comp
-    private ComputeShader mortonEncodeKernel; // bh_morton.comp
-    private ComputeShader deadCountKernel; // bh_dead.comp
-    private ComputeShader deadExclusiveScanKernel; // bh_dead.comp
-    private ComputeShader deadScatterKernel; // bh_dead.comp
-    private ComputeShader radixSortHistogramKernel; // bh_radix.comp
-    private ComputeShader radixSortBucketScanKernel; // bh_radix.comp
-    private ComputeShader radixSortGlobalScanKernel; // bh_radix.comp
-    private ComputeShader radixSortScatterKernel; // bh_radix.comp
-    private ComputeShader buildBinaryRadixTreeKernel; // bh_tree.comp
-    private ComputeShader initLeavesKernel; // bh_reduce.comp
-    private ComputeShader propagateNodesKernel; // bh_reduce.comp
-    private ComputeShader computeForceKernel; // bh_force.comp
-    private ComputeShader mergeBodiesKernel; // bh_merge.comp
-    private ComputeShader debugKernel; // bh_debug.comp
+    public int radixSortPassShift;
+    public int COMPropagationPassNumber;
+    public boolean resetValuesOrDecrementDeadBodies;
 
-    // SSBOs
-
-    // layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
-    // layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
-    // layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
-    // layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
-    // layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
-    // layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
-    // layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
-    // layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
-    // layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
-    // layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
-    // layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
-    // layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
-    // layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
-    // layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
-    // layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
-    // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
+    
     public Map<String, SSBO> ssbos;
-    private SSBO LEAF_NODES_SSBO;
-    private SSBO INTERNAL_NODES_SSBO;
-    private SSBO SIMULATION_VALUES_SSBO;
-    private SSBO FIXED_BODIES_IN_SSBO;
-    private SSBO FIXED_BODIES_OUT_SSBO;
-    private SSBO FIXED_MORTON_IN_SSBO;
-    private SSBO FIXED_MORTON_OUT_SSBO;
-    private SSBO FIXED_INDEX_IN_SSBO;
-    private SSBO FIXED_INDEX_OUT_SSBO;
-    private SSBO FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO;
-    private SSBO FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO;
-    private SSBO RADIX_WG_HIST_SSBO;
-    private SSBO RADIX_WG_SCANNED_SSBO;
-    private SSBO RADIX_BUCKET_TOTALS_SSBO;
-    private SSBO MERGE_QUEUE_SSBO;
-    private SSBO MERGE_BODY_LOCKS_SSBO;
 
-    private SSBO SWAPPING_BODIES_IN_SSBO;
-    private SSBO SWAPPING_BODIES_OUT_SSBO;
-    private SSBO SWAPPING_MORTON_IN_SSBO;
-    private SSBO SWAPPING_MORTON_OUT_SSBO;
-    private SSBO SWAPPING_INDEX_IN_SSBO;
-    private SSBO SWAPPING_INDEX_OUT_SSBO;
-    private SSBO SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO;
-    private SSBO SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO;
     
     //Debug variables
     private List<Long> computeShaderDebugTimes;
@@ -181,8 +100,8 @@ public class BoundedBarnesHut {
         this.steps = 0;
     }
 
-    private int numBodies() {
-        return gpuSimulation.numBodies();
+    private int initialNumBodies() {
+        return gpuSimulation.initialNumBodies();
     }
 
     public int getSteps() {
@@ -211,7 +130,7 @@ public class BoundedBarnesHut {
         partitionDeadBodies();
 
         // Swap the morton and index buffers. This is where the bodies were partitioned to.
-        swapMortonAndIndexBuffers();
+        GPU.swapMortonAndIndexBuffers();
 
         // Decrements the number of dead bodies from the total number of bodies.
         decrementDeadBodies();
@@ -237,21 +156,22 @@ public class BoundedBarnesHut {
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
 
+        //System.out.println(GPU.SSBO_SIMULATION_VALUES.getIntegerData("uintDebug", true));
+
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
 
 
         // Swap the body buffers.
-        swapBodyBuffers();
+        GPU.swapBodyBuffers();
 
 
             if (debug) {
             debugString = printProfiling();
         }
-
         this.steps++;
 
-        System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("bounds"));
+        //System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("bounds"));
     }
 
     /* --------- Initialization --------- */
@@ -259,590 +179,9 @@ public class BoundedBarnesHut {
      * Initialize the compute shaders and SSBOs, and set up the initial index array.
      */
     public void init() {
-        initComputeSSBOs();
-        initComputeSwappingBuffers();
-        initComputeUniforms();
-        initComputeShaders();
-        // Set up the initial index array.
-        initKernel.run();
+        GPU.KERNEL_INIT.run();
     }
 
-    /**
-     * Initialize the SSBOs.
-     * Gives the SSBOs their correct sizes or data functions, and 
-     * the general layout of the SSBOs.
-     */
-    private void initComputeSSBOs() {
-        // Compute sizes (use long to avoid overflow)
-        long nodesSize = Node.STRUCT_SIZE * Integer.BYTES * (long) (numBodies());
-        long maxBlock = glGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
-        System.out.println("Node space left: " + (maxBlock - nodesSize));
-        System.out.println("Max block: " + maxBlock);
-
-        if (nodesSize > maxBlock) {
-
-            throw new RuntimeException("Not enough node space (your simulation is too large: " + numBodies() + ") Approximate max bodies: " + (maxBlock / (Node.STRUCT_SIZE * Integer.BYTES)));
-        }
-
-        GPUSimulation.checkGLError("before initComputeSSBOs");
-        
-        //this is a list of all the SSBOs that are used in the algorithm.
-        ssbos = new HashMap<>();
-
-        //These are the fixed SSBOs that point to the bodies in and out buffers.
-        System.out.println("numBodies: " + numBodies());
-        FIXED_BODIES_IN_SSBO = new SSBO(SSBO.BODIES_IN_SSBO_BINDING, () -> {
-            return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
-        }, "FIXED_BODIES_IN_SSBO", new GLSLVariable(Body.bodyStruct,"BodiesIn",numBodies()));
-        ssbos.put(FIXED_BODIES_IN_SSBO.getName(), FIXED_BODIES_IN_SSBO);
-
-        FIXED_BODIES_OUT_SSBO = new SSBO(SSBO.BODIES_OUT_SSBO_BINDING, () -> {
-            return numBodies()*Body.STRUCT_SIZE*Float.BYTES;
-        }, "FIXED_BODIES_OUT_SSBO", new GLSLVariable(Body.bodyStruct,"BodiesOut",numBodies()));
-        ssbos.put(FIXED_BODIES_OUT_SSBO.getName(), FIXED_BODIES_OUT_SSBO);
-
-        //These are the fixed SSBOs that point to the morton and index buffers.
-        //They are intialized with the correct sizes.
-        FIXED_MORTON_IN_SSBO = new SSBO(SSBO.MORTON_IN_SSBO_BINDING, () -> {
-            return numBodies() * Long.BYTES;
-        }, "FIXED_MORTON_IN_SSBO", new GLSLVariable(VariableType.UINT64,"MortonIn", numBodies()));
-        ssbos.put(FIXED_MORTON_IN_SSBO.getName(), FIXED_MORTON_IN_SSBO);
-
-        FIXED_INDEX_IN_SSBO = new SSBO(SSBO.INDEX_IN_SSBO_BINDING, () -> {
-            return numBodies() * Integer.BYTES;
-        }, "FIXED_INDEX_IN_SSBO", new GLSLVariable(VariableType.UINT,"IndexIn", numBodies()));
-        ssbos.put(FIXED_INDEX_IN_SSBO.getName(), FIXED_INDEX_IN_SSBO);
-
-        LEAF_NODES_SSBO = new SSBO(SSBO.LEAF_NODES_SSBO_BINDING, () -> {
-            return numBodies() * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "LEAF_NODES_SSBO", new GLSLVariable(Node.nodeStruct,"LeafNodes", numBodies()));
-        ssbos.put(LEAF_NODES_SSBO.getName(), LEAF_NODES_SSBO);
-
-        INTERNAL_NODES_SSBO = new SSBO(SSBO.INTERNAL_NODES_SSBO_BINDING, () -> {
-            return (numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "INTERNAL_NODES_SSBO", new GLSLVariable(Node.nodeStruct,"InternalNodes", numBodies() - 1));
-        ssbos.put(INTERNAL_NODES_SSBO.getName(), INTERNAL_NODES_SSBO);
-
-        //This is the SSBO that holds values that are used in different shaders
-        SIMULATION_VALUES_SSBO = new SSBO(SSBO.SIMULATION_VALUES_SSBO_BINDING, () -> {
-            return packValues();
-        }, "VALUES_SSBO", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"numBodies", 1), 
-            new GLSLVariable(VariableType.UINT,"initialNumBodies", 1), 
-            new GLSLVariable(VariableType.UINT,"justDied", 1), 
-            new GLSLVariable(VariableType.UINT,"merged", 1), 
-            new GLSLVariable(VariableType.UINT,"outOfBounds", 1), 
-            new GLSLVariable(VariableType.UINT,"pad0", 1), 
-            new GLSLVariable(VariableType.UINT,"pad1", 1), 
-            new GLSLVariable(VariableType.UINT,"pad2", 1), 
-            new GLSLVariable(new GLSLVariable[] {
-                new GLSLVariable(VariableType.FLOAT,"minCorner", 3), new GLSLVariable(VariableType.PADDING),
-                new GLSLVariable(VariableType.FLOAT,"maxCorner", 3), new GLSLVariable(VariableType.PADDING)},"bounds"), 
-            new GLSLVariable(VariableType.UINT,"uintDebug", 100), 
-            new GLSLVariable(VariableType.FLOAT,"floatDebug", 100)},"SimulationValues"));
-        ssbos.put(SIMULATION_VALUES_SSBO.getName(), SIMULATION_VALUES_SSBO);
-
-        //This is the SSBO that holds the histogram of the radix sort.
-        RADIX_WG_HIST_SSBO = new SSBO(SSBO.RADIX_WG_HIST_SSBO_BINDING, () -> {
-            return numGroups() * (NUM_RADIX_BUCKETS) * Integer.BYTES;
-        }, "WG_HIST_SSBO", new GLSLVariable(VariableType.UINT,"WGHist", numGroups() * (NUM_RADIX_BUCKETS)));
-        ssbos.put(RADIX_WG_HIST_SSBO.getName(), RADIX_WG_HIST_SSBO);
-
-        //This is the SSBO that holds the scanned histogram of the radix sort.
-        RADIX_WG_SCANNED_SSBO = new SSBO(SSBO.RADIX_WG_SCANNED_SSBO_BINDING, () -> {
-            return Integer.BYTES + numGroups() * (NUM_RADIX_BUCKETS) * Integer.BYTES + Integer.BYTES;
-        }, "WG_SCANNED_SSBO", new GLSLVariable(VariableType.UINT,"WGScanned", numGroups() * (NUM_RADIX_BUCKETS) + 1));
-        ssbos.put(RADIX_WG_SCANNED_SSBO.getName(), RADIX_WG_SCANNED_SSBO);
-
-        //This is the SSBO that holds the total number of bodies in each bucket of the radix sort.
-        RADIX_BUCKET_TOTALS_SSBO = new SSBO(SSBO.RADIX_BUCKET_TOTALS_SSBO_BINDING, () -> {
-            return NUM_RADIX_BUCKETS * Integer.BYTES * 2;
-        }, "BUCKET_TOTALS_SSBO", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"BucketTotals", NUM_RADIX_BUCKETS), 
-            new GLSLVariable(VariableType.UINT,"GlobalBase", NUM_RADIX_BUCKETS)}));
-        ssbos.put(RADIX_BUCKET_TOTALS_SSBO.getName(), RADIX_BUCKET_TOTALS_SSBO);
-
-        //These are the fixed SSBOs that point to the morton and index buffers after the radix sort.
-        //They are intialized with the correct sizes.
-        FIXED_MORTON_OUT_SSBO = new SSBO(SSBO.MORTON_OUT_SSBO_BINDING, () -> {
-            return numBodies() * Long.BYTES;
-        }, "FIXED_MORTON_OUT_SSBO", new GLSLVariable(VariableType.UINT64,"MortonOut", numBodies()));
-        ssbos.put(FIXED_MORTON_OUT_SSBO.getName(), FIXED_MORTON_OUT_SSBO);
-
-        FIXED_INDEX_OUT_SSBO = new SSBO(SSBO.INDEX_OUT_SSBO_BINDING, () -> {
-            return numBodies() * Integer.BYTES;
-        }, "FIXED_INDEX_OUT_SSBO", new GLSLVariable(VariableType.UINT,"IndexOut", numBodies()));
-        ssbos.put(FIXED_INDEX_OUT_SSBO.getName(), FIXED_INDEX_OUT_SSBO);
-
-        //This is the SSBO that holds the work queue.
-        //It is intialized with the correct sizes.
-        FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_IN_SSBO_BINDING, () -> {
-            return (4 + numBodies()) * Integer.BYTES;
-        }, "FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"HeadIn", 1), 
-            new GLSLVariable(VariableType.UINT,"TailIn", 1), 
-            new GLSLVariable(VariableType.UINT,"ItemsIn", numBodies())}));
-        ssbos.put(FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO.getName(), FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO);
-
-        //This is the SSBO that holds the work queue for the second pass.
-        //It is intialized with the correct sizes.
-        FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_OUT_SSBO_BINDING, () -> {
-            return (4 + numBodies()) * Integer.BYTES;
-        }, "FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"HeadOut", 1), 
-            new GLSLVariable(VariableType.UINT,"TailOut", 1), 
-            new GLSLVariable(VariableType.UINT,"ItemsOut", numBodies())}));
-        ssbos.put(FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO.getName(), FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO);
-
-        MERGE_QUEUE_SSBO = new SSBO(SSBO.MERGE_QUEUE_SSBO_BINDING, () -> {
-            return Math.max(2*Integer.BYTES, 2*Integer.BYTES+numBodies() * 2 * Integer.BYTES);
-        }, "MERGE_QUEUE_SSBO", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"MergeQueueHead", 1), 
-            new GLSLVariable(VariableType.UINT,"MergeQueueTail", 1), 
-            new GLSLVariable(VariableType.UINT,"MergeQueue", numBodies() * 2)}));
-        ssbos.put(MERGE_QUEUE_SSBO.getName(), MERGE_QUEUE_SSBO);
-
-        MERGE_BODY_LOCKS_SSBO = new SSBO(SSBO.MERGE_BODY_LOCKS_SSBO_BINDING, () -> {
-            return numBodies() * Integer.BYTES;
-        }, "BODY_LOCKS_SSBO", new GLSLVariable(VariableType.UINT,"BodyLocks", numBodies()));
-        ssbos.put(MERGE_BODY_LOCKS_SSBO.getName(), MERGE_BODY_LOCKS_SSBO);
-
-        GPUSimulation.checkGLError("after initComputeSSBOs");
-
-        for (SSBO ssbo : ssbos.values()) {
-            System.out.println("Creating buffer for " + ssbo.getName());
-            ssbo.createBufferData();
-            GPUSimulation.checkGLError("after createBufferData for " + ssbo.getName());
-        }
-
-        GPUSimulation.checkGLError("after createBufferData");
-
-        uploadPlanetsData(gpuSimulation.getPlanetGenerator(), FIXED_BODIES_IN_SSBO);
-
-
-
-
-    }
-    /**
-     * Reinitialize the compute SSBOs and swapping buffers.
-     */
-    public void reInitComputeSSBOsAndSwappingBuffers() {
-        for (SSBO ssbo : ssbos.values()) {
-            ssbo.createBufferData();
-        }
-        initComputeSwappingBuffers();
-        uploadPlanetsData(gpuSimulation.getPlanetGenerator(), FIXED_BODIES_IN_SSBO);
-    }
-
-
-    /**
-     * Initialize the uniforms. These are defined in bh_common.comp for the most part.
-     */
-    private void initComputeUniforms() {
-        uniforms = new HashMap<>();
-        uniforms.put("numWorkGroups", numWorkGroupsUniform);
-        uniforms.put("softening", softeningUniform);
-        uniforms.put("theta", thetaUniform);
-        uniforms.put("dt", dtUniform);
-        uniforms.put("elasticity", elasticityUniform);
-        uniforms.put("restitution", restitutionUniform);
-        uniforms.put("collisionMergingOrNeither", collisionMergingOrNeitherUniform);
-        uniforms.put("passShift", passShiftUniform);
-        uniforms.put("resetValuesOrDecrementDeadBodies", resetValuesOrDecrementDeadBodiesUniform);
-        uniforms.put("wrapAround", wrapAroundUniform);
-        uniforms.put("staticOrDynamic", staticOrDynamicUniform);
-        numWorkGroupsUniform = new Uniform<Integer>("numWorkGroups", () -> {
-            return numGroups();
-        }, VariableType.UINT);
-
-        softeningUniform = new Uniform<Float>("softening", () -> {
-            return Settings.getInstance().getSoftening();
-        }, VariableType.FLOAT);
-
-        thetaUniform = new Uniform<Float>("theta", () -> {
-            return Settings.getInstance().getTheta();
-        }, VariableType.FLOAT);
-
-        dtUniform = new Uniform<Float>("dt", () -> {
-            return Settings.getInstance().getDt();
-        }, VariableType.FLOAT);
-
-        elasticityUniform = new Uniform<Float>("elasticity", () -> {
-            return (float)Settings.getInstance().getElasticity();
-        }, VariableType.FLOAT);
-
-        restitutionUniform = new Uniform<Float>("restitution", () -> {
-            return 0.2f;
-        }, VariableType.FLOAT);
-
-        passShiftUniform = new Uniform<Integer>("passShift", () -> {
-            return radixSortPassShift;
-        }, VariableType.UINT);
-
-        collisionMergingOrNeitherUniform = new Uniform<Integer>("collisionMergingOrNeither", () -> {
-            String selected = Settings.getInstance().getCollisionMergingOrNeither();
-            switch (selected) {
-                case "none":
-                    return 0;
-                case "merge":
-                    return 2;
-                case "collision":
-                    return 1;
-                default:
-                    return 0;
-            }
-        }, VariableType.UINT);
-
-        resetValuesOrDecrementDeadBodiesUniform = new Uniform<Boolean>("resetValuesOrDecrementDeadBodies", () -> {
-            return resetValuesOrDecrementDeadBodies ? true : false;
-        }, VariableType.BOOL);
-
-        wrapAroundUniform = new Uniform<Boolean>("wrapAround", () -> {
-            return Settings.getInstance().isWrapAround();
-        }, VariableType.BOOL);
-
-        staticOrDynamicUniform = new Uniform<Integer>("staticOrDynamic", () -> {
-            String selected = Settings.getInstance().getDynamic();
-            switch (selected) {
-                case "static":
-                    return 0;
-                case "dynamic":
-                    return 1;
-                default:
-                    return 0;
-            }
-        }, VariableType.UINT);
-
-    }
-
-    /**
-     * Initialize the compute shaders. The names are defined in bh_main.comp. For more information on the shaders, see the glsl code in the shaders folder.
-     */
-    private void initComputeShaders() {
-
-        computeShaders = new ArrayList<>();
-        initKernel = new ComputeShader("KERNEL_INIT", this);
-        initKernel.setUniforms(new Uniform[] {
-        });
-        initKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "FIXED_BODIES_IN_SSBO",
-            "FIXED_BODIES_OUT_SSBO"
-        });
-        initKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(initKernel);
-        mortonAABBRepopulateKernel = new ComputeShader("KERNEL_MORTON_AABB_REPOPULATE", this);
-        mortonAABBRepopulateKernel.setUniforms(new Uniform[] {
-
-        });
-        mortonAABBRepopulateKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "INTERNAL_NODES_SSBO",
-        });
-        mortonAABBRepopulateKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(mortonAABBRepopulateKernel);
-        mortonAABBCollapseKernel = new ComputeShader("KERNEL_MORTON_AABB_COLLAPSE", this);
-        mortonAABBCollapseKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        mortonAABBCollapseKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "INTERNAL_NODES_SSBO",
-        });
-        mortonAABBCollapseKernel.setXWorkGroupsFunction(() -> {
-            return 1;
-        });
-        computeShaders.add(mortonAABBCollapseKernel);
-        mortonEncodeKernel = new ComputeShader("KERNEL_MORTON_ENCODE", this);
-        mortonEncodeKernel.setUniforms(new Uniform[] {
-        });
-        mortonEncodeKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-
-        });
-        mortonEncodeKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(mortonEncodeKernel);   
-        deadCountKernel = new ComputeShader("KERNEL_DEAD_COUNT", this);
-        deadCountKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        deadCountKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "WG_HIST_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_BODIES_OUT_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-        });
-        deadCountKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        
-        computeShaders.add(deadCountKernel);
-        deadExclusiveScanKernel = new ComputeShader("KERNEL_DEAD_EXCLUSIVE_SCAN", this);
-        deadExclusiveScanKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        deadExclusiveScanKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "WG_HIST_SSBO",
-            "WG_SCANNED_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-        });
-        deadExclusiveScanKernel.setXWorkGroupsFunction(() -> {
-            return 1;
-        });
-        
-        computeShaders.add(deadExclusiveScanKernel);
-        deadScatterKernel = new ComputeShader("KERNEL_DEAD_SCATTER", this);
-        deadScatterKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        deadScatterKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "WG_SCANNED_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_MORTON_OUT_SSBO",
-            "SWAPPING_INDEX_OUT_SSBO",
-        });
-        deadScatterKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        
-        computeShaders.add(deadScatterKernel);
-        radixSortHistogramKernel = new ComputeShader("KERNEL_RADIX_HIST", this);
-        radixSortHistogramKernel.setUniforms(new Uniform[] {
-
-            passShiftUniform,
-            numWorkGroupsUniform
-        });
-        radixSortHistogramKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "WG_HIST_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
-        });
-        radixSortHistogramKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        
-        computeShaders.add(radixSortHistogramKernel);
-        radixSortBucketScanKernel = new ComputeShader("KERNEL_RADIX_BUCKET_SCAN", this);
-        radixSortBucketScanKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        radixSortBucketScanKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "WG_HIST_SSBO",
-            "WG_SCANNED_SSBO",
-            "BUCKET_TOTALS_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
-        });
-        radixSortBucketScanKernel.setXWorkGroupsFunction(() -> {
-            return NUM_RADIX_BUCKETS;
-        });
-        
-        computeShaders.add(radixSortBucketScanKernel);    
-        radixSortGlobalScanKernel = new ComputeShader("KERNEL_RADIX_GLOBAL_SCAN", this);
-        radixSortGlobalScanKernel.setUniforms(new Uniform[] {
-            numWorkGroupsUniform
-        });
-        radixSortGlobalScanKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "BUCKET_TOTALS_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
-        });
-        radixSortGlobalScanKernel.setXWorkGroupsFunction(() -> {
-            return NUM_RADIX_BUCKETS;
-        });
-        
-        computeShaders.add(radixSortGlobalScanKernel);
-        radixSortScatterKernel = new ComputeShader("KERNEL_RADIX_SCATTER", this);
-
-        radixSortScatterKernel.setUniforms(new Uniform[] {
-            passShiftUniform,
-            numWorkGroupsUniform
-        });
-
-        radixSortScatterKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "WG_SCANNED_SSBO",
-            "BUCKET_TOTALS_SSBO",
-            "SWAPPING_MORTON_OUT_SSBO",
-            "SWAPPING_INDEX_OUT_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
-        });
-
-        radixSortScatterKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        
-        computeShaders.add(radixSortScatterKernel); 
-
-
-        buildBinaryRadixTreeKernel = new ComputeShader("KERNEL_TREE_BUILD_BINARY_RADIX_TREE", this);
-        buildBinaryRadixTreeKernel.setUniforms(new Uniform[] {
-
-        });
-        
-        buildBinaryRadixTreeKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "INTERNAL_NODES_SSBO",
-            "LEAF_NODES_SSBO",
-            "SWAPPING_BODIES_IN_SSBO"
-        });
-
-        buildBinaryRadixTreeKernel.setXWorkGroupsFunction(() -> {
-            int numInternalNodes = numBodies() - 1;
-            int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
-            return internalNodeGroups;
-        });
-        
-        computeShaders.add(buildBinaryRadixTreeKernel);
-        //Compute COM and Location Kernels
-
-        initLeavesKernel = new ComputeShader("KERNEL_TREE_INIT_LEAVES", this);
-
-        initLeavesKernel.setUniforms(new Uniform[] {
-
-        }); 
-
-        initLeavesKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "INTERNAL_NODES_SSBO",
-            "LEAF_NODES_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
-        });
-
-        initLeavesKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(initLeavesKernel);
-        updateKernel = new ComputeShader("KERNEL_UPDATE", this);
-
-        updateKernel.setUniforms(new Uniform[] {
-            resetValuesOrDecrementDeadBodiesUniform
-        });
-
-        updateKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
-            "MERGE_QUEUE_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_BODIES_OUT_SSBO"
-        });
-
-        updateKernel.setXWorkGroupsFunction(() -> {
-            return 1;
-        });
-        computeShaders.add(updateKernel);
-        propagateNodesKernel = new ComputeShader("KERNEL_TREE_PROPAGATE_NODES", this);
-
-        propagateNodesKernel.setUniforms(new Uniform[] {
-        });
-
-        propagateNodesKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "INTERNAL_NODES_SSBO",
-            "LEAF_NODES_SSBO",
-            "SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO",
-            "SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-
-            
-        });
-        propagateNodesKernel.setXWorkGroupsFunction(() -> {
-            int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,COMPropagationPassNumber)));
-            int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
-            return workGroups;
-        });
-        computeShaders.add(propagateNodesKernel);
-        computeForceKernel = new ComputeShader("KERNEL_FORCE_COMPUTE", this);
-
-        computeForceKernel.setUniforms(new Uniform[] {
-            thetaUniform,
-            dtUniform,
-            elasticityUniform,
-            wrapAroundUniform,
-            softeningUniform,
-            collisionMergingOrNeitherUniform,
-            staticOrDynamicUniform,
-        });
-
-        computeForceKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_BODIES_OUT_SSBO",
-            "INTERNAL_NODES_SSBO",
-            "LEAF_NODES_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "MERGE_QUEUE_SSBO"
-        });
-
-        computeForceKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(computeForceKernel);
-        mergeBodiesKernel = new ComputeShader("KERNEL_MERGE_BODIES", this);
-        mergeBodiesKernel.setUniforms(new Uniform[] {
-            
-        });
-        mergeBodiesKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-            "SWAPPING_BODIES_OUT_SSBO",
-            "MERGE_QUEUE_SSBO",
-            "BODY_LOCKS_SSBO",
-        });
-        mergeBodiesKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-        computeShaders.add(mergeBodiesKernel);
-        debugKernel = new ComputeShader("KERNEL_DEBUG", this);
-
-        debugKernel.setUniforms(new Uniform[] {
-
-        });
-
-        debugKernel.setSSBOs(new String[] {
-            "VALUES_SSBO",
-            "SWAPPING_MORTON_IN_SSBO",
-            "SWAPPING_INDEX_IN_SSBO",
-            "SWAPPING_BODIES_IN_SSBO",
-        });
-
-        debugKernel.setXWorkGroupsFunction(() -> {
-            return numGroups();
-        });
-
-        computeShaders.add(debugKernel);
-    }
 
     /* --------- Barnes-Hut --------- */
     /**
@@ -865,19 +204,19 @@ public class BoundedBarnesHut {
         long resetStartTime = 0;
         if (debug) {
             resetStartTime = System.nanoTime();
-            if (updateKernel.isPreDebugSelected()) {
-                updateKernel.setPreDebugString("Reseting values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_UPDATE.isPreDebugSelected()) {
+                GPU.KERNEL_UPDATE.setPreDebugString("Reseting values"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
 
         }
         resetValuesOrDecrementDeadBodies = true;
-        updateKernel.run();
+        GPU.KERNEL_UPDATE.run();
         if (debug) {
             GPUSimulation.checkGLError("resetValuesPass");
             glFinish();
             resetTime = System.nanoTime() - resetStartTime;
-            if (updateKernel.isPostDebugSelected()) {
-                updateKernel.setPostDebugString("Reset values"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_UPDATE.isPostDebugSelected()) {
+                GPU.KERNEL_UPDATE.setPostDebugString("Reset values"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
     }
@@ -889,18 +228,18 @@ public class BoundedBarnesHut {
         long decrementDeadBodiesStartTime = 0;
         if (debug) {
             decrementDeadBodiesStartTime = System.nanoTime();
-            if (updateKernel.isPreDebugSelected()) {
-                updateKernel.addToPreDebugString("Decrementing dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_UPDATE.isPreDebugSelected()) {
+                GPU.KERNEL_UPDATE.addToPreDebugString("Decrementing dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
         resetValuesOrDecrementDeadBodies = false;
-        updateKernel.run();
+        GPU.KERNEL_UPDATE.run();
         if (debug) {
             GPUSimulation.checkGLError("decrementDeadBodiesPass");
             glFinish();
             decrementDeadBodiesTime = System.nanoTime() - decrementDeadBodiesStartTime;
-            if (updateKernel.isPostDebugSelected()) {
-                updateKernel.addToPostDebugString("Decremented dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_UPDATE.isPostDebugSelected()) {
+                GPU.KERNEL_UPDATE.addToPostDebugString("Decremented dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
     }
@@ -915,41 +254,41 @@ public class BoundedBarnesHut {
 
         if (debug) {
             deadCountStartTime = System.nanoTime();
-            if (deadCountKernel.isPreDebugSelected()) {
-                deadCountKernel.setPreDebugString("Counting dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_DEAD_COUNT.isPreDebugSelected()) {
+                GPU.KERNEL_DEAD_COUNT.setPreDebugString("Counting dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
-        deadCountKernel.run();
+        GPU.KERNEL_DEAD_COUNT.run();
         if (debug) {
             GPUSimulation.checkGLError("deadCount");
-            if (deadCountKernel.isPostDebugSelected()) {
-                deadCountKernel.setPostDebugString("Counted dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_DEAD_COUNT.isPostDebugSelected()) {
+                GPU.KERNEL_DEAD_COUNT.setPostDebugString("Counted dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
             glFinish();
             deadCountTime = System.nanoTime() - deadCountStartTime;
             deadExclusiveScanStartTime = System.nanoTime();
-            if (deadExclusiveScanKernel.isPreDebugSelected()) {
-                deadExclusiveScanKernel.setPreDebugString("Scanning dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.isPreDebugSelected()) {
+                GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.setPreDebugString("Scanning dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
-        deadExclusiveScanKernel.run();
+        GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.run();
         if (debug) {
             GPUSimulation.checkGLError("deadExclusiveScan");
-            if (deadExclusiveScanKernel.isPostDebugSelected()) {
-                deadExclusiveScanKernel.setPostDebugString("Scanned dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.isPostDebugSelected()) {
+                GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.setPostDebugString("Scanned dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
             glFinish();
             deadExclusiveScanTime = System.nanoTime() - deadExclusiveScanStartTime;
             deadScatterStartTime = System.nanoTime();
-            if (deadScatterKernel.isPreDebugSelected()) {
-                deadScatterKernel.setPreDebugString("Scattering dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_DEAD_SCATTER.isPreDebugSelected()) {
+                GPU.KERNEL_DEAD_SCATTER.setPreDebugString("Scattering dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
-        deadScatterKernel.run();
+        GPU.KERNEL_DEAD_SCATTER.run();
         if (debug) {
             GPUSimulation.checkGLError("deadScatter");
-            if (deadScatterKernel.isPostDebugSelected()) {
-                deadScatterKernel.setPostDebugString("Scattered dead bodies"+SIMULATION_VALUES_SSBO.getDataAsString("SimulationValues"));
+            if (GPU.KERNEL_DEAD_SCATTER.isPostDebugSelected()) {
+                GPU.KERNEL_DEAD_SCATTER.setPostDebugString("Scattered dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
             glFinish();
             deadScatterTime = System.nanoTime() - deadScatterStartTime;
@@ -964,33 +303,33 @@ public class BoundedBarnesHut {
     private void updateBounds() {
         if (debug) {
             mortonAABBRepopulateBoundsTime = System.nanoTime();
-            if (mortonAABBRepopulateKernel.isPreDebugSelected()) {
-                mortonAABBRepopulateKernel.addToPreDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.KERNEL_MORTON_AABB_REPOPULATE.isPreDebugSelected()) {
+                GPU.KERNEL_MORTON_AABB_REPOPULATE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
         }
-        mortonAABBRepopulateKernel.run();
+        GPU.KERNEL_MORTON_AABB_REPOPULATE.run();
         if (debug) {
             GPUSimulation.checkGLError("MortonAABBRepopulateKernel");
             glFinish();
-            if (mortonAABBRepopulateKernel.isPostDebugSelected()) {
-                mortonAABBRepopulateKernel.addToPostDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.KERNEL_MORTON_AABB_REPOPULATE.isPostDebugSelected()) {
+                GPU.KERNEL_MORTON_AABB_REPOPULATE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBRepopulateBoundsTime = System.nanoTime() - mortonAABBRepopulateBoundsTime;
         }
 
         if (debug) {
-            if (mortonAABBCollapseKernel.isPreDebugSelected()) {
-                mortonAABBCollapseKernel.addToPreDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.KERNEL_MORTON_AABB_COLLAPSE.isPreDebugSelected()) {
+                GPU.KERNEL_MORTON_AABB_COLLAPSE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBCollapseBoundsTime = System.nanoTime();
         }
-        mortonAABBCollapseKernel.run();
+        GPU.KERNEL_MORTON_AABB_COLLAPSE.run();
 
         if (debug) {
             GPUSimulation.checkGLError("MortonAABBCollapseKernel");
             glFinish();
-            if (mortonAABBCollapseKernel.isPostDebugSelected()) {
-                mortonAABBCollapseKernel.addToPostDebugString("Updated bounds"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.KERNEL_MORTON_AABB_COLLAPSE.isPostDebugSelected()) {
+                GPU.KERNEL_MORTON_AABB_COLLAPSE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBCollapseBoundsTime = System.nanoTime() - mortonAABBCollapseBoundsTime;
             mortonAABBupdateBoundsTime = mortonAABBRepopulateBoundsTime + mortonAABBCollapseBoundsTime;
@@ -1005,16 +344,16 @@ public class BoundedBarnesHut {
     private void generateMortonCodes() {
         if (debug) {
             mortonCodeGenerationTime = System.nanoTime();
-            if (mortonEncodeKernel.isPreDebugSelected()) {
-                mortonEncodeKernel.addToPreDebugString("Generating morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.KERNEL_MORTON_ENCODE.isPreDebugSelected()) {
+                GPU.KERNEL_MORTON_ENCODE.addToPreDebugString("Generating morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
         }
 
-        mortonEncodeKernel.run();
+        GPU.KERNEL_MORTON_ENCODE.run();
         if (debug) {
             GPUSimulation.checkGLError("generateMortonCodes");
-            if (mortonEncodeKernel.isPostDebugSelected()) {
-                mortonEncodeKernel.addToPostDebugString("Generated morton codes"+SWAPPING_MORTON_IN_SSBO.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.KERNEL_MORTON_ENCODE.isPostDebugSelected()) {
+                GPU.KERNEL_MORTON_ENCODE.addToPostDebugString("Generated morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             glFinish();
             mortonCodeGenerationTime = System.nanoTime() - mortonCodeGenerationTime;
@@ -1027,7 +366,7 @@ public class BoundedBarnesHut {
      * Radix sort the morton codes. In bh_radix.comp
      */
     private void radixSort() {
-        int numPasses = (int)Math.ceil(63.0 / RADIX_BITS);
+        int numPasses = (int)Math.ceil(63.0 / GPU.RADIX_BITS);
         
         radixSortHistogramTime = 0;
         radixSortScanParallelTime = 0;
@@ -1047,70 +386,70 @@ public class BoundedBarnesHut {
 
             if (debug) {
                 radixSortHistogramStartTime = System.nanoTime();
-                if (radixSortHistogramKernel.isPreDebugSelected()) {
-                    radixSortHistogramKernel.addToPreDebugString("Histograming morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_HISTOGRAM.isPreDebugSelected()) {
+                    GPU.KERNEL_RADIX_HISTOGRAM.addToPreDebugString("Histograming morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_HIST.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 1: Histogram
-            radixSortHistogramKernel.run();
+            GPU.KERNEL_RADIX_HISTOGRAM.run();
 
             if (debug) {
                 GPUSimulation.checkGLError("radixSortHistogramPass" + pass);
                 glFinish();
                 radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
                 radixSortScanParallelStartTime = System.nanoTime();
-                if (radixSortHistogramKernel.isPostDebugSelected()) {
-                    radixSortHistogramKernel.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+RADIX_WG_HIST_SSBO.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_HISTOGRAM.isPostDebugSelected()) {
+                    GPU.KERNEL_RADIX_HISTOGRAM.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_HIST.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (radixSortBucketScanKernel.isPreDebugSelected()) {
-                    radixSortBucketScanKernel.addToPreDebugString("Scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_BUCKET_SCAN.isPreDebugSelected()) {
+                    GPU.KERNEL_RADIX_BUCKET_SCAN.addToPreDebugString("Scanning morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 2: Scan
-            radixSortBucketScanKernel.run();
+            GPU.KERNEL_RADIX_BUCKET_SCAN.run();
             if (debug) {
                 GPUSimulation.checkGLError("radixSortBucketScanPass" + pass);
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
                 radixSortScanExclusiveStartTime = System.nanoTime();
-                if (radixSortBucketScanKernel.isPostDebugSelected()) {
-                    radixSortBucketScanKernel.addToPostDebugString("Scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_BUCKET_SCAN.isPostDebugSelected()) {
+                    GPU.KERNEL_RADIX_BUCKET_SCAN.addToPostDebugString("Scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (radixSortGlobalScanKernel.isPreDebugSelected()) {
-                    radixSortGlobalScanKernel.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_GLOBAL_SCAN.isPreDebugSelected()) {
+                    GPU.KERNEL_RADIX_GLOBAL_SCAN.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
-            radixSortGlobalScanKernel.run();
+            GPU.KERNEL_RADIX_GLOBAL_SCAN.run();
 
             if (debug) {
                 GPUSimulation.checkGLError("radixSortGlobalScanPass" + pass);
                 glFinish();
                 radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
                 radixSortScatterStartTime = System.nanoTime();
-                if (radixSortGlobalScanKernel.isPostDebugSelected()) {
-                    radixSortGlobalScanKernel.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_GLOBAL_SCAN.isPostDebugSelected()) {
+                    GPU.KERNEL_RADIX_GLOBAL_SCAN.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (radixSortScatterKernel.isPreDebugSelected()) {
-                    radixSortScatterKernel.addToPreDebugString("Scattering morton codes Pass "+pass+": "+RADIX_BUCKET_TOTALS_SSBO.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_SCATTER.isPreDebugSelected()) {
+                    GPU.KERNEL_RADIX_SCATTER.addToPreDebugString("Scattering morton codes Pass "+pass+": "+GPU.SSBO_RADIX_BUCKET_TOTALS.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 3: Scatter
-            radixSortScatterKernel.run();
+            GPU.KERNEL_RADIX_SCATTER.run();
             if (debug) {
                 GPUSimulation.checkGLError("radixSortScatterPass" + pass);
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
-                if (radixSortScatterKernel.isPostDebugSelected()) {
-                    radixSortScatterKernel.addToPostDebugString("Scattered morton codes Pass "+pass+": "+RADIX_WG_SCANNED_SSBO.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_RADIX_SCATTER.isPostDebugSelected()) {
+                    GPU.KERNEL_RADIX_SCATTER.addToPostDebugString("Scattered morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
             
 
-            swapMortonAndIndexBuffers();
+            GPU.swapMortonAndIndexBuffers();
         }
 
         if (debug) {
@@ -1124,17 +463,17 @@ public class BoundedBarnesHut {
     private void buildBinaryRadixTree() {
         if (debug) {
             buildTreeTime = System.nanoTime();
-            if (buildBinaryRadixTreeKernel.isPreDebugSelected()) {
-                buildBinaryRadixTreeKernel.setPreDebugString("Building binary radix tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_TREE_BUILD.isPreDebugSelected()) {
+                GPU.KERNEL_TREE_BUILD.setPreDebugString("Building binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
-        buildBinaryRadixTreeKernel.run();
+        GPU.KERNEL_TREE_BUILD.run();
         if (debug) {
             GPUSimulation.checkGLError("buildBinaryRadixTree");
             glFinish();
             buildTreeTime = System.nanoTime() - buildTreeTime;
-            if (buildBinaryRadixTreeKernel.isPostDebugSelected()) {
-                buildBinaryRadixTreeKernel.setPostDebugString("Built binary radix tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_TREE_BUILD.isPostDebugSelected()) {
+                GPU.KERNEL_TREE_BUILD.setPostDebugString("Built binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -1145,43 +484,43 @@ public class BoundedBarnesHut {
     private void computeCOMAndLocation() {
         if (debug) {
             initLeavesTime = System.nanoTime();
-            if (initLeavesKernel.isPreDebugSelected()) {
-                initLeavesKernel.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_TREE_INIT_LEAVES.isPreDebugSelected()) {
+                GPU.KERNEL_TREE_INIT_LEAVES.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
 
-        initLeavesKernel.run();
+        GPU.KERNEL_TREE_INIT_LEAVES.run();
 
         if (debug) {
             GPUSimulation.checkGLError("initLeaves");
             glFinish();
             initLeavesTime = System.nanoTime() - initLeavesTime;
-            if (initLeavesKernel.isPostDebugSelected()) {
-                initLeavesKernel.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_TREE_INIT_LEAVES.isPostDebugSelected()) {
+                GPU.KERNEL_TREE_INIT_LEAVES.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
-            if (propagateNodesKernel.isPreDebugSelected()) {
-                propagateNodesKernel.setPreDebugString("Propagating nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
+                GPU.KERNEL_TREE_PROPAGATE_NODES.setPreDebugString("Propagating nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             propagateNodesTime = System.nanoTime();
 
         }
         int lastThreads = 0;
 
-        for (COMPropagationPassNumber = 0; COMPropagationPassNumber < PROPAGATE_NODES_ITERATIONS; COMPropagationPassNumber++) {
+        for (COMPropagationPassNumber = 0; COMPropagationPassNumber < GPU.PROPAGATE_NODES_ITERATIONS; COMPropagationPassNumber++) {
             if (debug) {
-                if (propagateNodesKernel.isPreDebugSelected()) {
-                    propagateNodesKernel.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
+                    GPU.KERNEL_TREE_PROPAGATE_NODES.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
-            propagateNodesKernel.run();
+            GPU.KERNEL_TREE_PROPAGATE_NODES.run();
             if (debug) {
                 GPUSimulation.checkGLError("propagateNodesPass" + COMPropagationPassNumber);
                 glFinish();
-                if (propagateNodesKernel.isPostDebugSelected()) {
-                    propagateNodesKernel.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
+                    GPU.KERNEL_TREE_PROPAGATE_NODES.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
-            swapPropagateWorkQueueBuffers();
+            GPU.swapPropagateWorkQueueBuffers();
             //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
 
             // System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), numBodies(), 10));
@@ -1199,8 +538,8 @@ public class BoundedBarnesHut {
         }
         
         if (debug) {
-            if (propagateNodesKernel.isPostDebugSelected()) {
-                propagateNodesKernel.setPostDebugString("Propagated nodes in the tree"+INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
+                GPU.KERNEL_TREE_PROPAGATE_NODES.setPostDebugString("Propagated nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             GPUSimulation.checkGLError("propagateNodes");
             glFinish();
@@ -1215,20 +554,20 @@ public class BoundedBarnesHut {
     private void computeForce() {
         if (debug) {
             computeForceTime = System.nanoTime();
-            if (computeForceKernel.isPreDebugSelected()) {
-                computeForceKernel.setPreDebugString("Computing force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
+            if (GPU.KERNEL_FORCE_COMPUTE.isPreDebugSelected()) {
+                GPU.KERNEL_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
             }
         }
 
-        System.out.println(staticOrDynamicUniform.getValue());
+        System.out.println(GPU.UNIFORM_STATIC_OR_DYNAMIC.getValue());
 
-        computeForceKernel.run();
+        GPU.KERNEL_FORCE_COMPUTE.run();
         if (debug) {
             GPUSimulation.checkGLError("computeForce");
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
-            if (computeForceKernel.isPostDebugSelected()) {
-                computeForceKernel.setPostDebugString("Computed force on each body: "+SWAPPING_BODIES_IN_SSBO.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_FORCE_COMPUTE.isPostDebugSelected()) {
+                GPU.KERNEL_FORCE_COMPUTE.setPostDebugString("Computed force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -1239,202 +578,33 @@ public class BoundedBarnesHut {
     private void mergeBodies() {
         if (debug) {
             mergeBodiesTime = System.nanoTime();
-            if (mergeBodiesKernel.isPreDebugSelected()) {
-                mergeBodiesKernel.setPreDebugString("Merging bodies: "+MERGE_QUEUE_SSBO.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_MERGE_BODIES.isPreDebugSelected()) {
+                GPU.KERNEL_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
-        mergeBodiesKernel.run();
+        GPU.KERNEL_MERGE_BODIES.run();
         if (debug) {
             GPUSimulation.checkGLError("mergeBodies");
             glFinish();
             mergeBodiesTime = System.nanoTime() - mergeBodiesTime;
-            if (mergeBodiesKernel.isPostDebugSelected()) {
-                mergeBodiesKernel.setPostDebugString("Merged bodies: "+MERGE_QUEUE_SSBO.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + SWAPPING_BODIES_OUT_SSBO.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.KERNEL_MERGE_BODIES.isPostDebugSelected()) {
+                GPU.KERNEL_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
 
-    /**
-     * Initialize the compute swapping buffers.
-     */
-    private void initComputeSwappingBuffers() {
-        // Create Swapping SSBOs.
-        // These are used as a double buffer for bodies 
-        SWAPPING_BODIES_IN_SSBO = FIXED_BODIES_IN_SSBO;
-        SWAPPING_BODIES_IN_SSBO.setName("SWAPPING_BODIES_IN_SSBO");
-        ssbos.put(SWAPPING_BODIES_IN_SSBO.getName(), SWAPPING_BODIES_IN_SSBO);
-        SWAPPING_BODIES_OUT_SSBO = FIXED_BODIES_OUT_SSBO;
-        SWAPPING_BODIES_OUT_SSBO.setName("SWAPPING_BODIES_OUT_SSBO");
-        ssbos.put(SWAPPING_BODIES_OUT_SSBO.getName(), SWAPPING_BODIES_OUT_SSBO);
 
-        // These exist to do the radix sort and dead body paritioning.
-
-        SWAPPING_MORTON_IN_SSBO = FIXED_MORTON_IN_SSBO;
-        SWAPPING_MORTON_IN_SSBO.setName("SWAPPING_MORTON_IN_SSBO");
-        ssbos.put(SWAPPING_MORTON_IN_SSBO.getName(), SWAPPING_MORTON_IN_SSBO);
-        SWAPPING_MORTON_OUT_SSBO = FIXED_MORTON_OUT_SSBO;
-        SWAPPING_MORTON_OUT_SSBO.setName("SWAPPING_MORTON_OUT_SSBO");
-        ssbos.put(SWAPPING_MORTON_OUT_SSBO.getName(), SWAPPING_MORTON_OUT_SSBO);
-        SWAPPING_INDEX_IN_SSBO = FIXED_INDEX_IN_SSBO;
-        SWAPPING_INDEX_IN_SSBO.setName("SWAPPING_INDEX_IN_SSBO");
-        ssbos.put(SWAPPING_INDEX_IN_SSBO.getName(), SWAPPING_INDEX_IN_SSBO);
-        SWAPPING_INDEX_OUT_SSBO = FIXED_INDEX_OUT_SSBO;
-        SWAPPING_INDEX_OUT_SSBO.setName("SWAPPING_INDEX_OUT_SSBO");
-        ssbos.put(SWAPPING_INDEX_OUT_SSBO.getName(), SWAPPING_INDEX_OUT_SSBO);
-
-        // These are used for the work queue for propagating node data up the tree.
-        SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO = FIXED_PROPAGATE_WORK_QUEUE_IN_SSBO;
-        SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO.setName("SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO");
-        ssbos.put(SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO.getName(), SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO);
-        SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO = FIXED_PROPAGATE_WORK_QUEUE_OUT_SSBO;
-        SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO.setName("SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO");
-        ssbos.put(SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO.getName(), SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO);
-    }
-    
-    /**
-     * Swap the body buffers.
-     */
-    private void swapBodyBuffers() {
-        // Swap source and destination buffers for next iteration
-        int tmpIn = SWAPPING_BODIES_IN_SSBO.getBufferLocation();
-        SWAPPING_BODIES_IN_SSBO.setBufferLocation(SWAPPING_BODIES_OUT_SSBO.getBufferLocation());
-        SWAPPING_BODIES_OUT_SSBO.setBufferLocation(tmpIn);
-    }
-
-    /**
-     * Swap the morton and index buffers.
-     */
-    private void swapMortonAndIndexBuffers() {
-        // Swap input/output buffers for next pass of radix sort and the one pass of dead body paritioning.
-        int tempMortonIn = SWAPPING_MORTON_IN_SSBO.getBufferLocation();
-        int tempIndexIn = SWAPPING_INDEX_IN_SSBO.getBufferLocation();
-        SWAPPING_MORTON_IN_SSBO.setBufferLocation(SWAPPING_MORTON_OUT_SSBO.getBufferLocation());
-        SWAPPING_INDEX_IN_SSBO.setBufferLocation(SWAPPING_INDEX_OUT_SSBO.getBufferLocation());
-        SWAPPING_MORTON_OUT_SSBO.setBufferLocation(tempMortonIn);
-        SWAPPING_INDEX_OUT_SSBO.setBufferLocation(tempIndexIn);
-    }
-
-    /**
-     * Swap the propagate work queue buffers.
-     */
-    private void swapPropagateWorkQueueBuffers() {
-        int tmpIn = SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO.getBufferLocation();
-        SWAPPING_PROPAGATE_WORK_QUEUE_IN_SSBO.setBufferLocation(SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO.getBufferLocation());
-        SWAPPING_PROPAGATE_WORK_QUEUE_OUT_SSBO.setBufferLocation(tmpIn);
-    }
-
-    /**
-     * Get the output body buffer.
-     */
-    public SSBO getOutputSSBO() {
-        return SWAPPING_BODIES_IN_SSBO;
-    }
-
-    /**
-     * Get the nodes buffer.
-     */
-    public SSBO getLeafNodesSSBO() {
-        return LEAF_NODES_SSBO;
-    }
-
-    /**
-     * Get the nodes buffer.
-     */
-    public SSBO getInternalNodesSSBO() {
-        return INTERNAL_NODES_SSBO;
-    }
-
-    /**
-     * Get the values buffer.
-     */
-    public SSBO getValuesSSBO() {
-        return SIMULATION_VALUES_SSBO;
-    }
-
-    /**
-     * Get the number of work groups required for the given number of bodies.
-     */
-    private int numGroups() {
-        return (numBodies() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
-    }
 
 
     /**
-     * Pack the values to a float buffer.
+     * Gets the bounds of the simulation.
+     * @return the bounds of the simulation.
      */
-    public ByteBuffer packValues() {
-
-        //layout(std430, binding = 1) buffer SimulationValues { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
-        ByteBuffer buf = BufferUtils.createByteBuffer(8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES);
-        buf.putInt(numBodies()); // numBodies
-        buf.putInt(numBodies()); // initialNumBodies
-        buf.putInt(0); // justDied
-        buf.putInt(0); // merged
-        buf.putInt(0); // outOfBounds
-        buf.putInt(0); // pad0
-        buf.putInt(0); // pad1
-        buf.putInt(0); // pad2
-        buf.putFloat(bounds[0][0]).putFloat(bounds[0][1]).putFloat(bounds[0][2]).putInt(0); // bounds
-        buf.putFloat(bounds[1][0]).putFloat(bounds[1][1]).putFloat(bounds[1][2]).putInt(0); // bounds
-    
-        // uintDebug[100]
-        for (int i = 0; i < 100; i++) buf.putInt(0);
-    
-        // floatDebug[100]
-        for (int i = 0; i < 100; i++) buf.putFloat(0f);
-    
-        buf.flip();
-        return buf;
-    }
-
-    /**
-     * Upload the planet data to the GPU.
-     */
-    public void uploadPlanetsData(PlanetGenerator planetGenerator, SSBO bodiesSSBO) {
-
-        GPUSimulation.checkGLError("before uploadPlanetsData");
-
-        // Assumes buffers are already correctly sized
-        bodiesSSBO.bind();
-    
-        int offset = 0;
-        System.out.print("Uploading planet data:");
-        double percentUploaded = 0;
-        int displayProgress = 5;
-        int lastDisplayed = -1;
-        while (planetGenerator.hasNext()) {
-            percentUploaded = (int)((double)planetGenerator.planetsGenerated/planetGenerator.getNumPlanets()*100);
-            if (percentUploaded % displayProgress == 0 && percentUploaded != lastDisplayed) {
-                lastDisplayed = (int)percentUploaded;
-                System.out.print(" "+percentUploaded+"%");
-            }
-            List<Planet> planets = planetGenerator.nextChunk();
-            ByteBuffer data = Body.packPlanets(planets);
-            glBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, data);
-            offset += data.capacity();
-        }
-
-        System.out.println(" 100%");
-
-        GPUSimulation.checkGLError("after uploadPlanetsData");
-
-    
-        bodiesSSBO.unbind();
+    public float[][] getBounds() {
+        return bounds;
     }
 
 
-    /* --------- Cleanup --------- */
-    /**
-     * Cleanup the compute shaders and SSBOs.
-     */
-    public void cleanup() {
-        for (ComputeShader shader : computeShaders) {
-            shader.delete();
-        }
-        for (SSBO ssbo : ssbos.values()) {
-            ssbo.delete();
-        }
-    }
 
     /* --------- Debugging --------- */
 
@@ -1490,12 +660,12 @@ public class BoundedBarnesHut {
                "\t" + propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":Propagate Nodes\n" +
                computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
                mergeBodiesTime/oneMillion + " ms (" + percentMergeBodies + "%)" +":Merge Bodies\n" +
-               totalTime/oneMillion + " ms" +":Total\n" +
+               totalTime/oneMillion + " ms" +":Total\n" ;
                //"Simulation Bounds: " + SIMULATION_VALUES_SSBO.getDataAsString("bounds")+"\n" +
-               "X Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[0]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[0]+"\n" +
-               "Y Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[1]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[1]+"\n" +
-               "Z Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[2]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[2]+"\n" +
-               "Bodies: " + (SIMULATION_VALUES_SSBO.getIntegerData("numBodies"));
+               //"X Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[0]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[0]+"\n" +
+               //"Y Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[1]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[1]+"\n" +
+               //"Z Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[2]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[2]+"\n" +
+               //"Bodies: " + (SIMULATION_VALUES_SSBO.getIntegerData("numBodies"));
     }
 
 
@@ -1505,10 +675,10 @@ public class BoundedBarnesHut {
     private void checkMortonCodes(SSBO mortonBuffer, boolean print) {
         boolean correctPartitioning = true;
         boolean correctSorting = true;
-        long[] mortonCodes = new long[numBodies()];
+        long[] mortonCodes = new long[initialNumBodies()];
         LongBuffer mortonBufferLong = mortonBuffer.getBuffer().asLongBuffer();
-        long[] sortedMortonCodes = new long[numBodies()];
-        for (int i = 0; i < numBodies(); i++) {
+        long[] sortedMortonCodes = new long[initialNumBodies()];
+        for (int i = 0; i < initialNumBodies(); i++) {
             mortonCodes[i] = mortonBufferLong.get(i);
             sortedMortonCodes[i] = mortonCodes[i];
             if (print) {
@@ -1517,7 +687,7 @@ public class BoundedBarnesHut {
         }
         Arrays.sort(sortedMortonCodes);
         int deadIndex = 0;
-        while (deadIndex < numBodies() && sortedMortonCodes[deadIndex] == -1) {
+        while (deadIndex < initialNumBodies() && sortedMortonCodes[deadIndex] == -1) {
             deadIndex++;
         }
         for (int i = 0; i < mortonCodes.length-deadIndex; i++) {
@@ -1539,7 +709,7 @@ public class BoundedBarnesHut {
     private void debugMortonCodes() {
         
         // Read morton codes from GPU buffer
-        FIXED_MORTON_IN_SSBO.bind();
+        GPU.SSBO_SWAPPING_MORTON_IN.bind();
         ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         LongBuffer mortonData = mortonBuffer.asLongBuffer();
         HashSet<Long> mortonSet = new HashSet<>();
@@ -1566,35 +736,35 @@ public class BoundedBarnesHut {
      * Debug the radix sort.
      */
     private void debugRadixSort() {
-        FIXED_MORTON_IN_SSBO.bind();
+        GPU.SSBO_SWAPPING_MORTON_IN.bind();
         ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer mortonData = mortonBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        SWAPPING_INDEX_IN_SSBO.bind();
+        GPU.SSBO_SWAPPING_INDEX_IN.bind();
         ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer indexData = indexBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        RADIX_WG_HIST_SSBO.bind();
+        GPU.SSBO_RADIX_WG_HIST.bind();
         ByteBuffer wgHistBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer wgHistData = wgHistBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        RADIX_WG_SCANNED_SSBO.bind();
+        GPU.SSBO_RADIX_WG_SCANNED.bind();
         ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        RADIX_BUCKET_TOTALS_SSBO.bind();
+        GPU.SSBO_RADIX_BUCKET_TOTALS.bind();
         ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        FIXED_MORTON_OUT_SSBO.bind();
+        GPU.SSBO_SWAPPING_MORTON_OUT.bind();
         ByteBuffer mortonOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer mortonOutData = mortonOutBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        FIXED_INDEX_OUT_SSBO.bind();
+        GPU.SSBO_SWAPPING_INDEX_OUT.bind();
         ByteBuffer indexOutBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer indexOutData = indexOutBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        for (int i = 0; i < Math.min(10, numBodies()); i++) {
+        for (int i = 0; i < Math.min(10, initialNumBodies()); i++) {
             int morton = mortonData.capacity() > i ? mortonData.get(i) : -1;   
             int index = indexData.capacity() > i ? indexData.get(i) : -1;
             int wgHist = wgHistData.capacity() > i ? wgHistData.get(i) : -1;
@@ -1614,11 +784,11 @@ public class BoundedBarnesHut {
     private void debugSorting() {
         System.out.println("=== RADIX SORT RESULTS ===");
             // Read sorted Morton codes
-            FIXED_MORTON_IN_SSBO.bind();
+            GPU.SSBO_SWAPPING_MORTON_IN.bind();
             ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer mortonData = mortonBuffer.asIntBuffer();
             System.out.println("Sorted Morton codes:");
-            for (int i = 0; i < Math.min(100, numBodies()); i++) {
+            for (int i = 0; i < Math.min(100, initialNumBodies()); i++) {
                 int morton = mortonData.get(i);
                 System.out.printf("  [%d]: %d\n", i, morton);
             }
@@ -1630,11 +800,11 @@ public class BoundedBarnesHut {
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             
             // Read sorted body indices
-            FIXED_INDEX_OUT_SSBO.bind();
+            GPU.SSBO_SWAPPING_INDEX_IN.bind();
             ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer indexData = indexBuffer.asIntBuffer();
             System.out.println("Sorted body indices:");
-            for (int i = 0; i < Math.min(100, numBodies()); i++) {
+            for (int i = 0; i < Math.min(100, initialNumBodies()); i++) {
                 int bodyIndex = indexData.get(i);
                 System.out.printf("  [%d]: %d\n", i, bodyIndex);
             }

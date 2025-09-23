@@ -21,6 +21,7 @@ void updateKernel() {
             //Update Number of Bodies
             sim.numBodies -= sim.justDied;
             sim.justDied = 0u;
+            sim.uintDebug[0] = 0u;
 
     }
         }
