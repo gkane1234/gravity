@@ -2,6 +2,13 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+
+import org.lwjgl.BufferUtils;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector2f;
+
 /**
  * VariableType enum for the types of GLSL variables that can be used emulated in java.
  * Includes upload to shader function. 
@@ -16,7 +23,10 @@ public enum VariableType {
     BOOL(Boolean.class),
     UINT64(Long.class),
     STRUCT(GLSLVariable.class),
-    PADDING(Void.class);
+    PADDING(Void.class),
+    MAT4(Matrix4f.class),
+    VEC3F(Vector3f.class),
+    VEC2F(Vector2f.class);
     
     //The precision of the variable type.
     private static final int PRECISION = 5;
@@ -81,6 +91,19 @@ public enum VariableType {
                 int high = (int) (longValue >>> 32);
                 int low = (int) longValue;
                 glUniform2ui(glGetUniformLocation(program, name), high, low);
+                break;
+            case MAT4:
+                glUniformMatrix4fv(glGetUniformLocation(program, name),  false, ((Matrix4f) value).get(new float[16]));
+                break;
+            case VEC3F:
+                FloatBuffer vec3Array = BufferUtils.createFloatBuffer(3);
+                ((Vector3f) value).get(vec3Array);
+                glUniform3fv(glGetUniformLocation(program, name), vec3Array);
+                break;
+            case VEC2F:
+                FloatBuffer vec2Array = BufferUtils.createFloatBuffer(2);
+                ((Vector2f) value).get(vec2Array);
+                glUniform2fv(glGetUniformLocation(program, name), vec2Array);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid type: " + this);

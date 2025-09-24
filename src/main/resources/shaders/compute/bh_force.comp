@@ -16,12 +16,12 @@ float getLongestSide(Node node)
     AABB aabb = unpackAABB(node.aabb);
     vec3 extent = aabb.maxCorner - aabb.minCorner;
     float longestSize = max(extent.x, max(extent.y, extent.z));
-    return scaledDist(longestSize/2);
+    return longestSize/2;
 }
 
 vec3 force(Node node, vec3 r, float oneOverDist)
 {
-    return GRAVITATIONAL_CONSTANT*scaledMass(node) * r * oneOverDist * oneOverDist * oneOverDist;
+    return GRAVITATIONAL_CONSTANT*scaledMass(node) * r * oneOverDist * oneOverDist * oneOverDist/ASTRONOMICAL_UNIT/ASTRONOMICAL_UNIT;
 }
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
@@ -57,7 +57,7 @@ void forceComputeKernel()
     while (currentStackSize > 0u) {
         uint nodeIdx = stack[--currentStackSize];
         Node node = getNode(nodeIdx);
-        vec3 r = scaledDist(node.comMass.xyz, body.posMass.xyz);
+        vec3 r = node.comMass.xyz - body.posMass.xyz;
         float oneOverDist = invDistWithSoftening(r, softening);
         if (isInternalNode(node)) {
             //Check to see if we should continue into the node using the longest radius of the AABB

@@ -64,7 +64,7 @@ out float ndcDepth;
 out float worldRadius;
 
 
-const float GLOW_RADIUS_FACTOR = 10;
+const float GLOW_RADIUS_FACTOR = 2;
 const float BOX_CORRECTION = 1.5;
 
 vec3 red =vec3(1.0, 0.0, 0.0);
@@ -119,9 +119,9 @@ vec3 tempToColor(float kelvin) {
     }
 
     return vec3(
-        clamp(r, 0.0, 255.0),
-        clamp(g, 0.0, 255.0),
-        clamp(b, 0.0, 255.0)
+        clamp(r, 0.0, 255.0)/255.0,
+        clamp(g, 0.0, 255.0)/255.0,
+        clamp(b, 0.0, 255.0)/255.0
     );
 }
 vec3 getStarColor(float mass, float density) {

@@ -21,7 +21,9 @@ out vec4 fragColor;
 // and as an additive glow when they are far.
 void main() {
     float r2 = dot(vMapping, vMapping);
-    const float bodyRenderDistance = 100000;
+    const float bodyRenderDistance = 1000000;
+
+    bool tooFar = length(vCenterView) > bodyRenderDistance;
     if (r2 > 1.0) discard;
 
     float radius = sqrt(r2);
@@ -30,7 +32,7 @@ void main() {
         // --- Sphere interior pass ---
         if (radius > bodyToGlowRatio) discard;
 
-        if (length(vCenterView) > bodyRenderDistance) discard;
+        if (tooFar) discard;
 
         // vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
         // float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
@@ -38,11 +40,11 @@ void main() {
         fragColor = vec4(color, 1.0);
     } else {
         // --- Glow pass ---
-        if (radius <= bodyToGlowRatio) discard;
+        if (!tooFar && radius <= bodyToGlowRatio) discard;
 
-        float glowRadius = 1 - bodyToGlowRatio;
-        float t = (radius - bodyToGlowRatio) / glowRadius;
-        float glow = 2;
+        // float glowRadius = 1 - bodyToGlowRatio;
+        // float t = (radius - bodyToGlowRatio) / glowRadius;
+        float glow = cos(3.14159*r2/2)/2+1/2;
 
         fragColor = vec4(color * glow, 1.0); // additive, alpha ignored
 

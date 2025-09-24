@@ -78,10 +78,10 @@ public class GPUSimulation {
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
             //"KERNEL_INIT",
-            //"KERNEL_MORTON_ENCODE",
+            // "KERNEL_MORTON_ENCODE",
             //"KERNEL_DEAD_COUNT",
             //"KERNEL_DEAD_EXCLUSIVE_SCAN",
-            //"KERNEL_DEAD_SCATTER",
+            // "KERNEL_DEAD_SCATTER",
             //"KERNEL_RADIX_HIST",
             //"KERNEL_RADIX_PARALLEL_SCAN",
             //"KERNEL_RADIX_EXCLUSIVE_SCAN",
@@ -90,7 +90,7 @@ public class GPUSimulation {
             //"KERNEL_INIT_LEAVES",
             //"KERNEL_RESET",
             //"KERNEL_PROPAGATE_NODES",
-            //"KERNEL_FORCE_COMPUTE",
+            // "KERNEL_FORCE_COMPUTE",
             //"KERNEL_MERGE",
             //"KERNEL_DEBUG",
         });
@@ -241,9 +241,9 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 5_000_00;
+        int numAlive = 5000000;
         for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), 0, 0, 0, 0.0000000000001f));
+            newPlanets.add(new Planet((float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), 0, 0, 0, 0.00000000000000001f));
         }
 
         Collections.shuffle(newPlanets);
@@ -307,7 +307,7 @@ public class GPUSimulation {
             boundedBarnesHut.step();
             checkGLError("after boundedBarnesHut.step");
             
-            render.render(GPU.SSBO_SWAPPING_BODIES_IN, state);
+            render.render(state);
             checkGLError("after render");
             captureIfRecording();
         }
@@ -316,14 +316,14 @@ public class GPUSimulation {
 
             //System.out.println(GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,10));
             
-            render.render(GPU.SSBO_SWAPPING_BODIES_IN, state);
+            render.render(state);
             checkGLError("after render");
         }
 
         if (state == State.FRAME_ADVANCE) {
             checkGLError("after boundedBarnesHut.step");
             boundedBarnesHut.step();
-            render.render(GPU.SSBO_SWAPPING_BODIES_IN, state);
+            render.render(state);
             checkGLError("after render");
             captureIfRecording();
             state = State.PAUSED;
@@ -445,30 +445,6 @@ public class GPUSimulation {
      */
     public int outOfBounds() {
         return outOfBounds;
-    }
-
-    /**
-     * Sets the MVP matrix for the render.
-     * @param mvp the MVP matrix.
-     */
-    public void setMvp(FloatBuffer mvp) {
-        render.setMvp(mvp);
-    }
-
-    /**
-     * Sets the camera to clip matrix for the render.
-     * @param cameraToClip the camera to clip matrix.
-     */
-    public void setCameraToClip(FloatBuffer cameraToClip) {
-        render.setCameraToClip(cameraToClip);
-    }
-
-    /**
-     * Sets the model view matrix for the render.
-     * @param modelView the model view matrix.
-     */
-    public void setModelView(FloatBuffer modelView) {
-        render.setModelView(modelView);
     }
 
     /**

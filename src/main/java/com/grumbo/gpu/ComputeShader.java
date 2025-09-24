@@ -1,61 +1,27 @@
 package com.grumbo.gpu;
 
-import static org.lwjgl.opengl.GL43C.*;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
-import com.grumbo.simulation.BoundedBarnesHut;
 import com.grumbo.debug.Debug;
 
-/**
- * ComputeShader is a class that represents a compute shader program.
- * It is used to dispatch compute shaders to the GPU.
- * It is also used to upload uniforms and SSBOs to the GPU.
- * It is also used to run the compute shader.
- */
-public class ComputeShader extends Shader {
+import java.io.IOException;
+
+public class ComputeShader extends GLSLShader {
     
     private static Debug debug = new Debug("ComputeShader");
 
-;
-
-
-
-    /**
-     * Constructor for the ComputeShader class.
-     * @param program the int id of the program given by glCreateProgram()
-     * @param kernelName the name of the kernel to run (defined in the compute shader)
-     * @param uniforms the uniforms to upload to the shader
-     * @param ssboNames the SSBOs to bind to the shader
-     * @param xWorkGroupsFunction the function that returns the number of work groups to dispatch
-     * @param BoundedBarnesHut the BoundedBarnesHut simulation object
-     */
-    public ComputeShader(int program, String kernelName, Uniform<?>[] uniforms, String[] ssboNames, xWorkGroupsFunction xWorkGroupsFunction, BoundedBarnesHut boundedBarnesHut) {
-        super(program, kernelName, uniforms, ssboNames, xWorkGroupsFunction);
-    }
-
-    /**
-     * Constructor for the ComputeShader class.
-     * This constructor creates a new program and attaches the compute shader to it.
-     * @param kernelName the name of the kernel to run (defined in the compute shader)
-     * @param BoundedBarnesHut the BoundedBarnesHut simulation object
-     */
-    public ComputeShader(String kernelName, BoundedBarnesHut boundedBarnesHut) {
-        this(glCreateProgram(), kernelName, null, null, null, boundedBarnesHut);
+    public ComputeShader(String kernelName) {
+        super(kernelName, GLSLShader.ShaderType.COMPUTE_SHADER);
     }
 
 
+    
     /**
      * Gets the compute shader source.
-     * @param kernelName the name of the kernel to get the source for
+     * @param programName the name of the program to get the source for
      * @return the compute shader source
      */
     @Override
-    public String getSource(String kernelName) {
-        return insertDefineAfterVersion(getComputeShaderSource(), kernelName);
+    public String getSource(String programName) {
+        return insertDefineAfterVersion(getComputeShaderSource(), programName);
     }
 
 
@@ -102,10 +68,4 @@ public class ComputeShader extends Shader {
         String defineLine = "#define " + defineValue + "\n";
         return shaderSource.substring(0, insertPos) + defineLine + shaderSource.substring(insertPos);
     }
-
-
-
-
-
-
 }

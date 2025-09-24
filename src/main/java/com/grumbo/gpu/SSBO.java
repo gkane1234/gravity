@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * SSBO class for creating SSBO objects on the GPU
@@ -65,11 +66,13 @@ public class SSBO {
     private dataFunction dataFunction;
     // Name of the SSBO
     private String name;
+    private int size;
 
     // Types of the fields of the struct
     private GLSLVariable SSBOLayout;
     private HashMap<String, GLSLVariable> SSBOLayoutMap;
     private HashMap<String, Integer> SSBOByteOffsets;
+    private Map<Integer, Integer[]> ProgramBindingRanges;
     /**
      * Function to get the size of the SSBO, this or the data function is used.
      */
@@ -110,6 +113,7 @@ public class SSBO {
         this.SSBOLayout = SSBOLayout;
         this.SSBOLayoutMap = new HashMap<>();
         this.SSBOByteOffsets = new HashMap<>();
+        this.ProgramBindingRanges = new HashMap<>();
         addToSSBOLayoutMap(SSBOLayout, 0);
     }
 
@@ -182,9 +186,27 @@ public class SSBO {
     /**
      * Binds the SSBO
      */
+    public void bind(int startIndex, int endIndex) {
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation, startIndex, endIndex);
+    }
+
     public void bind() {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation);
     }
+
+    public void bind(int program) {
+        if (ProgramBindingRanges.containsKey(program)) {
+            bind(ProgramBindingRanges.get(program)[0], ProgramBindingRanges.get(program)[1]);
+        } else {
+            bind();
+        }
+    }
+
+
+    public void setProgramBindingRange(int program, int startIndex, int endIndex) {
+        ProgramBindingRanges.put(program, new Integer[] {startIndex, endIndex});
+    }
+
     /**
      * Unbinds the SSBO
      */
@@ -198,9 +220,13 @@ public class SSBO {
     public void createBufferData() {
         bind();
         if (sizeFunction != null) {
-            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeFunction.getSize(), GL_DYNAMIC_COPY);
+            size = sizeFunction.getSize();
+            glBufferData(GL_SHADER_STORAGE_BUFFER, size, GL_DYNAMIC_COPY);
+
         } else {
-            glBufferData(GL_SHADER_STORAGE_BUFFER, dataFunction.setData(), GL_DYNAMIC_COPY);
+            ByteBuffer data = dataFunction.setData();
+            size = data.capacity();
+            glBufferData(GL_SHADER_STORAGE_BUFFER, data, GL_DYNAMIC_COPY);
         }
         unbind();
     }
@@ -215,6 +241,10 @@ public class SSBO {
             refreshCache();
         }
         return bufferCache;
+    }
+
+    public int getSize() {
+        return size;
     }
 
     public void refreshCache() {

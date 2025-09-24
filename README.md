@@ -27,6 +27,7 @@ All calculations during the simulation are done using compute shaders in GLSL.
  5. number of merged, number of lost to oob not calculated correctly at times (sometimes number of lost is negative)
  6. Radix bits cannot be changed from 4
  7. Camera is jumpy especially when far away
+ 8. There is a discrete change between glow and body rendering when moving towards a body
 
 
  
