@@ -326,44 +326,48 @@ public class GPU {
      */
     private static void initComputeUniforms(BoundedBarnesHut boundedBarnesHut) {
         GPU.UNIFORMS = new HashMap<>();
-        GPU.UNIFORMS.put("numWorkGroups", UNIFORM_NUM_WORK_GROUPS);
-        GPU.UNIFORMS.put("softening", UNIFORM_SOFTENING);
-        GPU.UNIFORMS.put("theta", UNIFORM_THETA);
-        GPU.UNIFORMS.put("dt", UNIFORM_DT);
-        GPU.UNIFORMS.put("elasticity", UNIFORM_ELASTICITY);
-        GPU.UNIFORMS.put("restitution", UNIFORM_RESTITUTION);
-        GPU.UNIFORMS.put("collisionMergingOrNeither", UNIFORM_COLLISION_MERGING_OR_NEITHER);
-        GPU.UNIFORMS.put("passShift", UNIFORM_PASS_SHIFT);
-        GPU.UNIFORMS.put("resetValuesOrDecrementDeadBodies", UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES);
-        GPU.UNIFORMS.put("wrapAround", UNIFORM_WRAP_AROUND);
-        GPU.UNIFORMS.put("staticOrDynamic", UNIFORM_STATIC_OR_DYNAMIC);
+        
         UNIFORM_NUM_WORK_GROUPS = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
         }, VariableType.UINT);
+
+        GPU.UNIFORMS.put(UNIFORM_NUM_WORK_GROUPS.getName(), UNIFORM_NUM_WORK_GROUPS);
 
         UNIFORM_SOFTENING = new Uniform<Float>("softening", () -> {
             return Settings.getInstance().getSoftening();
         }, VariableType.FLOAT);
 
+        GPU.UNIFORMS.put(UNIFORM_SOFTENING.getName(), UNIFORM_SOFTENING);
+
         UNIFORM_THETA = new Uniform<Float>("theta", () -> {
             return Settings.getInstance().getTheta();
         }, VariableType.FLOAT);
+
+        GPU.UNIFORMS.put(UNIFORM_THETA.getName(), UNIFORM_THETA);
 
         UNIFORM_DT = new Uniform<Float>("dt", () -> {
             return Settings.getInstance().getDt();
         }, VariableType.FLOAT);
 
+        GPU.UNIFORMS.put(UNIFORM_DT.getName(), UNIFORM_DT);
+
         UNIFORM_ELASTICITY = new Uniform<Float>("elasticity", () -> {
             return (float)Settings.getInstance().getElasticity();
         }, VariableType.FLOAT);
+
+        GPU.UNIFORMS.put(UNIFORM_ELASTICITY.getName(), UNIFORM_ELASTICITY);
 
         UNIFORM_RESTITUTION = new Uniform<Float>("restitution", () -> {
             return 0.2f;
         }, VariableType.FLOAT);
 
+        GPU.UNIFORMS.put(UNIFORM_RESTITUTION.getName(), UNIFORM_RESTITUTION);
+
         UNIFORM_PASS_SHIFT = new Uniform<Integer>("passShift", () -> {
             return boundedBarnesHut.radixSortPassShift;
         }, VariableType.UINT);
+
+        GPU.UNIFORMS.put(UNIFORM_PASS_SHIFT.getName(), UNIFORM_PASS_SHIFT);
 
         UNIFORM_COLLISION_MERGING_OR_NEITHER = new Uniform<Integer>("collisionMergingOrNeither", () -> {
             String selected = Settings.getInstance().getCollisionMergingOrNeither();
@@ -379,13 +383,19 @@ public class GPU {
             }
         }, VariableType.UINT);
 
+        GPU.UNIFORMS.put(UNIFORM_COLLISION_MERGING_OR_NEITHER.getName(), UNIFORM_COLLISION_MERGING_OR_NEITHER);
+
         UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES = new Uniform<Boolean>("resetValuesOrDecrementDeadBodies", () -> {
             return boundedBarnesHut.resetValuesOrDecrementDeadBodies ? true : false;
         }, VariableType.BOOL);
 
+        GPU.UNIFORMS.put(UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES.getName(), UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES);
+
         UNIFORM_WRAP_AROUND = new Uniform<Boolean>("wrapAround", () -> {
             return Settings.getInstance().isWrapAround();
         }, VariableType.BOOL);
+
+        GPU.UNIFORMS.put(UNIFORM_WRAP_AROUND.getName(), UNIFORM_WRAP_AROUND);
 
         UNIFORM_STATIC_OR_DYNAMIC = new Uniform<Integer>("staticOrDynamic", () -> {
             String selected = Settings.getInstance().getDynamic();
@@ -398,6 +408,8 @@ public class GPU {
                     return 0;
             }
         }, VariableType.UINT);
+
+        GPU.UNIFORMS.put(UNIFORM_STATIC_OR_DYNAMIC.getName(), UNIFORM_STATIC_OR_DYNAMIC);
 
     }
 

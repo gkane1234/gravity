@@ -20,6 +20,7 @@ const float THREE_OVER_FOUR_PI_TO_THE_THIRD = 0.6203504909;
 const float GRAVITATIONAL_CONSTANT = 6.67430e-11; //m^3 kg^-1 s^-2
 const float STELLAR_DENSITY = 1.408e3; //kg/m^3
 const float SOLAR_MASS = 1.989e30; //kg
+const float ASTRONOMICAL_UNIT = 1.496e11; //m
 
 
 //Checks if a body is empty
@@ -127,6 +128,14 @@ vec3 getStarColor(float mass, float density) {
     float temp = temp(mass, density);
     return tempToColor(temp);
 }
+
+vec3 scaledDist(vec3 a) {
+    return a*ASTRONOMICAL_UNIT;
+}
+
+float scaledDist(float a) {
+    return a*ASTRONOMICAL_UNIT;
+}
 // This vertex shader is used to render the impostor spheres.
 // They are created as a billboard quad that is scaled to the size of the body.
 // The quad is then mapped to the screen space and the depth is calculated.
@@ -136,7 +145,7 @@ void main() {
   Body b = srcB.bodies[gl_InstanceID];
 
 
-  vec3 center = b.posMass.xyz;
+  vec3 center = scaledDist(b.posMass.xyz);
   color = getStarColor(m(b), d(b));
   float trueRadius = radius(b);
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;

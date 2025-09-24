@@ -77,7 +77,7 @@ void main()
     radixGlobalScanKernel();
 #elif defined(KERNEL_RADIX_SCATTER)
     radixScatterKernel();
-#elif defined(KERNEL_TREE_BUILD_BINARY_RADIX_TREE)
+#elif defined(KERNEL_TREE_BUILD)
     treeBuildBinaryRadixTreeKernel();
 #elif defined(KERNEL_TREE_INIT_LEAVES)
     treeInitLeafNodesKernel();

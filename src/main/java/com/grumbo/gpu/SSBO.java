@@ -227,7 +227,6 @@ public class SSBO {
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         bufferCache = copy;
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         System.out.println("Buffer cache created for " + name);
     }
 
@@ -242,10 +241,10 @@ public class SSBO {
     public String getDataAsString(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
         int baseOffset = SSBOByteOffsets.getOrDefault(variableName, 0);
-        ByteBuffer buf = getBuffer();
         if (updateCache) {
             refreshCache();
         }
+        ByteBuffer buf = getBuffer();
         return variable.getDataAsStringAt(buf, baseOffset, startIndex, endIndex);
     }
     public String getDataAsString(String variableName, int startIndex, int endIndex) {

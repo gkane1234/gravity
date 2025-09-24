@@ -15,12 +15,13 @@ float getLongestSide(Node node)
 {
     AABB aabb = unpackAABB(node.aabb);
     vec3 extent = aabb.maxCorner - aabb.minCorner;
-    return max(extent.x, max(extent.y, extent.z));
+    float longestSize = max(extent.x, max(extent.y, extent.z));
+    return scaledDist(longestSize/2);
 }
 
 vec3 force(Node node, vec3 r, float oneOverDist)
 {
-    return GRAVITATIONAL_CONSTANT*mass(node) * r * oneOverDist * oneOverDist * oneOverDist;
+    return GRAVITATIONAL_CONSTANT*scaledMass(node) * r * oneOverDist * oneOverDist * oneOverDist;
 }
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
@@ -56,12 +57,12 @@ void forceComputeKernel()
     while (currentStackSize > 0u) {
         uint nodeIdx = stack[--currentStackSize];
         Node node = getNode(nodeIdx);
-        vec3 r = node.comMass.xyz - body.posMass.xyz;
+        vec3 r = scaledDist(node.comMass.xyz, body.posMass.xyz);
         float oneOverDist = invDistWithSoftening(r, softening);
         if (isInternalNode(node)) {
             //Check to see if we should continue into the node using the longest radius of the AABB
             //This is the standard method for a binary radix tree implementation
-            if (acceptanceCriterion(getLongestSide(node)/2, oneOverDist, theta)) {
+            if (acceptanceCriterion(getLongestSide(node), oneOverDist, theta)) {
                 accel += force(node, r, oneOverDist);
             }
             //Add the children to the stack
@@ -84,8 +85,8 @@ void forceComputeKernel()
         
             Body other = srcB.bodies[indexIn[nodeIdx]];
 
-            float bodyRadius = radius(body);
-            float otherRadius = radius(other);
+            float bodyRadius = scaledRadius(body);
+            float otherRadius = scaledRadius(other);
             float dist = length(r);
             float penetration = bodyRadius + otherRadius - dist; //The amount of overlap between the two bodies
 
@@ -96,12 +97,12 @@ void forceComputeKernel()
                 float vImpact = dot(velocityDifference, normal);
                 //If the bodies are moving towards each other, calculate and apply an impulse
                 if (vImpact < 0) {
-                    float mEff = 1/(1/mass(body) + 1/mass(other));
+                    float mEff = 1/(1/scaledMass(body) + 1/scaledMass(other));
                     float impulse = (1+elasticity)*mEff*vImpact;
-                    body.velDensity.xyz += normal * impulse / mass(body);
+                    body.velDensity.xyz += normal * impulse / scaledMass(body);
                 }
                 //Calculate the correction to the position of the body to avoid interpenetration using the overlap and the restitution coefficient
-                vec3 correction = (penetration / (mass(body) + mass(other))) * restitution * normal;
+                vec3 correction = (penetration / (scaledMass(body) + scaledMass(other))) * restitution * normal;
                 body.posMass.xyz -= correction;
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel

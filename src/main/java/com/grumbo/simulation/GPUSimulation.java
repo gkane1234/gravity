@@ -77,11 +77,11 @@ public class GPUSimulation {
 
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
-            "KERNEL_INIT",
-            "KERNEL_MORTON",
-            "KERNEL_DEAD_COUNT",
-            "KERNEL_DEAD_EXCLUSIVE_SCAN",
-            "KERNEL_DEAD_SCATTER",
+            //"KERNEL_INIT",
+            //"KERNEL_MORTON_ENCODE",
+            //"KERNEL_DEAD_COUNT",
+            //"KERNEL_DEAD_EXCLUSIVE_SCAN",
+            //"KERNEL_DEAD_SCATTER",
             //"KERNEL_RADIX_HIST",
             //"KERNEL_RADIX_PARALLEL_SCAN",
             //"KERNEL_RADIX_EXCLUSIVE_SCAN",
@@ -90,7 +90,7 @@ public class GPUSimulation {
             //"KERNEL_INIT_LEAVES",
             //"KERNEL_RESET",
             //"KERNEL_PROPAGATE_NODES",
-            //"KERNEL_COMPUTE_FORCE",
+            //"KERNEL_FORCE_COMPUTE",
             //"KERNEL_MERGE",
             //"KERNEL_DEBUG",
         });
@@ -241,9 +241,9 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 5_000_000;
+        int numAlive = 5_000_00;
         for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(10000000*java.lang.Math.random()), (float)(10000000*java.lang.Math.random()), (float)(10000000*java.lang.Math.random()), 0, 0, 0, 0.0000000000000000000001f));
+            newPlanets.add(new Planet((float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), 0, 0, 0, 0.0000000000001f));
         }
 
         Collections.shuffle(newPlanets);

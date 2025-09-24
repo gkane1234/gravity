@@ -2,7 +2,6 @@ package com.grumbo.simulation;
 
 import com.grumbo.gpu.*;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
@@ -10,13 +9,7 @@ import java.util.Arrays;
 import java.nio.IntBuffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.ArrayList;
-import com.grumbo.debug.Debug;
 
-import com.grumbo.simulation.GPUSimulation;
-
-
-import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL43C.*;
 /**
  * BoundedBarnesHut is the main class for the Barnes-Hut algorithm.
@@ -555,7 +548,7 @@ public class BoundedBarnesHut {
         if (debug) {
             computeForceTime = System.nanoTime();
             if (GPU.KERNEL_FORCE_COMPUTE.isPreDebugSelected()) {
-                GPU.KERNEL_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
+                GPU.KERNEL_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
             }
         }
 
@@ -567,7 +560,7 @@ public class BoundedBarnesHut {
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
             if (GPU.KERNEL_FORCE_COMPUTE.isPostDebugSelected()) {
-                GPU.KERNEL_FORCE_COMPUTE.setPostDebugString("Computed force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.KERNEL_FORCE_COMPUTE.setPostDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
