@@ -83,9 +83,11 @@ public abstract class GLSLProgram {
     }
 
     /**
-     * Runs the program.
+     * Runs the program. Can be overritten by subclasses.
      */
-    public abstract void runProgram();
+    public void runProgram() {
+        // Do nothing
+    }
 
 
 

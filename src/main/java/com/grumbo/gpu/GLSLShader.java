@@ -109,6 +109,7 @@ public abstract class GLSLShader {
             }
             out.append(line).append('\n');
         }
+        System.out.println(out.toString());
         return out.toString();
     }
 

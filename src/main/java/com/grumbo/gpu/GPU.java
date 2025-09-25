@@ -10,6 +10,7 @@ import org.lwjgl.BufferUtils;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector2f;
+import org.joml.Vector2i;
 
 import com.grumbo.simulation.Render;
 import com.grumbo.simulation.GPUSimulation;
@@ -126,8 +127,8 @@ public class GPU {
     public static Uniform<Integer> UNIFORM_PASS;
     public static Uniform<Matrix4f> UNIFORM_PROJ;
     public static Uniform<Matrix4f> UNIFORM_MODEL_VIEW;
-    public static Uniform<Vector3f> UNIFORM_RADIUS_SCALE;
-    public static Uniform<Vector2f> UNIFORM_MIN_MAX_DEPTH;
+    public static Uniform<Float> UNIFORM_RADIUS_SCALE;
+    public static Uniform<Vector2i> UNIFORM_MIN_MAX_DEPTH;
 
 
     
@@ -809,9 +810,9 @@ public class GPU {
         }, VariableType.MAT4);
         GPU.UNIFORMS.put(UNIFORM_MODEL_VIEW.getName(), UNIFORM_MODEL_VIEW);
 
-        GPU.UNIFORM_RADIUS_SCALE = new Uniform<Vector3f>("uRadiusScale", () -> {
-            return new Vector3f(Render.sphereRadiusScale);
-        }, VariableType.VEC3F);
+        GPU.UNIFORM_RADIUS_SCALE = new Uniform<Float>("uRadiusScale", () -> {
+            return Render.sphereRadiusScale;
+        }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_RADIUS_SCALE.getName(), UNIFORM_RADIUS_SCALE);
 
         GPU.UNIFORM_CAMERA_POS = new Uniform<Vector3f>("uCameraPos", () -> {
@@ -819,9 +820,9 @@ public class GPU {
         }, VariableType.VEC3F);
         GPU.UNIFORMS.put(UNIFORM_CAMERA_POS.getName(), UNIFORM_CAMERA_POS);
         
-        GPU.UNIFORM_MIN_MAX_DEPTH = new Uniform<Vector2f>("uMinMaxDepth", () -> {
-            return new Vector2f(Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
-        }, VariableType.VEC2F);
+        GPU.UNIFORM_MIN_MAX_DEPTH = new Uniform<Vector2i>("uMinMaxDepth", () -> {
+            return new Vector2i(Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
+        }, VariableType.VEC2I);
         GPU.UNIFORMS.put(UNIFORM_MIN_MAX_DEPTH.getName(), UNIFORM_MIN_MAX_DEPTH);
     }
 

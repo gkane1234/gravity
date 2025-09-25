@@ -63,9 +63,6 @@ public class Settings {
 		// Camera zoom level
 		{ Property<Double> p = Property.createDoubleProperty("zoom", 0.01, 0.01); p.setEditable(true); properties.put("zoom", p); }
 
-		// Follow mode enabled
-		properties.put("follow", Property.createBooleanProperty("follow", false, false, true));
-
 		// Camera shift position
 		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("DOUBLE_ARRAY"); p.setEditable(true); properties.put("shift", p); }
 
@@ -75,26 +72,8 @@ public class Settings {
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
 
-		// Length of planet trails
-		properties.put("tailLength", Property.createIntProperty("tailLength", 10, 10, 0, 1000, true));
-
-		// Draw planet trails
-		properties.put("drawTail", Property.createBooleanProperty("drawTail", false, false, true));
-
-		// Planet density
-		{ Property<Float> p = Property.createFloatProperty("density", 1f, 1f); p.setEditable(true); properties.put("density", p); }
-
 		// Collision elasticity
 		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));
-
-		// Default planet color
-		properties.put("defaultPlanetColor", Property.createColorPropertyFromRGB("defaultPlanetColor", 0x6dbdef, 0x6dbdef, true));
-
-		// Default background color
-		properties.put("defaultBackgroundColor", Property.createColorPropertyFromRGB("defaultBackgroundColor", 0x000000, 0x000000, true));
-
-		// Default text color
-		properties.put("defaultTextColor", Property.createColorPropertyFromRGB("defaultTextColor", 0xffffff, 0xffffff, true));
 
 		// Number of segments for sphere rendering
 		{ Property<Integer> p = Property.createIntProperty("sphereSegments", 12, 12); p.setEditable(true); properties.put("sphereSegments", p); }
@@ -106,7 +85,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
-		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E10f, 1.0E10f); p.setEditable(true); properties.put("farPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E16f, 1.0E16f); p.setEditable(true); properties.put("farPlane", p); }
 
 		// Camera move speed
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
@@ -121,7 +100,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f); p.setEditable(true); properties.put("mouseRotationSensitivity", p); }
 
 		// Camera position
-		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 100.0f), new Vector3f(0.0f, 0.0f, 100.0f), true));
+		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 1000.0f), new Vector3f(0.0f, 0.0f, 1000.0f), true));
 
 		// Camera front vector
 		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f), true));
@@ -144,17 +123,17 @@ public class Settings {
 		// Minimum and maximum depth for regions
 		{ Property<Integer> p = Property.createIntProperty("maxDepth", 100, 100); p.setEditable(true); properties.put("maxDepth", p); }
 
-		// Merge bodies
-		properties.put("mergeBodies", Property.createBooleanProperty("mergeBodies", false, false, true));
-
 		// Wrap around
 		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
 
 		// Collision merging or neither
 		properties.put("collisionMergingOrNeither", Property.createSelectorProperty("collisionMergingOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
 
-		// Dynamic
+		// Simulation bounds
 		properties.put("dynamic", Property.createSelectorProperty("dynamic", "static", "static", new String[]{"static", "dynamic"}, true));
+
+		// Render mode
+		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impGlow", "impGlow", new String[]{"off", "points", "imp", "impGlow", "mesh"}, true));
 
 	}
 	/**
@@ -224,19 +203,6 @@ public class Settings {
 	public void setZoom(double value) { setValue("zoom", value); }
 
 	/**
-	 * Gets the value of the property follow.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public boolean isFollow() { return getValue("follow"); }
-	/**
-	 * Sets the value of the property follow.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setFollow(boolean value) { setValue("follow", value); }
-
-	/**
 	 * Gets the value of the property shift.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
@@ -276,51 +242,6 @@ public class Settings {
 	public void setSoftening(float value) { setValue("softening", value); }
 
 	/**
-	 * Gets the value of the property tailLength.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public int getTailLength() { return getValue("tailLength"); }
-	/**
-	 * Sets the value of the property tailLength.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setTailLength(int value) { setValue("tailLength", value); }
-
-	/**
-	 * Gets the value of the property drawTail.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public boolean isDrawTail() { return getValue("drawTail"); }
-	/**
-	 * Sets the value of the property drawTail.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setDrawTail(boolean value) { setValue("drawTail", value); }
-
-	/**
-	 * Toggles the value of the property drawTail.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void toggleDrawTail() { setDrawTail(!isDrawTail()); }
-	/**
-	 * Gets the value of the property density.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getDensity() { return getValue("density"); }
-	/**
-	 * Sets the value of the property density.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setDensity(float value) { setValue("density", value); }
-
-	/**
 	 * Gets the value of the property elasticity.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
@@ -332,45 +253,6 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setElasticity(double value) { setValue("elasticity", value); }
-
-	/**
-	 * Gets the value of the property defaultPlanetColor.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public Color getDefaultPlanetColor() { return getValue("defaultPlanetColor"); }
-	/**
-	 * Sets the value of the property defaultPlanetColor.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setDefaultPlanetColor(Color value) { setValue("defaultPlanetColor", value); }
-
-	/**
-	 * Gets the value of the property defaultBackgroundColor.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public Color getDefaultBackgroundColor() { return getValue("defaultBackgroundColor"); }
-	/**
-	 * Sets the value of the property defaultBackgroundColor.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setDefaultBackgroundColor(Color value) { setValue("defaultBackgroundColor", value); }
-
-	/**
-	 * Gets the value of the property defaultTextColor.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public Color getDefaultTextColor() { return getValue("defaultTextColor"); }
-	/**
-	 * Sets the value of the property defaultTextColor.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setDefaultTextColor(Color value) { setValue("defaultTextColor", value); }
 
 	/**
 	 * Gets the value of the property sphereSegments.
@@ -581,25 +463,6 @@ public class Settings {
 	public void setMaxDepth(int value) { setValue("maxDepth", value); }
 
 	/**
-	 * Gets the value of the property mergeBodies.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public boolean isMergeBodies() { return getValue("mergeBodies"); }
-	/**
-	 * Sets the value of the property mergeBodies.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setMergeBodies(boolean value) { setValue("mergeBodies", value); }
-
-	/**
-	 * Toggles the value of the property mergeBodies.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void toggleMergeBodies() { setMergeBodies(!isMergeBodies()); }
-	/**
 	 * Gets the value of the property wrapAround.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
@@ -643,6 +506,19 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setDynamic(String value) { setValue("dynamic", value); }
+
+	/**
+	 * Gets the value of the property renderMode.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public String getRenderMode() { return getValue("renderMode"); }
+	/**
+	 * Sets the value of the property renderMode.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setRenderMode(String value) { setValue("renderMode", value); }
 
 	/**
 	 * Adds a property to the Settings class.
@@ -805,11 +681,6 @@ public class Settings {
 		saveSettings();
 	}
 
-	public void toggleFollow() {
-		setFollow(!isFollow());
-		setShift(new double[] {0, 0, 0});
-		saveSettings();
-	}
 
 	public void moveCamera(double[] ds) {
 		double[] currentShift = getShift();

@@ -2,8 +2,7 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 
-import java.io.IOException;
-import com.grumbo.debug.Debug;
+
 
 /**
  * ComputeShader is a class that represents a compute shader program.

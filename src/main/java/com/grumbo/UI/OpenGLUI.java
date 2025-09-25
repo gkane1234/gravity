@@ -179,7 +179,6 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_J, () -> {processIJKLMovement(GLFW.GLFW_KEY_J);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_K, () -> {processIJKLMovement(GLFW.GLFW_KEY_K);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_L, () -> {processIJKLMovement(GLFW.GLFW_KEY_L);},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F, () -> Settings.getInstance().toggleFollow()));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_R, () -> {}));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
@@ -188,8 +187,6 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 0.9));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 1.1));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_B, () -> {}));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_T, () -> Settings.getInstance().setDrawTail(!Settings.getInstance().isDrawTail()),false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_SPACE, () -> Settings.getInstance().toggleFollow()));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 0.9)),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 1.1)),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_GRAVE_ACCENT, () -> {displaySettings = !displaySettings;},false));

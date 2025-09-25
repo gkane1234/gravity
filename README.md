@@ -16,6 +16,12 @@ All calculations during the simulation are done using compute shaders in GLSL.
  9. --Combine bodies and nodes into one struct
  10. During radix sort, and AABB reduction, have the first kernel be called twice to reduce by a factor of wg_size^2 before the second kernel is called
  11. We calculate the AABB for the simulation at the beginning and then recalculate it during tree propagation. We don't know if it is possible to avoid this but as an observation.
+ 12. Futher integrate rendering into the GPU class
+     1.  Put render program creation into the GPU class
+     2.  Possibly add a new pipline for the actual rendering call
+     3.  Create the meshes in the GPU class
+ 13. Make a units object that handles units and uploads that to the GPU
+
 
 
 ## Issues:

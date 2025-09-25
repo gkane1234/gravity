@@ -1,12 +1,5 @@
 package com.grumbo.simulation;
 
-import java.io.IOException;
-import java.nio.IntBuffer;
-import java.nio.FloatBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-
-import org.lwjgl.BufferUtils;
 import static org.lwjgl.opengl.GL43.*;
 import org.joml.Vector3f;
 import org.joml.Matrix4f;
@@ -24,7 +17,19 @@ public class Render {
         POINTS,
         IMPOSTOR_SPHERES,
         IMPOSTOR_SPHERES_WITH_GLOW,
-        MESH_SPHERES
+        MESH_SPHERES;
+
+
+        public static RenderMode fromString(String renderMode) {
+            switch (renderMode) {
+                case "off": return OFF;
+                case "points": return POINTS;
+                case "imp": return IMPOSTOR_SPHERES;
+                case "impGlow": return IMPOSTOR_SPHERES_WITH_GLOW;
+                case "mesh": return MESH_SPHERES;
+            }
+            return OFF;
+        }
     }
     public boolean showRegions = false;
 
@@ -34,25 +39,10 @@ public class Render {
     private RenderProgram sphereProgram;   // instanced mesh spheres
     private RenderProgram regionsProgram; // regions
     
-    //Render Uniforms
-    private int vao; // for points and impostors
-
-    private int regionsVao;
-    private int regionsVbo;
-    private int regionsEbo;
-
-    // Mesh sphere resources
-    private int sphereVao = 0;
-    private int sphereVbo = 0; // positions (and normals interleaved optional later)
-    private int sphereIbo = 0;
-    private int sphereIndexCount = 0;
-    private int sphereStacks = 8;
-    private int sphereSlices = 8;
 
     // Impostor config
     public static float impostorPointScale = 1f; // mass to pixel size scale
-    public static int maxMeshInstances = 500000000;
-    public static float sphereRadiusScale = Settings.getInstance().getDensity(); // radius = sqrt(mass) * scale
+    public static float sphereRadiusScale = 1f;
     public static int pass = 0;
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;
@@ -77,8 +67,12 @@ public class Render {
      */
     public void init() {
 
+        for (GLSLMesh.MeshType mesh : GLSLMesh.MeshType.values()) {
+            GLSLMesh.reInitializeMesh(mesh);
+        }
+
         // Create points render program
-        pointsProgram = new RenderProgram("points");
+        pointsProgram = new RenderProgram("points", GLSLMesh.MeshType.POINTS, gpuSimulation.initialNumBodies());
         pointsProgram.setUniforms(new Uniform[] {
             GPU.UNIFORM_MVP
         });
@@ -90,7 +84,7 @@ public class Render {
 
 
         // Create impostor render program
-        impostorProgram = new RenderProgram("impostor");
+        impostorProgram = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, gpuSimulation.initialNumBodies());
         impostorProgram.setUniforms(new Uniform[] {
             GPU.UNIFORM_POINT_SCALE,
             GPU.UNIFORM_CAMERA_POS,
@@ -107,7 +101,7 @@ public class Render {
         GPUSimulation.checkGLError("impostorProgram");
 
         // Create mesh sphere render program
-        sphereProgram = new RenderProgram("sphere");
+        sphereProgram = new RenderProgram("sphere", GLSLMesh.MeshType.SPHERE, gpuSimulation.initialNumBodies());
         sphereProgram.setUniforms(new Uniform[] {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_RADIUS_SCALE,
@@ -121,12 +115,9 @@ public class Render {
         // Enable point size
         glEnable(GL_PROGRAM_POINT_SIZE);
 
-        // Initialize sphere mesh VAO/VBO/IBO
-        vao = glGenVertexArrays();
-        rebuildSphereMesh();
 
         // Initialize regions program
-        regionsProgram = new RenderProgram("regions");
+        regionsProgram = new RenderProgram("regions", GLSLMesh.MeshType.REGIONS, gpuSimulation.initialNumBodies()-1);
         regionsProgram.setUniforms(new Uniform[] {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_MIN_MAX_DEPTH,
@@ -136,14 +127,6 @@ public class Render {
             GPU.SSBO_SIMULATION_VALUES,
         });
         GPUSimulation.checkGLError("regionsProgram");
-
-
-        // Initialize regions VAO/VBO/EBO
-        regionsVao = glGenVertexArrays();
-        regionsVbo = glGenBuffers();
-        regionsEbo = glGenBuffers();
-
-        rebuildRegionsMesh();
 
         GPUSimulation.checkGLError("init");
 
@@ -157,9 +140,10 @@ public class Render {
      */
     public void render(GPUSimulation.State state) {
         GPUSimulation.checkGLError("before render");
-        if (renderMode == RenderMode.OFF) return;
+        
         // Get the camera view
-        switch (renderMode) {
+        switch (RenderMode.fromString(Settings.getInstance().getRenderMode())) {
+            case OFF: return;
             case POINTS: renderPoints(); break;
             case IMPOSTOR_SPHERES: renderImpostorSpheres(); break;
             case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(); break;
@@ -167,7 +151,7 @@ public class Render {
             default: break;
         }
         // Render the regions
-        if (showRegions && gpuSimulation.getSteps() > 0) renderRegions(gpuSimulation.barnesHutNodesSSBO(), gpuSimulation.barnesHutValuesSSBO());
+        if (showRegions && gpuSimulation.getSteps() > 0) renderRegions();
         GPUSimulation.checkGLError("after render");
     }
 
@@ -177,9 +161,6 @@ public class Render {
      */
     public void renderPoints() {
         pointsProgram.run();
-        glBindVertexArray(vao);
-        glDrawArrays(GL_POINTS, 0, gpuSimulation.initialNumBodies());
-        glUseProgram(0);
     }
 
     /**
@@ -192,14 +173,16 @@ public class Render {
         glDepthMask(true);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        renderImpostorSpheresPass(0);
+        Render.pass = 0;
+        impostorProgram.run();
 
         if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
             //set up appropriate blending for additive glow
             glEnable    (GL_DEPTH_TEST);
             glDepthMask(false);
             glBlendFunc(GL_ONE, GL_ONE);
-            renderImpostorSpheresPass(1);
+            Render.pass = 1;
+            impostorProgram.run();
 
             glDepthMask(true);
         }
@@ -207,54 +190,23 @@ public class Render {
         glUseProgram(0);
     }
 
-
-    /**
-     * Renders the impostor spheres pass.
-     * @param bodiesOutSSBO the bodies out SSBO
-     * @param pass the pass
-     */
-    private void renderImpostorSpheresPass(int pass) {
-        Render.pass = pass;
-        impostorProgram.run();
-        glBindVertexArray(vao);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gpuSimulation.initialNumBodies());
-        glUseProgram(0);
-
-    }
-
     /**
      * Renders the mesh spheres.
-     * @param bodiesOutSSBO the bodies out SSBO
      */
     public void renderMeshSpheres() {
-        if (sphereVao == 0 || sphereIndexCount == 0) return;
         sphereProgram.run();
-        glBindVertexArray(sphereVao);
-        int instanceCount = Math.min(gpuSimulation.initialNumBodies(), maxMeshInstances);
-        glDrawElementsInstanced(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0L, instanceCount);
-        glBindVertexArray(0);
-        glUseProgram(0);
     }
 
     /**
      * Renders the regions.
-     * @param NodesSSBO the nodes SSBO
-     * @param ValuesSSBO the values SSBO
      */
-    public void renderRegions(SSBO NodesSSBO, SSBO ValuesSSBO) {
+    public void renderRegions() {
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(false);
         regionsProgram.run();
 
-        glBindVertexArray(regionsVao);
-        int instanceCount = Math.max(0, gpuSimulation.initialNumBodies() - 1);
-        if (instanceCount > 0) {
-            glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0L, instanceCount);
-        }
-        glBindVertexArray(0);
-        glUseProgram(0);
         glDepthMask(true);
         glEnable(GL_DEPTH_TEST);
     }
@@ -299,44 +251,6 @@ public class Render {
         return view;
     }
 
-
-
-
-       
-
-
-
-
-    /* --------- Sphere mesh generation --------- */
-    /**
-     * Sets the sphere detail.
-     * @param stacks the stacks
-     * @param slices the slices
-     */
-    public void setSphereDetail(int stacks, int slices) {
-        if (stacks < 3) stacks = 3;
-        if (slices < 3) slices = 3;
-        this.sphereStacks = stacks;
-        this.sphereSlices = slices;
-        rebuildSphereMesh();
-    }
-
-    /**
-     * Sets the render mode.
-     * @param mode the render mode
-     */
-    public void setRenderMode(RenderMode mode) {
-        if (mode != null) this.renderMode = mode;
-    }
-
-    /**
-     * Gets the render mode.
-     * @return the render mode
-     */
-    public RenderMode getRenderMode() {
-        return this.renderMode;
-    }
-
     /**
      * Sets the impostor point scale.
      * @param scale the impostor point scale
@@ -354,164 +268,8 @@ public class Render {
         this.sphereRadiusScale = scale;
     }
 
-    /**
-     * Sets the max mesh instances.
-     * @param max the max mesh instances
-     */
-    public void setMaxMeshInstances(int max) {
-        this.maxMeshInstances = Math.max(1, max);
-    }
 
-    /**
-     * Rebuilds the sphere mesh.
-     */
-    private void rebuildSphereMesh() {
-        // Dispose previous
-        if (sphereVao != 0) glDeleteVertexArrays(sphereVao);
-        if (sphereVbo != 0) glDeleteBuffers(sphereVbo);
-        if (sphereIbo != 0) glDeleteBuffers(sphereIbo);
-        sphereVao = glGenVertexArrays();
-        sphereVbo = glGenBuffers();
-        sphereIbo = glGenBuffers();
-
-        FloatBuffer positions = generateSpherePositions(sphereStacks, sphereSlices);
-        IntBuffer indices = generateSphereIndices(sphereStacks, sphereSlices);
-        sphereIndexCount = indices.remaining();
-
-        glBindVertexArray(sphereVao);
-        glBindBuffer(GL_ARRAY_BUFFER, sphereVbo);
-        glBufferData(GL_ARRAY_BUFFER, positions, GL_STATIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.BYTES, 0L);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereIbo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW);
-
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    }
-
-    /**
-     * Generates the sphere positions.
-     * @param stacks the stacks
-     * @param slices the slices
-     * @return the sphere positions
-     */
-    private FloatBuffer generateSpherePositions(int stacks, int slices) {
-        int vertexCount = (stacks + 1) * (slices + 1);
-        FloatBuffer buf = BufferUtils.createFloatBuffer(vertexCount * 3);
-        for (int i = 0; i <= stacks; i++) {
-            double v = (double) i / stacks;
-            double phi = v * Math.PI; // 0..PI
-            double sinPhi = Math.sin(phi);
-            double cosPhi = Math.cos(phi);
-            for (int j = 0; j <= slices; j++) {
-                double u = (double) j / slices;
-                double theta = u * 2.0 * Math.PI; // 0..2PI
-                double sinTheta = Math.sin(theta);
-                double cosTheta = Math.cos(theta);
-                float x = (float) (cosTheta * sinPhi);
-                float y = (float) (cosPhi);
-                float z = (float) (sinTheta * sinPhi);
-                buf.put(x).put(y).put(z);
-            }
-        }
-        buf.flip();
-        return buf;
-    }
-
-    /**
-     * Generates the sphere indices.
-     * @param stacks the stacks
-     * @param slices the slices
-     * @return the sphere indices
-     */
-    private IntBuffer generateSphereIndices(int stacks, int slices) {
-        int quadCount = stacks * slices;
-        IntBuffer idx = BufferUtils.createIntBuffer(quadCount * 6);
-        int vertsPerRow = slices + 1;
-        for (int i = 0; i < stacks; i++) {
-            for (int j = 0; j < slices; j++) {
-                int i0 = i * vertsPerRow + j;
-                int i1 = i0 + 1;
-                int i2 = i0 + vertsPerRow;
-                int i3 = i2 + 1;
-                // two triangles per quad
-                idx.put(i0).put(i2).put(i1);
-                idx.put(i1).put(i2).put(i3);
-            }
-        }
-        idx.flip();
-        return idx;
-    }
-        /* --------- Regions --------- */
-
-    /**
-     * Rebuilds the regions mesh.
-     */
-    private void rebuildRegionsMesh() {
-        //Creates a cube mesh
-        float[] cubeVertices = {
-            -0.5f, -0.5f,  0.5f,
-            0.5f, -0.5f,  0.5f,
-            0.5f,  0.5f,  0.5f,
-            -0.5f,  0.5f,  0.5f,
-        
-            // Back face
-            -0.5f, -0.5f, -0.5f,
-            0.5f, -0.5f, -0.5f,
-            0.5f,  0.5f, -0.5f,
-            -0.5f,  0.5f, -0.5f
-        };
-
-        //Creates a cube mesh
-        int[] cubeIndices = {
-            // Front face
-            0, 1, 2,
-            2, 3, 0,
-
-            // Right face
-            1, 5, 6,
-            6, 2, 1,
-
-            // Back face
-            5, 4, 7,
-            7, 6, 5,
-
-            // Left face
-            4, 0, 3,
-            3, 7, 4,
-
-            // Top face
-            3, 2, 6,
-            6, 7, 3,
-
-            // Bottom face
-            4, 5, 1,
-            1, 0, 4
-        };
-        if (regionsVao == 0) regionsVao = glGenVertexArrays();
-        if (regionsVbo == 0) regionsVbo = glGenBuffers();
-        if (regionsEbo == 0) regionsEbo = glGenBuffers();
-        glBindVertexArray(regionsVao);
-
-        // Vertex buffer
-        glBindBuffer(GL_ARRAY_BUFFER, regionsVbo);
-        glBufferData(GL_ARRAY_BUFFER, cubeVertices, GL_STATIC_DRAW);
-
-        // Index buffer
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, regionsEbo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeIndices, GL_STATIC_DRAW);
-
-        // Vertex attribute (pos)
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.BYTES, 0L);
-
-        glBindVertexArray(0);
-
-
-    }
+    
 
     /* --------- Cleanup --------- */
     public void cleanup() {
@@ -519,11 +277,6 @@ public class Render {
         impostorProgram.delete();
         sphereProgram.delete();
         regionsProgram.delete();
-        
-        if (vao != 0) glDeleteVertexArrays(vao);
-        if (sphereVao != 0) glDeleteVertexArrays(sphereVao);
-        if (sphereVbo != 0) glDeleteBuffers(sphereVbo);
-        if (sphereIbo != 0) glDeleteBuffers(sphereIbo);
     }
 
     /* --------- Shader checking --------- */
