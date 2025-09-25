@@ -41,16 +41,16 @@
 //     a. Debug Kernel
 
 
-#include "compute/bh_common.comp"
-#include "compute/bh_init.comp"
-#include "compute/bh_morton.comp"
-#include "compute/bh_radix.comp"
-#include "compute/bh_tree.comp"
-#include "compute/bh_force.comp"
-#include "compute/bh_debug.comp"
-#include "compute/bh_merge.comp"
-#include "compute/bh_update.comp"
-#include "compute/bh_dead.comp"
+#include "compute/common/bh_common.glsl"
+#include "compute/init/bh_init.comp"
+#include "compute/morton/bh_morton.comp"
+#include "compute/radix/bh_radix.comp"
+#include "compute/tree/bh_tree.comp"
+#include "compute/force/bh_force.comp"
+#include "compute/common/bh_debug.comp"
+#include "compute/merge/bh_merge.comp"
+#include "compute/update/bh_update.comp"
+#include "compute/dead/bh_dead.comp"
 void main()
 {
 #ifdef KERNEL_INIT

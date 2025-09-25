@@ -303,7 +303,6 @@ public class SSBO {
 
     public Object[] getData(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
-        System.out.println("Getting data for variable: " + variableName + " from index " + startIndex + " to " + endIndex);
         if (updateCache) {
             refreshCache();
         }

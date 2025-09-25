@@ -21,6 +21,10 @@ All calculations during the simulation are done using compute shaders in GLSL.
      2.  Possibly add a new pipline for the actual rendering call
      3.  Create the meshes in the GPU class
  13. Make a units object that handles units and uploads that to the GPU
+ 14. A way to import meshes
+ 15. A way to import planet data
+ 16. Make regions_ssbo be auto generated from compute_ssbo
+ 17. Have certain java or glsl values be auto generated so there is only one place to change them
 
 
 

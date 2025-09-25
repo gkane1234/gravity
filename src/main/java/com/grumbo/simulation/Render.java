@@ -41,9 +41,9 @@ public class Render {
     
 
     // Impostor config
-    public static float impostorPointScale = 1f; // mass to pixel size scale
-    public static float sphereRadiusScale = 1f;
-    public static int pass = 0;
+    public float impostorPointScale = 1f; // mass to pixel size scale
+    public float sphereRadiusScale = 1f;
+    public int pass = 0;
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;
     private boolean debug;
@@ -77,7 +77,7 @@ public class Render {
             GPU.UNIFORM_MVP
         });
         pointsProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_OUT,
+            GPU.SSBO_SWAPPING_BODIES_IN,
         });
         GPUSimulation.checkGLError("pointsProgram");
 
@@ -85,6 +85,7 @@ public class Render {
 
         // Create impostor render program
         impostorProgram = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, gpuSimulation.initialNumBodies());
+        RenderProgram.checkProgram(impostorProgram.getProgram());
         impostorProgram.setUniforms(new Uniform[] {
             GPU.UNIFORM_POINT_SCALE,
             GPU.UNIFORM_CAMERA_POS,
@@ -96,7 +97,8 @@ public class Render {
             GPU.UNIFORM_MODEL_VIEW,
         });
         impostorProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_OUT,
+            GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_SIMULATION_VALUES
         });
         GPUSimulation.checkGLError("impostorProgram");
 
@@ -108,7 +110,7 @@ public class Render {
             GPU.UNIFORM_CAMERA_POS,
         });
         sphereProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_OUT,
+            GPU.SSBO_SWAPPING_BODIES_IN,
         });
         GPUSimulation.checkGLError("sphereProgram");
 
@@ -173,7 +175,7 @@ public class Render {
         glDepthMask(true);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        Render.pass = 0;
+        pass = 0;
         impostorProgram.run();
 
         if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
@@ -181,7 +183,7 @@ public class Render {
             glEnable    (GL_DEPTH_TEST);
             glDepthMask(false);
             glBlendFunc(GL_ONE, GL_ONE);
-            Render.pass = 1;
+            pass = 1;
             impostorProgram.run();
 
             glDepthMask(true);
@@ -217,7 +219,7 @@ public class Render {
      * Gets the MVP matrix.
      * @return the MVP matrix
      */
-    public static Matrix4f getMVP() {
+    public Matrix4f getMVP() {
         Matrix4f proj = projMatrix();
         Matrix4f view = viewMatrix();
         Matrix4f mvp = new Matrix4f(proj).mul(view);
@@ -227,7 +229,7 @@ public class Render {
      * Gets the camera to clip matrix.
      * @return the camera to clip matrix
      */
-    public static Matrix4f projMatrix() {
+    public Matrix4f projMatrix() {
         float fov = Settings.getInstance().getFov();
         float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
         float near = Settings.getInstance().getNearPlane();
@@ -240,7 +242,7 @@ public class Render {
      * Gets the view matrix.
      * @return the view matrix
      */
-    public static Matrix4f viewMatrix() {
+    public Matrix4f viewMatrix() {
 
         // Get camera position from Settings
         Vector3f eye = new Vector3f(Settings.getInstance().getCameraPos());

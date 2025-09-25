@@ -205,7 +205,7 @@ public class OpenGLUI {
                 System.out.println("Switched to frame advance mode - press ENTER to advance frames");
             }
         },false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {openGlWindow.gpuSimulation.toggleRegions(); System.out.println("Toggled regions");},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {showStats = !showStats;},false));
         //keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {recordCurrentBodies = !recordCurrentBodies;},false));

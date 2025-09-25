@@ -93,6 +93,7 @@ public abstract class GLSLShader {
     protected static String hashtagIncludeShaders(String filePath) throws IOException {
         // Very small preprocessor supporting lines of the form: #include "compute/path.comp" or #include "render/impostor/path.vert"
         Path path = Paths.get(filePath);
+        Path shaderFolder = getShaderFolder(path);
         StringBuilder out = new StringBuilder();
         for (String line : Files.readAllLines(path)) {
             String trimmed = line.trim();
@@ -101,7 +102,7 @@ public abstract class GLSLShader {
                 int end = trimmed.lastIndexOf('"');
                 if (start >= 0 && end > start) {
                     String includeRel = trimmed.substring(start + 1, end);
-                    Path includePath = path.getParent().getParent().resolve(includeRel);
+                    Path includePath = shaderFolder.resolve(includeRel);
                     out.append(hashtagIncludeShaders(includePath.toString()));
                     out.append('\n');
                     continue;
@@ -109,8 +110,12 @@ public abstract class GLSLShader {
             }
             out.append(line).append('\n');
         }
-        System.out.println(out.toString());
         return out.toString();
+    }
+
+
+    private static Path getShaderFolder(Path filePath) {
+        return filePath.endsWith("shaders") ? filePath : getShaderFolder(filePath.getParent());
     }
 
 

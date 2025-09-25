@@ -1,8 +1,7 @@
-#version 430
 // =============================================================
 //                    Regions fragment shader
 // =============================================================
-
+#include "render/common/render_common.glsl"
 
 out vec4 fragColor;
 

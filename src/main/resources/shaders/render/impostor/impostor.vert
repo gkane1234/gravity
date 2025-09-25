@@ -1,57 +1,7 @@
-#version 430
 // =============================================================
 //                          Impostor vertex shader
 // =============================================================
-
-struct Body {
-  vec4 posMass;
-  vec4 velDensity;
-};
-
-layout(std430, binding = 3) readonly buffer SrcBodies {
-  Body bodies[];
-} srcB;
-
-
-
-//Numerical Constants
-const float PI = 3.14159265358979323846;
-const float THREE_OVER_FOUR_PI_TO_THE_THIRD = 0.6203504909; 
-const float GRAVITATIONAL_CONSTANT = 6.67430e-11; //m^3 kg^-1 s^-2
-const float STELLAR_DENSITY = 1.408e3; //kg/m^3
-const float SOLAR_MASS = 1.989e30; //kg
-const float ASTRONOMICAL_UNIT = 1.496e11; //m
-
-
-//Checks if a body is empty
-bool isEmpty(Body b) {
-    return b.posMass.w == 0.0;
-}
-
-
-float d(Body b) {
-    return b.velDensity.w*STELLAR_DENSITY;
-}
-
-float m(Body b) {
-    return b.posMass.w*SOLAR_MASS;
-}
-
-
-//Calculates the radius of a body
-float radius(Body b) {
-
-    return THREE_OVER_FOUR_PI_TO_THE_THIRD * pow((m(b)/d(b)), 1.0/3.0);
-}
-
-uniform mat4 uModelView;
-uniform mat4 uProj;
-uniform float uPointScale; // world radius scale (applied to cbrt(mass))
-uniform vec3 uCameraPos;
-uniform vec3 uCameraFront;
-uniform float uFovY; // radians
-uniform float uAspect; // width/height
-
+#include "render/common/render_common.glsl"
 
 
 out vec2 vMapping;
@@ -67,9 +17,6 @@ out float worldRadius;
 const float GLOW_RADIUS_FACTOR = 2;
 const float BOX_CORRECTION = 1.5;
 
-vec3 red =vec3(1.0, 0.0, 0.0);
-vec3 yellow = vec3(1.0, 1.0, 0.0);
-vec3 blue = vec3(0.0, 0.4, 0.8);
 // Calculates the temperature of a star
 // Input: mass and density
 // Output: temperature in Kelvin
@@ -129,13 +76,6 @@ vec3 getStarColor(float mass, float density) {
     return tempToColor(temp);
 }
 
-vec3 scaledDist(vec3 a) {
-    return a*ASTRONOMICAL_UNIT;
-}
-
-float scaledDist(float a) {
-    return a*ASTRONOMICAL_UNIT;
-}
 // This vertex shader is used to render the impostor spheres.
 // They are created as a billboard quad that is scaled to the size of the body.
 // The quad is then mapped to the screen space and the depth is calculated.
@@ -146,8 +86,8 @@ void main() {
 
 
   vec3 center = scaledDist(b.posMass.xyz);
-  color = getStarColor(m(b), d(b));
-  float trueRadius = radius(b);
+  color = getStarColor(scaledMass(b), scaledDensity(b));
+  float trueRadius = scaledRadius(b);
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
 

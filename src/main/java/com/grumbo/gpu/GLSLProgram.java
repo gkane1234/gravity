@@ -90,6 +90,11 @@ public abstract class GLSLProgram {
     }
 
 
+    public int getProgram() {
+        return program;
+    }
+
+
 
 
     /**
@@ -99,6 +104,7 @@ public abstract class GLSLProgram {
     public static void checkProgram(int program) {
         if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
             System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
+            throw new RuntimeException("Program linking failed");
         }
     }
 

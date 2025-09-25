@@ -28,7 +28,7 @@ import com.grumbo.gpu.GPU;
  */
 public class GPUSimulation {
     
-    private BoundedBarnesHut boundedBarnesHut;
+    private BarnesHut barnesHut;
     private Render render;
     private OpenGLWindow openGlWindow;
     private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue;
@@ -103,7 +103,7 @@ public class GPUSimulation {
         float boundSize = 350_000;
         float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
-        this.boundedBarnesHut = new BoundedBarnesHut(this,debug,bounds);
+        this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.commandQueue = new ConcurrentLinkedQueue<>();
@@ -115,7 +115,7 @@ public class GPUSimulation {
         this.planetGenerator = new PlanetGenerator(planets);
         this.commandQueue = new ConcurrentLinkedQueue<>();
         float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
-        this.boundedBarnesHut = new BoundedBarnesHut(this,debug,bounds);
+        this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
         this.initialbodiesContained = planets.size();
@@ -241,7 +241,7 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        int numAlive = 5000000;
+        int numAlive = 5_000_000;
         for (int i = 0; i < numAlive; i++) {
             newPlanets.add(new Planet((float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), 0, 0, 0, 0.00000000000000001f));
         }
@@ -261,7 +261,7 @@ public class GPUSimulation {
     private void init() {
         openGlWindow.init();
         GPU.initGPU(this);
-        boundedBarnesHut.init();
+        barnesHut.init();
         render.init();
     }
 
@@ -273,7 +273,7 @@ public class GPUSimulation {
     public static void checkGLError(String operation) {
         int error = glGetError();
         if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error after " + operation + ": " + error);
+            System.err.println("OpenGL Error " + operation + ": " + error);
         }
     }
 
@@ -304,8 +304,8 @@ public class GPUSimulation {
         processCommands();
         checkGLError("after processCommands");
         if (state == State.RUNNING) {
-            boundedBarnesHut.step();
-            checkGLError("after boundedBarnesHut.step");
+            barnesHut.step();
+            checkGLError("after barnesHut.step");
             
             render.render(state);
             checkGLError("after render");
@@ -321,8 +321,8 @@ public class GPUSimulation {
         }
 
         if (state == State.FRAME_ADVANCE) {
-            checkGLError("after boundedBarnesHut.step");
-            boundedBarnesHut.step();
+            checkGLError("after barnesHut.step");
+            barnesHut.step();
             render.render(state);
             checkGLError("after render");
             captureIfRecording();
@@ -385,7 +385,7 @@ public class GPUSimulation {
      */
     public void updateCurrentBodies() { //Note: this is EXTREMELY slow.
 
-        if (boundedBarnesHut == null || GPU.SSBO_SIMULATION_VALUES == null) {
+        if (barnesHut == null || GPU.SSBO_SIMULATION_VALUES == null) {
             currentBodies = initialNumBodies();
 
             return;
@@ -411,15 +411,23 @@ public class GPUSimulation {
      * @return the bounds of the simulation.
      */
     public float[][] getBounds() {
-        return boundedBarnesHut.getBounds();
+        return barnesHut.getBounds();
     }
 
     /**
      * Gets the bounded barnes hut.
      * @return the bounded barnes hut.
      */
-    public BoundedBarnesHut getBoundedBarnesHut() {
-        return boundedBarnesHut;
+    public BarnesHut getBarnesHut() {
+        return barnesHut;
+    }
+
+    /**
+     * Gets the render.
+     * @return the render.
+     */
+    public Render getRender() {
+        return render;
     }
 
 
@@ -469,7 +477,7 @@ public class GPUSimulation {
      * @param planetGenerator the planet generator.
      */
     // public void uploadPlanetsData(PlanetGenerator planetGenerator) {
-    //     boundedBarnesHut.uploadPlanetsData(planetGenerator);
+    //     barnesHut.uploadPlanetsData(planetGenerator);
     // }
 
 
@@ -478,7 +486,7 @@ public class GPUSimulation {
      * @return the performance text for the simulation.
      */
     public String getPerformanceText() {
-        return boundedBarnesHut.debugString;
+        return barnesHut.debugString;
     }
 
     /**
@@ -486,7 +494,7 @@ public class GPUSimulation {
      * @return the number of steps in the simulation.
      */
     public int getSteps() {
-        return boundedBarnesHut.getSteps();
+        return barnesHut.getSteps();
     }
 
     /**

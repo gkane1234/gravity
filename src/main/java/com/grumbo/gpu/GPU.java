@@ -17,7 +17,7 @@ import com.grumbo.simulation.GPUSimulation;
 import com.grumbo.simulation.PlanetGenerator;
 import com.grumbo.simulation.Planet;
 import com.grumbo.simulation.Settings;
-import com.grumbo.simulation.BoundedBarnesHut;
+import com.grumbo.simulation.BarnesHut;
 
 public class GPU {
 
@@ -26,6 +26,7 @@ public class GPU {
     public static final int WORK_GROUP_SIZE = 256;
     public static final int RADIX_BITS = 4;
     public static final int NUM_RADIX_BUCKETS = (int)Math.pow(2, RADIX_BITS); // 16 when RADIX_BITS=4
+    public static final int MAX_RENDER_INSTANCES = 1_000_000;
 
 
     // These can be freely changed here
@@ -135,16 +136,19 @@ public class GPU {
 
     public static void initGPU(GPUSimulation gpuSimulation) {
 
-        BoundedBarnesHut boundedBarnesHut = gpuSimulation.getBoundedBarnesHut();
+        BarnesHut barnesHut = gpuSimulation.getBarnesHut();
+        Render render = gpuSimulation.getRender();
         float[][] bounds = gpuSimulation.getBounds();
         PlanetGenerator planetGenerator = gpuSimulation.getPlanetGenerator();
         GPU.initialNumBodies = gpuSimulation.initialNumBodies();
 
-        initComputeUniforms(boundedBarnesHut);
-        initRenderUniforms();
+        initComputeUniforms(barnesHut);
+
         initComputeSSBOs(planetGenerator, bounds);
         initComputeSwappingBuffers();
-        initComputeShaders(boundedBarnesHut);
+        initComputeShaders(barnesHut);
+        initRenderUniforms(render);
+        initRenderPrograms(render);
     }
 
 
@@ -346,7 +350,7 @@ public class GPU {
         /**
      * Initialize the uniforms. These are defined in bh_common.comp for the most part.
      */
-    private static void initComputeUniforms(BoundedBarnesHut boundedBarnesHut) {
+    private static void initComputeUniforms(BarnesHut barnesHut) {
         GPU.UNIFORMS = new HashMap<>();
         
         UNIFORM_NUM_WORK_GROUPS = new Uniform<Integer>("numWorkGroups", () -> {
@@ -386,7 +390,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_RESTITUTION.getName(), UNIFORM_RESTITUTION);
 
         UNIFORM_PASS_SHIFT = new Uniform<Integer>("passShift", () -> {
-            return boundedBarnesHut.radixSortPassShift;
+            return barnesHut.radixSortPassShift;
         }, VariableType.UINT);
 
         GPU.UNIFORMS.put(UNIFORM_PASS_SHIFT.getName(), UNIFORM_PASS_SHIFT);
@@ -408,7 +412,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_COLLISION_MERGING_OR_NEITHER.getName(), UNIFORM_COLLISION_MERGING_OR_NEITHER);
 
         UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES = new Uniform<Boolean>("resetValuesOrDecrementDeadBodies", () -> {
-            return boundedBarnesHut.resetValuesOrDecrementDeadBodies ? true : false;
+            return barnesHut.resetValuesOrDecrementDeadBodies ? true : false;
         }, VariableType.BOOL);
 
         GPU.UNIFORMS.put(UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES.getName(), UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES);
@@ -438,7 +442,7 @@ public class GPU {
     /**
      * Initialize the compute shaders. The names are defined in bh_main.comp. For more information on the shaders, see the glsl code in the shaders folder.
      */
-    private static void initComputeShaders(BoundedBarnesHut boundedBarnesHut) {
+    private static void initComputeShaders(BarnesHut barnesHut) {
 
         GPU.COMPUTE_PROGRAMS = new HashMap<>();
         KERNEL_INIT = new ComputeProgram("KERNEL_INIT");
@@ -698,7 +702,7 @@ public class GPU {
             
         });
         KERNEL_TREE_PROPAGATE_NODES.setXWorkGroupsFunction(() -> {
-            int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,boundedBarnesHut.COMPropagationPassNumber)));
+            int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,barnesHut.COMPropagationPassNumber)));
             int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return workGroups;
         });
@@ -764,14 +768,14 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS.put(KERNEL_DEBUG.getProgramName(), KERNEL_DEBUG);
     }
 
-    private static void initRenderUniforms() {
+    private static void initRenderUniforms(Render render) {
         GPU.UNIFORM_MVP = new Uniform<Matrix4f>("uMVP", () -> {
-            return Render.getMVP();
+            return render.getMVP();
         }, VariableType.MAT4); 
         GPU.UNIFORMS.put(UNIFORM_MVP.getName(), UNIFORM_MVP);
 
         GPU.UNIFORM_POINT_SCALE = new Uniform<Float>("uPointScale", () -> {
-            return Render.impostorPointScale;
+            return render.impostorPointScale;
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_POINT_SCALE.getName(), UNIFORM_POINT_SCALE);
 
@@ -796,22 +800,22 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_ASPECT.getName(), UNIFORM_ASPECT);
 
         GPU.UNIFORM_PASS = new Uniform<Integer>("uPass", () -> {
-            return Render.pass;
+            return render.pass;
         }, VariableType.INT);
         GPU.UNIFORMS.put(UNIFORM_PASS.getName(), UNIFORM_PASS);
 
         GPU.UNIFORM_PROJ = new Uniform<Matrix4f>("uProj", () -> {
-            return Render.projMatrix();
+            return render.projMatrix();
         }, VariableType.MAT4);
         GPU.UNIFORMS.put(UNIFORM_PROJ.getName(), UNIFORM_PROJ);
 
         GPU.UNIFORM_MODEL_VIEW = new Uniform<Matrix4f>("uModelView", () -> {
-            return Render.viewMatrix();
+            return render.viewMatrix();
         }, VariableType.MAT4);
         GPU.UNIFORMS.put(UNIFORM_MODEL_VIEW.getName(), UNIFORM_MODEL_VIEW);
 
         GPU.UNIFORM_RADIUS_SCALE = new Uniform<Float>("uRadiusScale", () -> {
-            return Render.sphereRadiusScale;
+            return render.sphereRadiusScale;
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_RADIUS_SCALE.getName(), UNIFORM_RADIUS_SCALE);
 
@@ -824,6 +828,10 @@ public class GPU {
             return new Vector2i(Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
         }, VariableType.VEC2I);
         GPU.UNIFORMS.put(UNIFORM_MIN_MAX_DEPTH.getName(), UNIFORM_MIN_MAX_DEPTH);
+    }
+
+    private static void initRenderPrograms(Render render) {
+        render.init();
     }
 
         

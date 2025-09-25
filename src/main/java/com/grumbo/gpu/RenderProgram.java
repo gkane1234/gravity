@@ -31,11 +31,11 @@ public class RenderProgram extends GLSLProgram {
     public void runProgram() {
         if (mesh.isSimple()) {
             glBindVertexArray(mesh.getMesh().vao); 
-            glDrawArraysInstanced(mesh.getGLSLBeginMode(), 0, mesh.getMesh().indexCount, numObjects);
+            glDrawArraysInstanced(mesh.getGLSLBeginMode(), 0, mesh.getMesh().indexCount, Math.min(numObjects, GPU.MAX_RENDER_INSTANCES));
             glUseProgram(0);
         } else {
             glBindVertexArray(mesh.getMesh().vao); 
-            glDrawElementsInstanced(mesh.getGLSLBeginMode(), mesh.getMesh().indexCount, GL_UNSIGNED_INT, 0L, numObjects);
+            glDrawElementsInstanced(mesh.getGLSLBeginMode(), mesh.getMesh().indexCount, GL_UNSIGNED_INT, 0L, Math.min(numObjects, GPU.MAX_RENDER_INSTANCES));
             glUseProgram(0);
         }
     }

@@ -94,7 +94,7 @@
     },
     "cameraPos": {
       "type": "vector3f",
-      "default": [0.0, 0.0, 1000.0],
+      "default": [0.0, 0.0, 1.0],
       "description": "Camera position",
       "editable": true
     },

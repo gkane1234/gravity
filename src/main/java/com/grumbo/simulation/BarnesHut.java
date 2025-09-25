@@ -12,7 +12,7 @@ import java.nio.LongBuffer;
 
 import static org.lwjgl.opengl.GL43C.*;
 /**
- * BoundedBarnesHut is the main class for the Barnes-Hut algorithm.
+ * BarnesHut is the main class for the Barnes-Hut algorithm.
  * It is responsible for initializing the compute shaders and SSBOs,
  * and for running the algorithm.
  * 
@@ -28,7 +28,7 @@ import static org.lwjgl.opengl.GL43C.*;
  * 6. Compute the force on each body using the tree.
  * 7. Merge the bodies, leaving empty bodies where they are.
  */
-public class BoundedBarnesHut {
+public class BarnesHut {
     private static final int NUM_DEBUG_OUTPUTS = 100;
 
 
@@ -81,12 +81,12 @@ public class BoundedBarnesHut {
     private int steps;
 
     /**
-     * Constructor for BoundedBarnesHut.
+     * Constructor for BarnesHut.
      * @param gpuSimulation The GPU simulation.
      * @param debug Whether to debug the algorithm. (This slows down the simulation to get accurate timing of each step)
      * @param bounds The bounds of the simulation.
      */
-    public BoundedBarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
+    public BarnesHut(GPUSimulation gpuSimulation, boolean debug, float[][] bounds) {
         this.gpuSimulation = gpuSimulation;
         this.debug = debug;
         this.bounds = bounds;
@@ -114,8 +114,7 @@ public class BoundedBarnesHut {
         }
 
 
-        //gpuSimulation.updateCurrentBodies();
-        //System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 10));
+
         // Reset various values for the queues and death counting.
         resetValues();
 
@@ -149,7 +148,6 @@ public class BoundedBarnesHut {
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
 
-        //System.out.println(GPU.SSBO_SIMULATION_VALUES.getIntegerData("uintDebug", true));
 
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
@@ -164,7 +162,6 @@ public class BoundedBarnesHut {
         }
         this.steps++;
 
-        //System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("bounds"));
     }
 
     /* --------- Initialization --------- */
@@ -514,19 +511,6 @@ public class BoundedBarnesHut {
                 }
             }
             GPU.swapPropagateWorkQueueBuffers();
-            //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
-
-            // System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), numBodies(), 10));
-            //System.out.println("Operations last interation:"+passes+" : "  + (workedThreads-lastThreads) + " : using " + Math.max(1,(int)((numBodies() - 1)/Math.pow(2, passes))) + "  threads");
-            //System.out.println(WORK_QUEUE_SSBO.getHeader());
-            //System.out.println(WORK_QUEUE_B_SSBO.getHeader());
-            // lastThreads = workedThreads;
-
-            // try {
-            //     System.in.read();
-            // } catch (Exception e) {
-            //     // Ignore exception
-            // }
 
         }
         
@@ -552,7 +536,6 @@ public class BoundedBarnesHut {
             }
         }
 
-        System.out.println(GPU.UNIFORM_STATIC_OR_DYNAMIC.getValue());
 
         GPU.KERNEL_FORCE_COMPUTE.run();
         if (debug) {
