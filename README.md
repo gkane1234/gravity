@@ -2,7 +2,53 @@
 A Barnes Hut Implementation of the N-Body problem capable of handling over 32 million objects in realtime.
 All calculations during the simulation are done using compute shaders in GLSL.
 
+## Features:
+ 1. Full custom graphical UI
+ 2. Real-time interaction with massive, highly parallelized simulations
+ 3. Custom algorithms for each step in the process of constructing and evaluating Barnes-Hut n-body.
+ 4. Accurate star sizes, colors, and scales.
+ 5. Able to simulate galaxies, solar systems, and other particle systems
+ 6. Uses generating code to minimize repetition
 
+
+
+// 0. Common resources and definitions (bh_common.comp)
+//     a. Uniform definitions
+//     b. SSBO bindings
+//     c. Common definitions of structs and functions
+// 1. Initialization (bh_init.comp)
+//     a. Init Kernel
+// 2. Updating Values (bh_update.comp)
+//     a. Update Kernel (acts as two kernels)
+//          i. Reset Queues 
+//          ii. Update Number of Bodies
+// 3. Dead Body Counting (bh_dead.comp)
+//     a. Dead Count Kernel
+//     b. Dead Exclusive Scan Kernel
+//     c. Dead Scatter Kernel
+// 4. Morton Encoding (bh_morton.comp)
+//     a. Morton AABB Repopulate Kernel
+//     b. Morton AABB Collapse Kernel
+//     b. Morton Encode Kernel
+// 5. Radix Sort (bh_radix.comp)
+//     a. Radix Histogram Kernel
+//     b. Radix Bucket Scan Kernel
+//     c. Radix Global Scan Kernel
+//     d. Radix Scatter Kernel
+// 6. Tree Building (bh_tree.comp)
+//     a. Tree Build Binary Radix Tree Kernel
+//     b. Tree Init Leaf Nodes Kernel
+//     c. Tree Propagate Nodes Kernel
+// 7. Force Computation (bh_force.comp)
+//     a. Force Compute Kernel (also updates position and velocity of bodies)
+// 8. Merging Bodies (bh_merge.comp)
+//     a. Merge Bodies Kernel
+// 9. Debugging (bh_debug.comp)
+//     a. Debug Kernel
+## Algorithm Breakdown
+Our implementation of the Barnes-Hut N-Body Algorithm works broadly in 7 steps:
+
+1. 
 ## Features to implement:
 
  1. Make a branch with a true octree
