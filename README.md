@@ -24,6 +24,7 @@ Our implementation of the Barnes-Hut N-Body Algorithm works broadly in 6 steps:
 4. Force and collisions
 5. Position and Velocity update
 6. Merging and OOB handling
+
 We send out threads for the gpu to do work in batches known as workgroups. They are of a set size (256 in this project) and can share memory with each other while computing.
 
 ## Before:
