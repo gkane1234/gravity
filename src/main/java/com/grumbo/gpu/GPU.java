@@ -9,7 +9,6 @@ import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import org.joml.Vector2f;
 import org.joml.Vector2i;
 
 import com.grumbo.simulation.Render;
@@ -26,7 +25,7 @@ public class GPU {
     public static final int WORK_GROUP_SIZE = 256;
     public static final int RADIX_BITS = 4;
     public static final int NUM_RADIX_BUCKETS = (int)Math.pow(2, RADIX_BITS); // 16 when RADIX_BITS=4
-    public static final int MAX_RENDER_INSTANCES = 1_000_000;
+    public static final int MAX_RENDER_INSTANCES = 5_000_000;
 
 
     // These can be freely changed here
@@ -34,6 +33,7 @@ public class GPU {
     public static Map<String, Uniform<?>> UNIFORMS;
     public static Map<String, SSBO> SSBOS;
     public static Map<String, ComputeProgram> COMPUTE_PROGRAMS;
+    public static Map<String, RenderProgram> RENDER_PROGRAMS;
     //public static Map<String, VertexShader> VERTEX_SHADERS;
     //public static Map<String, FragmentShader> FRAGMENT_SHADERS;
 
@@ -85,24 +85,24 @@ public class GPU {
     public static SSBO SSBO_SWAPPING_TREE_WORK_QUEUE_OUT;
 
     // Compute Programs
-    public static ComputeProgram KERNEL_INIT; // bh_init.comp
-    public static ComputeProgram KERNEL_UPDATE; // bh_update.comp
-    public static ComputeProgram KERNEL_MORTON_AABB_REPOPULATE; // bh_morton.comp
-    public static ComputeProgram KERNEL_MORTON_AABB_COLLAPSE; // bh_morton.comp
-    public static ComputeProgram KERNEL_MORTON_ENCODE; // bh_morton.comp
-    public static ComputeProgram KERNEL_DEAD_COUNT; // bh_dead.comp
-    public static ComputeProgram KERNEL_DEAD_EXCLUSIVE_SCAN; // bh_dead.comp
-    public static ComputeProgram KERNEL_DEAD_SCATTER; // bh_dead.comp
-    public static ComputeProgram KERNEL_RADIX_HISTOGRAM; // bh_radix.comp
-    public static ComputeProgram KERNEL_RADIX_BUCKET_SCAN; // bh_radix.comp
-    public static ComputeProgram KERNEL_RADIX_GLOBAL_SCAN; // bh_radix.comp
-    public static ComputeProgram KERNEL_RADIX_SCATTER; // bh_radix.comp
-    public static ComputeProgram KERNEL_TREE_BUILD; // bh_tree.comp
-    public static ComputeProgram KERNEL_TREE_INIT_LEAVES; // bh_reduce.comp
-    public static ComputeProgram KERNEL_TREE_PROPAGATE_NODES; // bh_reduce.comp
-    public static ComputeProgram KERNEL_FORCE_COMPUTE; // bh_force.comp
-    public static ComputeProgram KERNEL_MERGE_BODIES; // bh_merge.comp
-    public static ComputeProgram KERNEL_DEBUG; // bh_debug.comp
+    public static ComputeProgram COMPUTE_INIT; // bh_init.comp
+    public static ComputeProgram COMPUTE_UPDATE; // bh_update.comp
+    public static ComputeProgram COMPUTE_MORTON_AABB_REPOPULATE; // bh_morton.comp
+    public static ComputeProgram COMPUTE_MORTON_AABB_COLLAPSE; // bh_morton.comp
+    public static ComputeProgram COMPUTE_MORTON_ENCODE; // bh_morton.comp
+    public static ComputeProgram COMPUTE_DEAD_COUNT; // bh_dead.comp
+    public static ComputeProgram COMPUTE_DEAD_EXCLUSIVE_SCAN; // bh_dead.comp
+    public static ComputeProgram COMPUTE_DEAD_SCATTER; // bh_dead.comp
+    public static ComputeProgram COMPUTE_RADIX_HISTOGRAM; // bh_radix.comp
+    public static ComputeProgram COMPUTE_RADIX_BUCKET_SCAN; // bh_radix.comp
+    public static ComputeProgram COMPUTE_RADIX_GLOBAL_SCAN; // bh_radix.comp
+    public static ComputeProgram COMPUTE_RADIX_SCATTER; // bh_radix.comp
+    public static ComputeProgram COMPUTE_TREE_BUILD; // bh_tree.comp
+    public static ComputeProgram COMPUTE_TREE_INIT_LEAVES; // bh_reduce.comp
+    public static ComputeProgram COMPUTE_TREE_PROPAGATE_NODES; // bh_reduce.comp
+    public static ComputeProgram COMPUTE_FORCE_COMPUTE; // bh_force.comp
+    public static ComputeProgram COMPUTE_MERGE_BODIES; // bh_merge.comp
+    public static ComputeProgram COMPUTE_DEBUG; // bh_debug.comp
 
     // Compute Uniforms
     public static Uniform<Integer> UNIFORM_NUM_WORK_GROUPS;
@@ -116,6 +116,13 @@ public class GPU {
     public static Uniform<Boolean> UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES;
     public static Uniform<Boolean> UNIFORM_WRAP_AROUND;
     public static Uniform<Integer> UNIFORM_STATIC_OR_DYNAMIC;
+
+
+    // Render Programs
+    public static RenderProgram RENDER_POINTS; // points program
+    public static RenderProgram RENDER_IMPOSTOR; // point-sprite impostor spheres
+    public static RenderProgram RENDER_SPHERE;   // instanced mesh spheres
+    public static RenderProgram RENDER_REGIONS; // regions
 
 
     // Render Uniforms
@@ -138,7 +145,7 @@ public class GPU {
 
         BarnesHut barnesHut = gpuSimulation.getBarnesHut();
         Render render = gpuSimulation.getRender();
-        float[][] bounds = gpuSimulation.getBounds();
+        float[][] bounds = gpuSimulation.getBarnesHut().getBounds();
         PlanetGenerator planetGenerator = gpuSimulation.getPlanetGenerator();
         GPU.initialNumBodies = gpuSimulation.initialNumBodies();
 
@@ -146,7 +153,7 @@ public class GPU {
 
         initComputeSSBOs(planetGenerator, bounds);
         initComputeSwappingBuffers();
-        initComputeShaders(barnesHut);
+        initComputePrograms(barnesHut);
         initRenderUniforms(render);
         initRenderPrograms(render);
     }
@@ -442,69 +449,69 @@ public class GPU {
     /**
      * Initialize the compute shaders. The names are defined in bh_main.comp. For more information on the shaders, see the glsl code in the shaders folder.
      */
-    private static void initComputeShaders(BarnesHut barnesHut) {
+    private static void initComputePrograms(BarnesHut barnesHut) {
 
         GPU.COMPUTE_PROGRAMS = new HashMap<>();
-        KERNEL_INIT = new ComputeProgram("KERNEL_INIT");
-        KERNEL_INIT.setUniforms(new Uniform[] {
+        COMPUTE_INIT = new ComputeProgram("COMPUTE_INIT");
+        COMPUTE_INIT.setUniforms(new Uniform[] {
         });
-        KERNEL_INIT.setSSBOs(new SSBO[] {
+        COMPUTE_INIT.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_FIXED_BODIES_IN,
             GPU.SSBO_FIXED_BODIES_OUT
         });
-        KERNEL_INIT.setXWorkGroupsFunction(() -> {
+        COMPUTE_INIT.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_INIT.getProgramName(), KERNEL_INIT);
-        KERNEL_MORTON_AABB_REPOPULATE = new ComputeProgram("KERNEL_MORTON_AABB_REPOPULATE");
-        KERNEL_MORTON_AABB_REPOPULATE.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_INIT.getProgramName(), COMPUTE_INIT);
+        COMPUTE_MORTON_AABB_REPOPULATE = new ComputeProgram("COMPUTE_MORTON_AABB_REPOPULATE");
+        COMPUTE_MORTON_AABB_REPOPULATE.setUniforms(new Uniform[] {
 
         });
-        KERNEL_MORTON_AABB_REPOPULATE.setSSBOs(new SSBO[] {
+        COMPUTE_MORTON_AABB_REPOPULATE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_INTERNAL_NODES,
         });
-        KERNEL_MORTON_AABB_REPOPULATE.setXWorkGroupsFunction(() -> {
+        COMPUTE_MORTON_AABB_REPOPULATE.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_MORTON_AABB_REPOPULATE.getProgramName(), KERNEL_MORTON_AABB_REPOPULATE);
-        KERNEL_MORTON_AABB_COLLAPSE = new ComputeProgram("KERNEL_MORTON_AABB_COLLAPSE");
-        KERNEL_MORTON_AABB_COLLAPSE.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_MORTON_AABB_REPOPULATE.getProgramName(), COMPUTE_MORTON_AABB_REPOPULATE);
+        COMPUTE_MORTON_AABB_COLLAPSE = new ComputeProgram("COMPUTE_MORTON_AABB_COLLAPSE");
+        COMPUTE_MORTON_AABB_COLLAPSE.setUniforms(new Uniform[] {
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_MORTON_AABB_COLLAPSE.setSSBOs(new SSBO[] {
+        COMPUTE_MORTON_AABB_COLLAPSE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_INTERNAL_NODES,
         });
-        KERNEL_MORTON_AABB_COLLAPSE.setXWorkGroupsFunction(() -> {
+        COMPUTE_MORTON_AABB_COLLAPSE.setXWorkGroupsFunction(() -> {
             return 1;
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_MORTON_AABB_COLLAPSE.getProgramName(), KERNEL_MORTON_AABB_COLLAPSE);
-        KERNEL_MORTON_ENCODE = new ComputeProgram("KERNEL_MORTON_ENCODE");
-        KERNEL_MORTON_ENCODE.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_MORTON_AABB_COLLAPSE.getProgramName(), COMPUTE_MORTON_AABB_COLLAPSE);
+        COMPUTE_MORTON_ENCODE = new ComputeProgram("COMPUTE_MORTON_ENCODE");
+        COMPUTE_MORTON_ENCODE.setUniforms(new Uniform[] {
         });
-        KERNEL_MORTON_ENCODE.setSSBOs(new SSBO[] {
+        COMPUTE_MORTON_ENCODE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_MORTON_IN,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
 
         });
-        KERNEL_MORTON_ENCODE.setXWorkGroupsFunction(() -> {
+        COMPUTE_MORTON_ENCODE.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_MORTON_ENCODE.getProgramName(), KERNEL_MORTON_ENCODE);   
-        KERNEL_DEAD_COUNT = new ComputeProgram("KERNEL_DEAD_COUNT");
-        KERNEL_DEAD_COUNT.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_MORTON_ENCODE.getProgramName(), COMPUTE_MORTON_ENCODE);   
+        COMPUTE_DEAD_COUNT = new ComputeProgram("COMPUTE_DEAD_COUNT");
+        COMPUTE_DEAD_COUNT.setUniforms(new Uniform[] {
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_DEAD_COUNT.setSSBOs(new SSBO[] {
+        COMPUTE_DEAD_COUNT.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -512,16 +519,16 @@ public class GPU {
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_SWAPPING_MORTON_IN,
         });
-        KERNEL_DEAD_COUNT.setXWorkGroupsFunction(() -> {
+        COMPUTE_DEAD_COUNT.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_DEAD_COUNT.getProgramName(), KERNEL_DEAD_COUNT);
-        KERNEL_DEAD_EXCLUSIVE_SCAN = new ComputeProgram("KERNEL_DEAD_EXCLUSIVE_SCAN");
-        KERNEL_DEAD_EXCLUSIVE_SCAN.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_DEAD_COUNT.getProgramName(), COMPUTE_DEAD_COUNT);
+        COMPUTE_DEAD_EXCLUSIVE_SCAN = new ComputeProgram("COMPUTE_DEAD_EXCLUSIVE_SCAN");
+        COMPUTE_DEAD_EXCLUSIVE_SCAN.setUniforms(new Uniform[] {
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_DEAD_EXCLUSIVE_SCAN.setSSBOs(new SSBO[] {
+        COMPUTE_DEAD_EXCLUSIVE_SCAN.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_RADIX_WG_SCANNED,
@@ -529,16 +536,16 @@ public class GPU {
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_SWAPPING_MORTON_IN,
         });
-        KERNEL_DEAD_EXCLUSIVE_SCAN.setXWorkGroupsFunction(() -> {
+        COMPUTE_DEAD_EXCLUSIVE_SCAN.setXWorkGroupsFunction(() -> {
             return 1;
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_DEAD_EXCLUSIVE_SCAN.getProgramName(), KERNEL_DEAD_EXCLUSIVE_SCAN);
-        KERNEL_DEAD_SCATTER = new ComputeProgram("KERNEL_DEAD_SCATTER");
-        KERNEL_DEAD_SCATTER.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_DEAD_EXCLUSIVE_SCAN.getProgramName(), COMPUTE_DEAD_EXCLUSIVE_SCAN);
+        COMPUTE_DEAD_SCATTER = new ComputeProgram("COMPUTE_DEAD_SCATTER");
+        COMPUTE_DEAD_SCATTER.setUniforms(new Uniform[] {
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_DEAD_SCATTER.setSSBOs(new SSBO[] {
+        COMPUTE_DEAD_SCATTER.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_SCANNED,
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -547,67 +554,67 @@ public class GPU {
             GPU.SSBO_SWAPPING_MORTON_OUT,
             GPU.SSBO_SWAPPING_INDEX_OUT,
         });
-        KERNEL_DEAD_SCATTER.setXWorkGroupsFunction(() -> {
+        COMPUTE_DEAD_SCATTER.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_DEAD_SCATTER.getProgramName(), KERNEL_DEAD_SCATTER);
-        KERNEL_RADIX_HISTOGRAM = new ComputeProgram("KERNEL_RADIX_HIST");
-        KERNEL_RADIX_HISTOGRAM.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_DEAD_SCATTER.getProgramName(), COMPUTE_DEAD_SCATTER);
+        COMPUTE_RADIX_HISTOGRAM = new ComputeProgram("COMPUTE_RADIX_HIST");
+        COMPUTE_RADIX_HISTOGRAM.setUniforms(new Uniform[] {
 
             UNIFORM_PASS_SHIFT,
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_RADIX_HISTOGRAM.setSSBOs(new SSBO[] {
+        COMPUTE_RADIX_HISTOGRAM.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_MORTON_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
-        KERNEL_RADIX_HISTOGRAM.setXWorkGroupsFunction(() -> {
+        COMPUTE_RADIX_HISTOGRAM.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_RADIX_HISTOGRAM.getProgramName(), KERNEL_RADIX_HISTOGRAM);
-        KERNEL_RADIX_BUCKET_SCAN = new ComputeProgram("KERNEL_RADIX_BUCKET_SCAN");
-        KERNEL_RADIX_BUCKET_SCAN.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_RADIX_HISTOGRAM.getProgramName(), COMPUTE_RADIX_HISTOGRAM);
+        COMPUTE_RADIX_BUCKET_SCAN = new ComputeProgram("COMPUTE_RADIX_BUCKET_SCAN");
+        COMPUTE_RADIX_BUCKET_SCAN.setUniforms(new Uniform[] {
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_RADIX_BUCKET_SCAN.setSSBOs(new SSBO[] {
+        COMPUTE_RADIX_BUCKET_SCAN.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_RADIX_WG_SCANNED,
             GPU.SSBO_RADIX_BUCKET_TOTALS,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
-        KERNEL_RADIX_BUCKET_SCAN.setXWorkGroupsFunction(() -> {
+        COMPUTE_RADIX_BUCKET_SCAN.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_RADIX_BUCKET_SCAN.getProgramName(), KERNEL_RADIX_BUCKET_SCAN);    
-        KERNEL_RADIX_GLOBAL_SCAN = new ComputeProgram("KERNEL_RADIX_GLOBAL_SCAN");
-        KERNEL_RADIX_GLOBAL_SCAN.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_RADIX_BUCKET_SCAN.getProgramName(), COMPUTE_RADIX_BUCKET_SCAN);    
+        COMPUTE_RADIX_GLOBAL_SCAN = new ComputeProgram("COMPUTE_RADIX_GLOBAL_SCAN");
+        COMPUTE_RADIX_GLOBAL_SCAN.setUniforms(new Uniform[] {
             UNIFORM_NUM_WORK_GROUPS
         });
-        KERNEL_RADIX_GLOBAL_SCAN.setSSBOs(new SSBO[] {
+        COMPUTE_RADIX_GLOBAL_SCAN.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_BUCKET_TOTALS,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
-        KERNEL_RADIX_GLOBAL_SCAN.setXWorkGroupsFunction(() -> {
+        COMPUTE_RADIX_GLOBAL_SCAN.setXWorkGroupsFunction(() -> {
             return NUM_RADIX_BUCKETS;
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_RADIX_GLOBAL_SCAN.getProgramName(), KERNEL_RADIX_GLOBAL_SCAN);
-        KERNEL_RADIX_SCATTER = new ComputeProgram("KERNEL_RADIX_SCATTER");
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_RADIX_GLOBAL_SCAN.getProgramName(), COMPUTE_RADIX_GLOBAL_SCAN);
+        COMPUTE_RADIX_SCATTER = new ComputeProgram("COMPUTE_RADIX_SCATTER");
 
-        KERNEL_RADIX_SCATTER.setUniforms(new Uniform[] {
+        COMPUTE_RADIX_SCATTER.setUniforms(new Uniform[] {
             UNIFORM_PASS_SHIFT,
             UNIFORM_NUM_WORK_GROUPS
         });
 
-        KERNEL_RADIX_SCATTER.setSSBOs(new SSBO[] {
+        COMPUTE_RADIX_SCATTER.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_MORTON_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
@@ -618,19 +625,19 @@ public class GPU {
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
 
-        KERNEL_RADIX_SCATTER.setXWorkGroupsFunction(() -> {
+        COMPUTE_RADIX_SCATTER.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_RADIX_SCATTER.getProgramName(), KERNEL_RADIX_SCATTER); 
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_RADIX_SCATTER.getProgramName(), COMPUTE_RADIX_SCATTER); 
 
 
-        KERNEL_TREE_BUILD = new ComputeProgram("KERNEL_TREE_BUILD");
-        KERNEL_TREE_BUILD.setUniforms(new Uniform[] {
+        COMPUTE_TREE_BUILD = new ComputeProgram("COMPUTE_TREE_BUILD");
+        COMPUTE_TREE_BUILD.setUniforms(new Uniform[] {
 
         });
         
-        KERNEL_TREE_BUILD.setSSBOs(new SSBO[] {
+        COMPUTE_TREE_BUILD.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_MORTON_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
@@ -639,22 +646,22 @@ public class GPU {
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
 
-        KERNEL_TREE_BUILD.setXWorkGroupsFunction(() -> {
+        COMPUTE_TREE_BUILD.setXWorkGroupsFunction(() -> {
             int numInternalNodes = numBodies() - 1;
             int internalNodeGroups = (numInternalNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return internalNodeGroups;
         });
         
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_TREE_BUILD.getProgramName(), KERNEL_TREE_BUILD);
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_TREE_BUILD.getProgramName(), COMPUTE_TREE_BUILD);
         //Compute COM and Location Kernels
 
-        KERNEL_TREE_INIT_LEAVES = new ComputeProgram("KERNEL_TREE_INIT_LEAVES");
+        COMPUTE_TREE_INIT_LEAVES = new ComputeProgram("COMPUTE_TREE_INIT_LEAVES");
 
-        KERNEL_TREE_INIT_LEAVES.setUniforms(new Uniform[] {
+        COMPUTE_TREE_INIT_LEAVES.setUniforms(new Uniform[] {
 
         }); 
 
-        KERNEL_TREE_INIT_LEAVES.setSSBOs(new SSBO[] {
+        COMPUTE_TREE_INIT_LEAVES.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_INTERNAL_NODES,
@@ -664,17 +671,17 @@ public class GPU {
             GPU.SSBO_SWAPPING_TREE_WORK_QUEUE_IN,
         });
 
-        KERNEL_TREE_INIT_LEAVES.setXWorkGroupsFunction(() -> {
+        COMPUTE_TREE_INIT_LEAVES.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_TREE_INIT_LEAVES.getProgramName(), KERNEL_TREE_INIT_LEAVES);
-        KERNEL_UPDATE = new ComputeProgram("KERNEL_UPDATE");
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_TREE_INIT_LEAVES.getProgramName(), COMPUTE_TREE_INIT_LEAVES);
+        COMPUTE_UPDATE = new ComputeProgram("COMPUTE_UPDATE");
 
-        KERNEL_UPDATE.setUniforms(new Uniform[] {
+        COMPUTE_UPDATE.setUniforms(new Uniform[] {
             UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES
         });
 
-        KERNEL_UPDATE.setSSBOs(new SSBO[] {
+        COMPUTE_UPDATE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_TREE_WORK_QUEUE_IN,
             GPU.SSBO_MERGE_QUEUE,
@@ -682,16 +689,16 @@ public class GPU {
             GPU.SSBO_SWAPPING_BODIES_OUT
         });
 
-        KERNEL_UPDATE.setXWorkGroupsFunction(() -> {
+        COMPUTE_UPDATE.setXWorkGroupsFunction(() -> {
             return 1;
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_UPDATE.getProgramName(), KERNEL_UPDATE);
-        KERNEL_TREE_PROPAGATE_NODES = new ComputeProgram("KERNEL_TREE_PROPAGATE_NODES");
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_UPDATE.getProgramName(), COMPUTE_UPDATE);
+        COMPUTE_TREE_PROPAGATE_NODES = new ComputeProgram("COMPUTE_TREE_PROPAGATE_NODES");
 
-        KERNEL_TREE_PROPAGATE_NODES.setUniforms(new Uniform[] {
+        COMPUTE_TREE_PROPAGATE_NODES.setUniforms(new Uniform[] {
         });
 
-        KERNEL_TREE_PROPAGATE_NODES.setSSBOs(new SSBO[] {
+        COMPUTE_TREE_PROPAGATE_NODES.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_INTERNAL_NODES,
             GPU.SSBO_LEAF_NODES,
@@ -701,15 +708,15 @@ public class GPU {
 
             
         });
-        KERNEL_TREE_PROPAGATE_NODES.setXWorkGroupsFunction(() -> {
+        COMPUTE_TREE_PROPAGATE_NODES.setXWorkGroupsFunction(() -> {
             int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,barnesHut.COMPropagationPassNumber)));
             int workGroups = (maxPossibleNodes + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
             return workGroups;
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_TREE_PROPAGATE_NODES.getProgramName(), KERNEL_TREE_PROPAGATE_NODES);
-        KERNEL_FORCE_COMPUTE = new ComputeProgram("KERNEL_FORCE_COMPUTE");
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_TREE_PROPAGATE_NODES.getProgramName(), COMPUTE_TREE_PROPAGATE_NODES);
+        COMPUTE_FORCE_COMPUTE = new ComputeProgram("COMPUTE_FORCE_COMPUTE");
 
-        KERNEL_FORCE_COMPUTE.setUniforms(new Uniform[] {
+        COMPUTE_FORCE_COMPUTE.setUniforms(new Uniform[] {
             UNIFORM_THETA,
             UNIFORM_DT,
             UNIFORM_ELASTICITY,
@@ -719,7 +726,7 @@ public class GPU {
             UNIFORM_STATIC_OR_DYNAMIC,
         });
 
-        KERNEL_FORCE_COMPUTE.setSSBOs(new SSBO[] {
+        COMPUTE_FORCE_COMPUTE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_BODIES_OUT,
@@ -729,43 +736,43 @@ public class GPU {
             GPU.SSBO_MERGE_QUEUE
         });
 
-        KERNEL_FORCE_COMPUTE.setXWorkGroupsFunction(() -> {
+        COMPUTE_FORCE_COMPUTE.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_FORCE_COMPUTE.getProgramName(), KERNEL_FORCE_COMPUTE);
-        KERNEL_MERGE_BODIES = new ComputeProgram("KERNEL_MERGE_BODIES");
-        KERNEL_MERGE_BODIES.setUniforms(new Uniform[] {
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_FORCE_COMPUTE.getProgramName(), COMPUTE_FORCE_COMPUTE);
+        COMPUTE_MERGE_BODIES = new ComputeProgram("COMPUTE_MERGE_BODIES");
+        COMPUTE_MERGE_BODIES.setUniforms(new Uniform[] {
             
         });
-        KERNEL_MERGE_BODIES.setSSBOs(new SSBO[] {
+        COMPUTE_MERGE_BODIES.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_BODIES_OUT,
             GPU.SSBO_MERGE_QUEUE,
             GPU.SSBO_MERGE_BODY_LOCKS,
         });
-        KERNEL_MERGE_BODIES.setXWorkGroupsFunction(() -> {
+        COMPUTE_MERGE_BODIES.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_MERGE_BODIES.getProgramName(), KERNEL_MERGE_BODIES);
-        KERNEL_DEBUG = new ComputeProgram("KERNEL_DEBUG");
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_MERGE_BODIES.getProgramName(), COMPUTE_MERGE_BODIES);
+        COMPUTE_DEBUG = new ComputeProgram("COMPUTE_DEBUG");
 
-        KERNEL_DEBUG.setUniforms(new Uniform[] {
+        COMPUTE_DEBUG.setUniforms(new Uniform[] {
 
         });
 
-        KERNEL_DEBUG.setSSBOs(new SSBO[] {
+        COMPUTE_DEBUG.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_MORTON_IN,
             GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
 
-        KERNEL_DEBUG.setXWorkGroupsFunction(() -> {
+        COMPUTE_DEBUG.setXWorkGroupsFunction(() -> {
             return numGroups();
         });
 
-        GPU.COMPUTE_PROGRAMS.put(KERNEL_DEBUG.getProgramName(), KERNEL_DEBUG);
+        GPU.COMPUTE_PROGRAMS.put(COMPUTE_DEBUG.getProgramName(), COMPUTE_DEBUG);
     }
 
     private static void initRenderUniforms(Render render) {
@@ -831,7 +838,76 @@ public class GPU {
     }
 
     private static void initRenderPrograms(Render render) {
-        render.init();
+
+        GPU.RENDER_PROGRAMS = new HashMap<>();
+
+        for (GLSLMesh.MeshType mesh : GLSLMesh.MeshType.values()) {
+            GLSLMesh.reInitializeMesh(mesh);
+        }
+
+        // Create points render program
+        GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, render.initialNumBodies());
+        GPU.RENDER_POINTS.setUniforms(new Uniform[] {
+            GPU.UNIFORM_MVP
+        });
+        GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
+            GPU.SSBO_SWAPPING_BODIES_OUT,
+        });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_POINTS.getProgramName(), GPU.RENDER_POINTS);
+        GPUSimulation.checkGLError("RENDER_POINTS");
+
+
+
+        // Create impostor render program
+        GPU.RENDER_IMPOSTOR = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, render.initialNumBodies());
+        GPU.RENDER_IMPOSTOR.setUniforms(new Uniform[] {
+            GPU.UNIFORM_POINT_SCALE,
+            GPU.UNIFORM_CAMERA_POS,
+            GPU.UNIFORM_CAMERA_FRONT,
+            GPU.UNIFORM_FOV_Y,
+            GPU.UNIFORM_ASPECT,
+            GPU.UNIFORM_PASS,
+            GPU.UNIFORM_PROJ,
+            GPU.UNIFORM_MODEL_VIEW,
+        });
+        GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
+            GPU.SSBO_SWAPPING_BODIES_OUT,
+        });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_IMPOSTOR.getProgramName(), GPU.RENDER_IMPOSTOR);
+        GPUSimulation.checkGLError("RENDER_IMPOSTOR");
+
+        // Create mesh sphere render program
+        GPU.RENDER_SPHERE = new RenderProgram("sphere", GLSLMesh.MeshType.SPHERE, render.initialNumBodies());
+        GPU.RENDER_SPHERE.setUniforms(new Uniform[] {
+            GPU.UNIFORM_MVP,
+            GPU.UNIFORM_RADIUS_SCALE,
+            GPU.UNIFORM_CAMERA_POS,
+        });
+        GPU.RENDER_SPHERE.setSSBOs(new SSBO[] {
+            GPU.SSBO_SWAPPING_BODIES_OUT,
+        });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_SPHERE.getProgramName(), GPU.RENDER_SPHERE);
+        GPUSimulation.checkGLError("RENDER_SPHERE");
+
+        // Enable point size
+        glEnable(GL_PROGRAM_POINT_SIZE);
+
+
+        // Initialize regions program
+        GPU.RENDER_REGIONS = new RenderProgram("regions", GLSLMesh.MeshType.REGIONS, render.initialNumBodies()-1);
+        GPU.RENDER_REGIONS.setUniforms(new Uniform[] {
+            GPU.UNIFORM_MVP,
+            GPU.UNIFORM_MIN_MAX_DEPTH,
+        });
+        GPU.RENDER_REGIONS.setSSBOs(new SSBO[] {
+            GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_SIMULATION_VALUES,
+        });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_REGIONS.getProgramName(), GPU.RENDER_REGIONS);
+        GPUSimulation.checkGLError("RENDER_REGIONS");
+
+        GPUSimulation.checkGLError("initRenderPrograms");
+
     }
 
         

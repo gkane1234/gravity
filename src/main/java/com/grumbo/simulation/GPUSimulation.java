@@ -81,7 +81,7 @@ public class GPUSimulation {
             // "KERNEL_MORTON_ENCODE",
             //"KERNEL_DEAD_COUNT",
             //"KERNEL_DEAD_EXCLUSIVE_SCAN",
-            // "KERNEL_DEAD_SCATTER",
+             "KERNEL_DEAD_SCATTER",
             //"KERNEL_RADIX_HIST",
             //"KERNEL_RADIX_PARALLEL_SCAN",
             //"KERNEL_RADIX_EXCLUSIVE_SCAN",
@@ -90,7 +90,7 @@ public class GPUSimulation {
             //"KERNEL_INIT_LEAVES",
             //"KERNEL_RESET",
             //"KERNEL_PROPAGATE_NODES",
-            // "KERNEL_FORCE_COMPUTE",
+             "KERNEL_FORCE_COMPUTE",
             //"KERNEL_MERGE",
             //"KERNEL_DEBUG",
         });

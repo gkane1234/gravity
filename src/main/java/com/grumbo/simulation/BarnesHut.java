@@ -114,7 +114,8 @@ public class BarnesHut {
         }
 
 
-
+        //gpuSimulation.updateCurrentBodies();
+        //System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 10));
         // Reset various values for the queues and death counting.
         resetValues();
 
@@ -148,6 +149,9 @@ public class BarnesHut {
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
 
+        System.out.println(GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut", 0, 10));
+
+        //System.out.println(GPU.SSBO_SIMULATION_VALUES.getIntegerData("uintDebug", true));
 
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
@@ -162,6 +166,7 @@ public class BarnesHut {
         }
         this.steps++;
 
+        //System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("bounds"));
     }
 
     /* --------- Initialization --------- */
@@ -169,7 +174,7 @@ public class BarnesHut {
      * Initialize the compute shaders and SSBOs, and set up the initial index array.
      */
     public void init() {
-        GPU.KERNEL_INIT.run();
+        GPU.COMPUTE_INIT.run();
     }
 
 
@@ -194,19 +199,19 @@ public class BarnesHut {
         long resetStartTime = 0;
         if (debug) {
             resetStartTime = System.nanoTime();
-            if (GPU.KERNEL_UPDATE.isPreDebugSelected()) {
-                GPU.KERNEL_UPDATE.setPreDebugString("Reseting values"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_UPDATE.isPreDebugSelected()) {
+                GPU.COMPUTE_UPDATE.setPreDebugString("Reseting values"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
 
         }
         resetValuesOrDecrementDeadBodies = true;
-        GPU.KERNEL_UPDATE.run();
+        GPU.COMPUTE_UPDATE.run();
         if (debug) {
             GPUSimulation.checkGLError("resetValuesPass");
             glFinish();
             resetTime = System.nanoTime() - resetStartTime;
-            if (GPU.KERNEL_UPDATE.isPostDebugSelected()) {
-                GPU.KERNEL_UPDATE.setPostDebugString("Reset values"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_UPDATE.isPostDebugSelected()) {
+                GPU.COMPUTE_UPDATE.setPostDebugString("Reset values"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
     }
@@ -218,18 +223,18 @@ public class BarnesHut {
         long decrementDeadBodiesStartTime = 0;
         if (debug) {
             decrementDeadBodiesStartTime = System.nanoTime();
-            if (GPU.KERNEL_UPDATE.isPreDebugSelected()) {
-                GPU.KERNEL_UPDATE.addToPreDebugString("Decrementing dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_UPDATE.isPreDebugSelected()) {
+                GPU.COMPUTE_UPDATE.addToPreDebugString("Decrementing dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
         resetValuesOrDecrementDeadBodies = false;
-        GPU.KERNEL_UPDATE.run();
+        GPU.COMPUTE_UPDATE.run();
         if (debug) {
             GPUSimulation.checkGLError("decrementDeadBodiesPass");
             glFinish();
             decrementDeadBodiesTime = System.nanoTime() - decrementDeadBodiesStartTime;
-            if (GPU.KERNEL_UPDATE.isPostDebugSelected()) {
-                GPU.KERNEL_UPDATE.addToPostDebugString("Decremented dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_UPDATE.isPostDebugSelected()) {
+                GPU.COMPUTE_UPDATE.addToPostDebugString("Decremented dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
     }
@@ -244,41 +249,41 @@ public class BarnesHut {
 
         if (debug) {
             deadCountStartTime = System.nanoTime();
-            if (GPU.KERNEL_DEAD_COUNT.isPreDebugSelected()) {
-                GPU.KERNEL_DEAD_COUNT.setPreDebugString("Counting dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_DEAD_COUNT.isPreDebugSelected()) {
+                GPU.COMPUTE_DEAD_COUNT.setPreDebugString("Counting dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
-        GPU.KERNEL_DEAD_COUNT.run();
+        GPU.COMPUTE_DEAD_COUNT.run();
         if (debug) {
             GPUSimulation.checkGLError("deadCount");
-            if (GPU.KERNEL_DEAD_COUNT.isPostDebugSelected()) {
-                GPU.KERNEL_DEAD_COUNT.setPostDebugString("Counted dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_DEAD_COUNT.isPostDebugSelected()) {
+                GPU.COMPUTE_DEAD_COUNT.setPostDebugString("Counted dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
             glFinish();
             deadCountTime = System.nanoTime() - deadCountStartTime;
             deadExclusiveScanStartTime = System.nanoTime();
-            if (GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.isPreDebugSelected()) {
-                GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.setPreDebugString("Scanning dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_DEAD_EXCLUSIVE_SCAN.isPreDebugSelected()) {
+                GPU.COMPUTE_DEAD_EXCLUSIVE_SCAN.setPreDebugString("Scanning dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
-        GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.run();
+        GPU.COMPUTE_DEAD_EXCLUSIVE_SCAN.run();
         if (debug) {
             GPUSimulation.checkGLError("deadExclusiveScan");
-            if (GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.isPostDebugSelected()) {
-                GPU.KERNEL_DEAD_EXCLUSIVE_SCAN.setPostDebugString("Scanned dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_DEAD_EXCLUSIVE_SCAN.isPostDebugSelected()) {
+                GPU.COMPUTE_DEAD_EXCLUSIVE_SCAN.setPostDebugString("Scanned dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
             glFinish();
             deadExclusiveScanTime = System.nanoTime() - deadExclusiveScanStartTime;
             deadScatterStartTime = System.nanoTime();
-            if (GPU.KERNEL_DEAD_SCATTER.isPreDebugSelected()) {
-                GPU.KERNEL_DEAD_SCATTER.setPreDebugString("Scattering dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_DEAD_SCATTER.isPreDebugSelected()) {
+                GPU.COMPUTE_DEAD_SCATTER.setPreDebugString("Scattering dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
         }
-        GPU.KERNEL_DEAD_SCATTER.run();
+        GPU.COMPUTE_DEAD_SCATTER.run();
         if (debug) {
             GPUSimulation.checkGLError("deadScatter");
-            if (GPU.KERNEL_DEAD_SCATTER.isPostDebugSelected()) {
-                GPU.KERNEL_DEAD_SCATTER.setPostDebugString("Scattered dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+            if (GPU.COMPUTE_DEAD_SCATTER.isPostDebugSelected()) {
+                GPU.COMPUTE_DEAD_SCATTER.setPostDebugString("Scattered dead bodies"+GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
             }
             glFinish();
             deadScatterTime = System.nanoTime() - deadScatterStartTime;
@@ -293,33 +298,33 @@ public class BarnesHut {
     private void updateBounds() {
         if (debug) {
             mortonAABBRepopulateBoundsTime = System.nanoTime();
-            if (GPU.KERNEL_MORTON_AABB_REPOPULATE.isPreDebugSelected()) {
-                GPU.KERNEL_MORTON_AABB_REPOPULATE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.COMPUTE_MORTON_AABB_REPOPULATE.isPreDebugSelected()) {
+                GPU.COMPUTE_MORTON_AABB_REPOPULATE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
         }
-        GPU.KERNEL_MORTON_AABB_REPOPULATE.run();
+        GPU.COMPUTE_MORTON_AABB_REPOPULATE.run();
         if (debug) {
             GPUSimulation.checkGLError("MortonAABBRepopulateKernel");
             glFinish();
-            if (GPU.KERNEL_MORTON_AABB_REPOPULATE.isPostDebugSelected()) {
-                GPU.KERNEL_MORTON_AABB_REPOPULATE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.COMPUTE_MORTON_AABB_REPOPULATE.isPostDebugSelected()) {
+                GPU.COMPUTE_MORTON_AABB_REPOPULATE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBRepopulateBoundsTime = System.nanoTime() - mortonAABBRepopulateBoundsTime;
         }
 
         if (debug) {
-            if (GPU.KERNEL_MORTON_AABB_COLLAPSE.isPreDebugSelected()) {
-                GPU.KERNEL_MORTON_AABB_COLLAPSE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.COMPUTE_MORTON_AABB_COLLAPSE.isPreDebugSelected()) {
+                GPU.COMPUTE_MORTON_AABB_COLLAPSE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBCollapseBoundsTime = System.nanoTime();
         }
-        GPU.KERNEL_MORTON_AABB_COLLAPSE.run();
+        GPU.COMPUTE_MORTON_AABB_COLLAPSE.run();
 
         if (debug) {
             GPUSimulation.checkGLError("MortonAABBCollapseKernel");
             glFinish();
-            if (GPU.KERNEL_MORTON_AABB_COLLAPSE.isPostDebugSelected()) {
-                GPU.KERNEL_MORTON_AABB_COLLAPSE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.COMPUTE_MORTON_AABB_COLLAPSE.isPostDebugSelected()) {
+                GPU.COMPUTE_MORTON_AABB_COLLAPSE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBCollapseBoundsTime = System.nanoTime() - mortonAABBCollapseBoundsTime;
             mortonAABBupdateBoundsTime = mortonAABBRepopulateBoundsTime + mortonAABBCollapseBoundsTime;
@@ -334,16 +339,16 @@ public class BarnesHut {
     private void generateMortonCodes() {
         if (debug) {
             mortonCodeGenerationTime = System.nanoTime();
-            if (GPU.KERNEL_MORTON_ENCODE.isPreDebugSelected()) {
-                GPU.KERNEL_MORTON_ENCODE.addToPreDebugString("Generating morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.COMPUTE_MORTON_ENCODE.isPreDebugSelected()) {
+                GPU.COMPUTE_MORTON_ENCODE.addToPreDebugString("Generating morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
         }
 
-        GPU.KERNEL_MORTON_ENCODE.run();
+        GPU.COMPUTE_MORTON_ENCODE.run();
         if (debug) {
             GPUSimulation.checkGLError("generateMortonCodes");
-            if (GPU.KERNEL_MORTON_ENCODE.isPostDebugSelected()) {
-                GPU.KERNEL_MORTON_ENCODE.addToPostDebugString("Generated morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+            if (GPU.COMPUTE_MORTON_ENCODE.isPostDebugSelected()) {
+                GPU.COMPUTE_MORTON_ENCODE.addToPostDebugString("Generated morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
             }
             glFinish();
             mortonCodeGenerationTime = System.nanoTime() - mortonCodeGenerationTime;
@@ -376,65 +381,65 @@ public class BarnesHut {
 
             if (debug) {
                 radixSortHistogramStartTime = System.nanoTime();
-                if (GPU.KERNEL_RADIX_HISTOGRAM.isPreDebugSelected()) {
-                    GPU.KERNEL_RADIX_HISTOGRAM.addToPreDebugString("Histograming morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_HIST.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_HISTOGRAM.isPreDebugSelected()) {
+                    GPU.COMPUTE_RADIX_HISTOGRAM.addToPreDebugString("Histograming morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_HIST.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 1: Histogram
-            GPU.KERNEL_RADIX_HISTOGRAM.run();
+            GPU.COMPUTE_RADIX_HISTOGRAM.run();
 
             if (debug) {
                 GPUSimulation.checkGLError("radixSortHistogramPass" + pass);
                 glFinish();
                 radixSortHistogramTime += System.nanoTime() - radixSortHistogramStartTime;
                 radixSortScanParallelStartTime = System.nanoTime();
-                if (GPU.KERNEL_RADIX_HISTOGRAM.isPostDebugSelected()) {
-                    GPU.KERNEL_RADIX_HISTOGRAM.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_HIST.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_HISTOGRAM.isPostDebugSelected()) {
+                    GPU.COMPUTE_RADIX_HISTOGRAM.addToPostDebugString("Histogramed morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_HIST.getDataAsString("WGHist",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (GPU.KERNEL_RADIX_BUCKET_SCAN.isPreDebugSelected()) {
-                    GPU.KERNEL_RADIX_BUCKET_SCAN.addToPreDebugString("Scanning morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_BUCKET_SCAN.isPreDebugSelected()) {
+                    GPU.COMPUTE_RADIX_BUCKET_SCAN.addToPreDebugString("Scanning morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 2: Scan
-            GPU.KERNEL_RADIX_BUCKET_SCAN.run();
+            GPU.COMPUTE_RADIX_BUCKET_SCAN.run();
             if (debug) {
                 GPUSimulation.checkGLError("radixSortBucketScanPass" + pass);
                 glFinish();
                 radixSortScanParallelTime += System.nanoTime() - radixSortScanParallelStartTime;
                 radixSortScanExclusiveStartTime = System.nanoTime();
-                if (GPU.KERNEL_RADIX_BUCKET_SCAN.isPostDebugSelected()) {
-                    GPU.KERNEL_RADIX_BUCKET_SCAN.addToPostDebugString("Scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_BUCKET_SCAN.isPostDebugSelected()) {
+                    GPU.COMPUTE_RADIX_BUCKET_SCAN.addToPostDebugString("Scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (GPU.KERNEL_RADIX_GLOBAL_SCAN.isPreDebugSelected()) {
-                    GPU.KERNEL_RADIX_GLOBAL_SCAN.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_GLOBAL_SCAN.isPreDebugSelected()) {
+                    GPU.COMPUTE_RADIX_GLOBAL_SCAN.addToPreDebugString("Exclusive scanning morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
-            GPU.KERNEL_RADIX_GLOBAL_SCAN.run();
+            GPU.COMPUTE_RADIX_GLOBAL_SCAN.run();
 
             if (debug) {
                 GPUSimulation.checkGLError("radixSortGlobalScanPass" + pass);
                 glFinish();
                 radixSortScanExclusiveTime += System.nanoTime() - radixSortScanExclusiveStartTime;
                 radixSortScatterStartTime = System.nanoTime();
-                if (GPU.KERNEL_RADIX_GLOBAL_SCAN.isPostDebugSelected()) {
-                    GPU.KERNEL_RADIX_GLOBAL_SCAN.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_GLOBAL_SCAN.isPostDebugSelected()) {
+                    GPU.COMPUTE_RADIX_GLOBAL_SCAN.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
-                if (GPU.KERNEL_RADIX_SCATTER.isPreDebugSelected()) {
-                    GPU.KERNEL_RADIX_SCATTER.addToPreDebugString("Scattering morton codes Pass "+pass+": "+GPU.SSBO_RADIX_BUCKET_TOTALS.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_SCATTER.isPreDebugSelected()) {
+                    GPU.COMPUTE_RADIX_SCATTER.addToPreDebugString("Scattering morton codes Pass "+pass+": "+GPU.SSBO_RADIX_BUCKET_TOTALS.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
             // Phase 3: Scatter
-            GPU.KERNEL_RADIX_SCATTER.run();
+            GPU.COMPUTE_RADIX_SCATTER.run();
             if (debug) {
                 GPUSimulation.checkGLError("radixSortScatterPass" + pass);
                 glFinish();
                 radixSortScatterTime += System.nanoTime() - radixSortScatterStartTime;
-                if (GPU.KERNEL_RADIX_SCATTER.isPostDebugSelected()) {
-                    GPU.KERNEL_RADIX_SCATTER.addToPostDebugString("Scattered morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_RADIX_SCATTER.isPostDebugSelected()) {
+                    GPU.COMPUTE_RADIX_SCATTER.addToPostDebugString("Scattered morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
             
@@ -453,17 +458,17 @@ public class BarnesHut {
     private void buildBinaryRadixTree() {
         if (debug) {
             buildTreeTime = System.nanoTime();
-            if (GPU.KERNEL_TREE_BUILD.isPreDebugSelected()) {
-                GPU.KERNEL_TREE_BUILD.setPreDebugString("Building binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_TREE_BUILD.isPreDebugSelected()) {
+                GPU.COMPUTE_TREE_BUILD.setPreDebugString("Building binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
-        GPU.KERNEL_TREE_BUILD.run();
+        GPU.COMPUTE_TREE_BUILD.run();
         if (debug) {
             GPUSimulation.checkGLError("buildBinaryRadixTree");
             glFinish();
             buildTreeTime = System.nanoTime() - buildTreeTime;
-            if (GPU.KERNEL_TREE_BUILD.isPostDebugSelected()) {
-                GPU.KERNEL_TREE_BUILD.setPostDebugString("Built binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_TREE_BUILD.isPostDebugSelected()) {
+                GPU.COMPUTE_TREE_BUILD.setPostDebugString("Built binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -474,22 +479,22 @@ public class BarnesHut {
     private void computeCOMAndLocation() {
         if (debug) {
             initLeavesTime = System.nanoTime();
-            if (GPU.KERNEL_TREE_INIT_LEAVES.isPreDebugSelected()) {
-                GPU.KERNEL_TREE_INIT_LEAVES.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_TREE_INIT_LEAVES.isPreDebugSelected()) {
+                GPU.COMPUTE_TREE_INIT_LEAVES.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
 
-        GPU.KERNEL_TREE_INIT_LEAVES.run();
+        GPU.COMPUTE_TREE_INIT_LEAVES.run();
 
         if (debug) {
             GPUSimulation.checkGLError("initLeaves");
             glFinish();
             initLeavesTime = System.nanoTime() - initLeavesTime;
-            if (GPU.KERNEL_TREE_INIT_LEAVES.isPostDebugSelected()) {
-                GPU.KERNEL_TREE_INIT_LEAVES.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_TREE_INIT_LEAVES.isPostDebugSelected()) {
+                GPU.COMPUTE_TREE_INIT_LEAVES.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
-            if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
-                GPU.KERNEL_TREE_PROPAGATE_NODES.setPreDebugString("Propagating nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
+                GPU.COMPUTE_TREE_PROPAGATE_NODES.setPreDebugString("Propagating nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             propagateNodesTime = System.nanoTime();
 
@@ -498,25 +503,38 @@ public class BarnesHut {
 
         for (COMPropagationPassNumber = 0; COMPropagationPassNumber < GPU.PROPAGATE_NODES_ITERATIONS; COMPropagationPassNumber++) {
             if (debug) {
-                if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
-                    GPU.KERNEL_TREE_PROPAGATE_NODES.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
+                    GPU.COMPUTE_TREE_PROPAGATE_NODES.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
-            GPU.KERNEL_TREE_PROPAGATE_NODES.run();
+            GPU.COMPUTE_TREE_PROPAGATE_NODES.run();
             if (debug) {
                 GPUSimulation.checkGLError("propagateNodesPass" + COMPropagationPassNumber);
                 glFinish();
-                if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
-                    GPU.KERNEL_TREE_PROPAGATE_NODES.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
+                    GPU.COMPUTE_TREE_PROPAGATE_NODES.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
             GPU.swapPropagateWorkQueueBuffers();
+            //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
+
+            // System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), numBodies(), 10));
+            //System.out.println("Operations last interation:"+passes+" : "  + (workedThreads-lastThreads) + " : using " + Math.max(1,(int)((numBodies() - 1)/Math.pow(2, passes))) + "  threads");
+            //System.out.println(WORK_QUEUE_SSBO.getHeader());
+            //System.out.println(WORK_QUEUE_B_SSBO.getHeader());
+            // lastThreads = workedThreads;
+
+            // try {
+            //     System.in.read();
+            // } catch (Exception e) {
+            //     // Ignore exception
+            // }
 
         }
         
         if (debug) {
-            if (GPU.KERNEL_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
-                GPU.KERNEL_TREE_PROPAGATE_NODES.setPostDebugString("Propagated nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
+                GPU.COMPUTE_TREE_PROPAGATE_NODES.setPostDebugString("Propagated nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             GPUSimulation.checkGLError("propagateNodes");
             glFinish();
@@ -531,19 +549,20 @@ public class BarnesHut {
     private void computeForce() {
         if (debug) {
             computeForceTime = System.nanoTime();
-            if (GPU.KERNEL_FORCE_COMPUTE.isPreDebugSelected()) {
-                GPU.KERNEL_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
+            if (GPU.COMPUTE_FORCE_COMPUTE.isPreDebugSelected()) {
+                GPU.COMPUTE_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
             }
         }
 
+        System.out.println(GPU.UNIFORM_STATIC_OR_DYNAMIC.getValue());
 
-        GPU.KERNEL_FORCE_COMPUTE.run();
+        GPU.COMPUTE_FORCE_COMPUTE.run();
         if (debug) {
             GPUSimulation.checkGLError("computeForce");
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
-            if (GPU.KERNEL_FORCE_COMPUTE.isPostDebugSelected()) {
-                GPU.KERNEL_FORCE_COMPUTE.setPostDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_FORCE_COMPUTE.isPostDebugSelected()) {
+                GPU.COMPUTE_FORCE_COMPUTE.setPostDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -554,17 +573,17 @@ public class BarnesHut {
     private void mergeBodies() {
         if (debug) {
             mergeBodiesTime = System.nanoTime();
-            if (GPU.KERNEL_MERGE_BODIES.isPreDebugSelected()) {
-                GPU.KERNEL_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_MERGE_BODIES.isPreDebugSelected()) {
+                GPU.COMPUTE_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
-        GPU.KERNEL_MERGE_BODIES.run();
+        GPU.COMPUTE_MERGE_BODIES.run();
         if (debug) {
             GPUSimulation.checkGLError("mergeBodies");
             glFinish();
             mergeBodiesTime = System.nanoTime() - mergeBodiesTime;
-            if (GPU.KERNEL_MERGE_BODIES.isPostDebugSelected()) {
-                GPU.KERNEL_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+            if (GPU.COMPUTE_MERGE_BODIES.isPostDebugSelected()) {
+                GPU.COMPUTE_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
