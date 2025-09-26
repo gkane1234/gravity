@@ -37,7 +37,7 @@ This is done identically one pass of the radix sort below with objects either be
 
 Morton encoding is a method of creating a space filling curve in N-dimensional space by interweaving each coordinate's binary bits in descending order of significance:
 
-$$x_1y_1z_1x_2y_2z_2x_3y_3z_3_2\ldots$$
+$$x_1y_1z_1x_2y_2z_2x_3y_3{z_3}_2\ldots$$
 
 Nearby codes are generally near each other in space with regular jumps in their location. The tree building algorithm is able to fully realize this complexity and give an accurate spacial partition.
 
