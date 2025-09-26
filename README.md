@@ -15,7 +15,7 @@ All calculations during the simulation are done using compute shaders in GLSL. T
 
 
 
-## Compute Shader Algorithms Breakdown
+# Compute Shader Algorithms Breakdown
 Our implementation of the Barnes-Hut N-Body Algorithm works broadly in 6 steps:
 
 1. Morton encoding of the objects
