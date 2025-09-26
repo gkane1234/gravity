@@ -12,7 +12,7 @@ import static org.lwjgl.opengl.GL11.*;
  */
 public class UIRow extends UIElement {
 
-    private ArrayList<UIElement> elements;
+    protected ArrayList<UIElement> elements;
 
     private float padding = 10.0f;
 
@@ -26,12 +26,30 @@ public class UIRow extends UIElement {
     }
 
     /**
+     * Constructor for the UIRow class.
+     */
+    public UIRow() {
+        super();
+        this.elements = new ArrayList<>();
+    }
+
+    /**
      * Gets the elements in the row.
      * @return The elements in the row.
      */
     public ArrayList<UIElement> getElements() {
         return elements;
     }
+
+    /**
+     * Adds an element to the row.
+     * @param element The element to add to the row.
+     */
+    public void setElements(ArrayList<UIElement> elements) {
+        this.elements = elements;
+    }
+
+
 
 
 
@@ -84,13 +102,12 @@ public class UIRow extends UIElement {
 
     @Override 
     public boolean handleMousePress(double mouseX, double mouseY) {
-        boolean mousePressed = false;
         for (UIElement element : elements) {
             if (element.handleMousePress(mouseX, mouseY)) {
-                mousePressed = true;
+                return true;
             }
         }
-        return mousePressed;
+        return false;
     }
 
     @Override

@@ -1,6 +1,5 @@
 package com.grumbo.simulation;
 
-import java.nio.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
@@ -51,7 +50,7 @@ public class GPUSimulation {
     }
 
     public State state = State.PAUSED;
-
+    @SuppressWarnings("unused")
     private boolean debug;
 
     // Recording
@@ -509,7 +508,7 @@ public class GPUSimulation {
      * Toggles the regions rendering.
      */
     public void toggleRegions() {
-        render.showRegions = !render.showRegions;
+        Settings.getInstance().setShowRegions(!Settings.getInstance().isShowRegions());
     }
 
     /**
@@ -554,7 +553,6 @@ public class GPUSimulation {
     public void cleanup() {
 
         GPU.cleanup();
-        render.cleanup();
         if (isRecording) {
             stopRecording();
         }

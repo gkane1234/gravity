@@ -1,5 +1,4 @@
 package com.grumbo.simulation;
-import java.util.ArrayList;
 import org.joml.Vector3f;
 /**
  * Planet class for the simulation.

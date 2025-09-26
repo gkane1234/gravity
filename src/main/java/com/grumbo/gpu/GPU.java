@@ -33,6 +33,7 @@ public class GPU {
     public static Map<String, Uniform<?>> UNIFORMS;
     public static Map<String, SSBO> SSBOS;
     public static Map<String, ComputeProgram> COMPUTE_PROGRAMS;
+    public static Map<String, RenderProgram> RENDER_PROGRAMS;
     //public static Map<String, VertexShader> VERTEX_SHADERS;
     //public static Map<String, FragmentShader> FRAGMENT_SHADERS;
 
@@ -401,17 +402,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_PASS_SHIFT.getName(), UNIFORM_PASS_SHIFT);
 
         UNIFORM_COLLISION_MERGING_OR_NEITHER = new Uniform<Integer>("collisionMergingOrNeither", () -> {
-            String selected = Settings.getInstance().getCollisionMergingOrNeither();
-            switch (selected) {
-                case "none":
-                    return 0;
-                case "merge":
-                    return 2;
-                case "collision":
-                    return 1;
-                default:
-                    return 0;
-            }
+            return Settings.getInstance().getSelectedIndexCollisionMergingOrNeither();
         }, VariableType.UINT);
 
         GPU.UNIFORMS.put(UNIFORM_COLLISION_MERGING_OR_NEITHER.getName(), UNIFORM_COLLISION_MERGING_OR_NEITHER);
@@ -429,15 +420,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_WRAP_AROUND.getName(), UNIFORM_WRAP_AROUND);
 
         UNIFORM_STATIC_OR_DYNAMIC = new Uniform<Integer>("staticOrDynamic", () -> {
-            String selected = Settings.getInstance().getDynamic();
-            switch (selected) {
-                case "static":
-                    return 0;
-                case "dynamic":
-                    return 1;
-                default:
-                    return 0;
-            }
+            return Settings.getInstance().getSelectedIndexDynamic();
         }, VariableType.UINT);
 
         GPU.UNIFORMS.put(UNIFORM_STATIC_OR_DYNAMIC.getName(), UNIFORM_STATIC_OR_DYNAMIC);
@@ -805,7 +788,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_ASPECT.getName(), UNIFORM_ASPECT);
 
         GPU.UNIFORM_PASS = new Uniform<Integer>("uPass", () -> {
-            return render.pass;
+            return render.glowPass ? 1 : 0;
         }, VariableType.INT);
         GPU.UNIFORMS.put(UNIFORM_PASS.getName(), UNIFORM_PASS);
 
@@ -840,6 +823,8 @@ public class GPU {
             GLSLMesh.reInitializeMesh(mesh);
         }
 
+        GPU.RENDER_PROGRAMS = new HashMap<>();
+
         // Create points render program
         GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, GPU.initialNumBodies);
         GPU.RENDER_POINTS.setUniforms(new Uniform[] {
@@ -848,6 +833,7 @@ public class GPU {
         GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_POINTS.getProgramName(), GPU.RENDER_POINTS);
         GPUSimulation.checkGLError("RENDER_POINTS");
 
 
@@ -869,6 +855,7 @@ public class GPU {
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SIMULATION_VALUES
         });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_IMPOSTOR.getProgramName(), GPU.RENDER_IMPOSTOR);
         GPUSimulation.checkGLError("RENDER_IMPOSTOR");
 
         // Create mesh sphere render program
@@ -881,6 +868,7 @@ public class GPU {
         GPU.RENDER_SPHERE.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_SPHERE.getProgramName(), GPU.RENDER_SPHERE);
         GPUSimulation.checkGLError("GPU.RENDER_SPHERE");
 
         // Enable point size
@@ -897,6 +885,7 @@ public class GPU {
             GPU.SSBO_INTERNAL_NODES,
             GPU.SSBO_SIMULATION_VALUES,
         });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_REGIONS.getProgramName(), GPU.RENDER_REGIONS);
         GPUSimulation.checkGLError("GPU.RENDER_REGIONS");
 
         GPUSimulation.checkGLError("init");
@@ -1023,12 +1012,12 @@ public class GPU {
         for (ComputeProgram program : GPU.COMPUTE_PROGRAMS.values()) {
             program.delete();
         }
-        //for (VertexShader shader : GPU.VERTEX_SHADERS.values()) {
-        //    shader.delete();
-        //}
-        //for (FragmentShader shader : GPU.FRAGMENT_SHADERS.values()) {
-        //    shader.delete();
-        //}
+        for (RenderProgram program : GPU.RENDER_PROGRAMS.values()) {
+                program.delete();
+        }
+        for (RenderProgram program : GPU.RENDER_PROGRAMS.values()) {
+            program.delete();
+        }
         for (SSBO ssbo : GPU.SSBOS.values()) {
             ssbo.delete();
         }

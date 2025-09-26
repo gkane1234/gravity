@@ -4,7 +4,7 @@ package com.grumbo.simulation;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ public class Settings {
     private static Settings instance;
 
     // Property map to store all settings
-    private Map<String, Property<?>> properties = new HashMap<>();
+    private Map<String, Property<?>> properties = new LinkedHashMap<>();
 
     private Settings() {
         initializeProperties();
@@ -55,19 +55,40 @@ public class Settings {
 	 */
 	private void initializeProperties() {
 		// Window width in pixels
-		{ Property<Integer> p = Property.createIntProperty("width", 1000, 1000); p.setEditable(true); properties.put("width", p); }
+		{ Property<Integer> p = Property.createIntProperty("width", 1000, 1000); p.setEditable(false); properties.put("width", p); }
 
 		// Window height in pixels
-		{ Property<Integer> p = Property.createIntProperty("height", 1000, 1000); p.setEditable(true); properties.put("height", p); }
+		{ Property<Integer> p = Property.createIntProperty("height", 1000, 1000); p.setEditable(false); properties.put("height", p); }
+
+		// Render mode
+		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impGlow", "impGlow", new String[]{"off", "points", "imp", "impGlow", "mesh"}, true));
+
+		// Show regions
+		properties.put("showRegions", Property.createBooleanProperty("showRegions", false, false, true));
+
+		// Wrap around
+		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
+
+		// Collision merging or neither
+		properties.put("collisionMergingOrNeither", Property.createSelectorProperty("collisionMergingOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
+
+		// Simulation bounds
+		properties.put("dynamic", Property.createSelectorProperty("dynamic", "static", "static", new String[]{"static", "dynamic"}, true));
+
+		// Time step
+		{ Property<Float> p = Property.createFloatProperty("dt", 6f, 6f); p.setEditable(true); properties.put("dt", p); }
+
+		// Barnes-Hut acceptance criterion
+		{ Property<Float> p = Property.createFloatProperty("theta", 0.6f, 0.6f); p.setEditable(true); properties.put("theta", p); }
 
 		// Camera zoom level
 		{ Property<Double> p = Property.createDoubleProperty("zoom", 0.01, 0.01); p.setEditable(true); properties.put("zoom", p); }
 
+		// Field of view for camera
+		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
+
 		// Camera shift position
 		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("DOUBLE_ARRAY"); p.setEditable(true); properties.put("shift", p); }
-
-		// Time step
-		{ Property<Float> p = Property.createFloatProperty("dt", 6f, 6f); p.setEditable(true); properties.put("dt", p); }
 
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
@@ -78,8 +99,11 @@ public class Settings {
 		// Number of segments for sphere rendering
 		{ Property<Integer> p = Property.createIntProperty("sphereSegments", 12, 12); p.setEditable(true); properties.put("sphereSegments", p); }
 
-		// Field of view for camera
-		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
+		// Minimum and maximum depth for regions
+		{ Property<Integer> p = Property.createIntProperty("minDepth", 0, 0); p.setEditable(true); properties.put("minDepth", p); }
+
+		// Minimum and maximum depth for regions
+		{ Property<Integer> p = Property.createIntProperty("maxDepth", 100, 100); p.setEditable(true); properties.put("maxDepth", p); }
 
 		// Near plane for camera
 		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
@@ -100,7 +124,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f); p.setEditable(true); properties.put("mouseRotationSensitivity", p); }
 
 		// Camera position
-		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 1000.0f), new Vector3f(0.0f, 0.0f, 1000.0f), true));
+		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 1.0f), new Vector3f(0.0f, 0.0f, 1.0f), true));
 
 		// Camera front vector
 		properties.put("cameraFront", Property.createVector3fProperty("cameraFront", new Vector3f(0.0f, 0.0f, -1.0f), new Vector3f(0.0f, 0.0f, -1.0f), true));
@@ -113,27 +137,6 @@ public class Settings {
 
 		// Camera pitch
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
-
-		// Barnes-Hut acceptance criterion
-		{ Property<Float> p = Property.createFloatProperty("theta", 0.6f, 0.6f); p.setEditable(true); properties.put("theta", p); }
-
-		// Minimum and maximum depth for regions
-		{ Property<Integer> p = Property.createIntProperty("minDepth", 0, 0); p.setEditable(true); properties.put("minDepth", p); }
-
-		// Minimum and maximum depth for regions
-		{ Property<Integer> p = Property.createIntProperty("maxDepth", 100, 100); p.setEditable(true); properties.put("maxDepth", p); }
-
-		// Wrap around
-		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
-
-		// Collision merging or neither
-		properties.put("collisionMergingOrNeither", Property.createSelectorProperty("collisionMergingOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
-
-		// Simulation bounds
-		properties.put("dynamic", Property.createSelectorProperty("dynamic", "static", "static", new String[]{"static", "dynamic"}, true));
-
-		// Render mode
-		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impGlow", "impGlow", new String[]{"off", "points", "imp", "impGlow", "mesh"}, true));
 
 	}
 	/**
@@ -164,361 +167,414 @@ public class Settings {
 		prop.setValue(value);
 	}
 	/**
-	 * Gets the value of the property width.
+	 * Gets the selected index of a given selector property.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	@SuppressWarnings("unchecked")
+	public int getSelectedIndex(String propertyName) {
+		Property<String> prop = (Property<String>) properties.get(propertyName);
+		if (prop == null) {
+			throw new IllegalArgumentException("Property not found: " + propertyName);
+		}
+		return prop.getSelectedIndex();
+	}
+	/**
+	 * Gets the value of theint property width.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public int getWidth() { return getValue("width"); }
 	/**
-	 * Sets the value of the property width.
+	 * Sets the value of the int property width.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setWidth(int value) { setValue("width", value); }
 
 	/**
-	 * Gets the value of the property height.
+	 * Gets the value of theint property height.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public int getHeight() { return getValue("height"); }
 	/**
-	 * Sets the value of the property height.
+	 * Sets the value of the int property height.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setHeight(int value) { setValue("height", value); }
 
 	/**
-	 * Gets the value of the property zoom.
+	 * Gets the value of theselector property renderMode.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public double getZoom() { return getValue("zoom"); }
+	public String getRenderMode() { return getValue("renderMode"); }
 	/**
-	 * Sets the value of the property zoom.
+	 * Sets the value of the selector property renderMode.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void setZoom(double value) { setValue("zoom", value); }
+	public void setRenderMode(String value) { setValue("renderMode", value); }
 
 	/**
-	 * Gets the value of the property shift.
+	 * Gets the selected index of the selector property renderMode.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public double[] getShift() { return getValue("shift"); }
-	/**
-	 * Sets the value of the property shift.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setShift(double[] value) { setValue("shift", value); }
+	public int getSelectedIndexRenderMode() { return getSelectedIndex("renderMode"); }
 
 	/**
-	 * Gets the value of the property dt.
+	 * Gets the value of theboolean property showRegions.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public float getDt() { return getValue("dt"); }
+	public boolean isShowRegions() { return getValue("showRegions"); }
 	/**
-	 * Sets the value of the property dt.
+	 * Sets the value of the boolean property showRegions.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void setDt(float value) { setValue("dt", value); }
+	public void setShowRegions(boolean value) { setValue("showRegions", value); }
 
 	/**
-	 * Gets the value of the property softening.
+	 * Toggles the value of the boolean property showRegions.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public float getSoftening() { return getValue("softening"); }
+	public void toggleShowRegions() { setShowRegions(!isShowRegions()); }
 	/**
-	 * Sets the value of the property softening.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setSoftening(float value) { setValue("softening", value); }
-
-	/**
-	 * Gets the value of the property elasticity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public double getElasticity() { return getValue("elasticity"); }
-	/**
-	 * Sets the value of the property elasticity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setElasticity(double value) { setValue("elasticity", value); }
-
-	/**
-	 * Gets the value of the property sphereSegments.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public int getSphereSegments() { return getValue("sphereSegments"); }
-	/**
-	 * Sets the value of the property sphereSegments.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setSphereSegments(int value) { setValue("sphereSegments", value); }
-
-	/**
-	 * Gets the value of the property fov.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getFov() { return getValue("fov"); }
-	/**
-	 * Sets the value of the property fov.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setFov(float value) { setValue("fov", value); }
-
-	/**
-	 * Gets the value of the property nearPlane.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getNearPlane() { return getValue("nearPlane"); }
-	/**
-	 * Sets the value of the property nearPlane.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setNearPlane(float value) { setValue("nearPlane", value); }
-
-	/**
-	 * Gets the value of the property farPlane.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getFarPlane() { return getValue("farPlane"); }
-	/**
-	 * Sets the value of the property farPlane.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setFarPlane(float value) { setValue("farPlane", value); }
-
-	/**
-	 * Gets the value of the property cameraMoveSpeed.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getCameraMoveSpeed() { return getValue("cameraMoveSpeed"); }
-	/**
-	 * Sets the value of the property cameraMoveSpeed.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setCameraMoveSpeed(float value) { setValue("cameraMoveSpeed", value); }
-
-	/**
-	 * Gets the value of the property WASDSensitivity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getWASDSensitivity() { return getValue("WASDSensitivity"); }
-	/**
-	 * Sets the value of the property WASDSensitivity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setWASDSensitivity(float value) { setValue("WASDSensitivity", value); }
-
-	/**
-	 * Gets the value of the property mouseWheelSensitivity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getMouseWheelSensitivity() { return getValue("mouseWheelSensitivity"); }
-	/**
-	 * Sets the value of the property mouseWheelSensitivity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setMouseWheelSensitivity(float value) { setValue("mouseWheelSensitivity", value); }
-
-	/**
-	 * Gets the value of the property mouseRotationSensitivity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getMouseRotationSensitivity() { return getValue("mouseRotationSensitivity"); }
-	/**
-	 * Sets the value of the property mouseRotationSensitivity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setMouseRotationSensitivity(float value) { setValue("mouseRotationSensitivity", value); }
-
-	/**
-	 * Gets the value of the property cameraPos.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public Vector3f getCameraPos() { return getValue("cameraPos"); }
-	/**
-	 * Sets the value of the property cameraPos.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setCameraPos(Vector3f value) { setValue("cameraPos", value); }
-
-	/**
-	 * Gets the value of the property cameraFront.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public Vector3f getCameraFront() { return getValue("cameraFront"); }
-	/**
-	 * Sets the value of the property cameraFront.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setCameraFront(Vector3f value) { setValue("cameraFront", value); }
-
-	/**
-	 * Gets the value of the property cameraUp.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public Vector3f getCameraUp() { return getValue("cameraUp"); }
-	/**
-	 * Sets the value of the property cameraUp.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setCameraUp(Vector3f value) { setValue("cameraUp", value); }
-
-	/**
-	 * Gets the value of the property yaw.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getYaw() { return getValue("yaw"); }
-	/**
-	 * Sets the value of the property yaw.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setYaw(float value) { setValue("yaw", value); }
-
-	/**
-	 * Gets the value of the property pitch.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getPitch() { return getValue("pitch"); }
-	/**
-	 * Sets the value of the property pitch.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setPitch(float value) { setValue("pitch", value); }
-
-	/**
-	 * Gets the value of the property theta.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getTheta() { return getValue("theta"); }
-	/**
-	 * Sets the value of the property theta.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setTheta(float value) { setValue("theta", value); }
-
-	/**
-	 * Gets the value of the property minDepth.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public int getMinDepth() { return getValue("minDepth"); }
-	/**
-	 * Sets the value of the property minDepth.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setMinDepth(int value) { setValue("minDepth", value); }
-
-	/**
-	 * Gets the value of the property maxDepth.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public int getMaxDepth() { return getValue("maxDepth"); }
-	/**
-	 * Sets the value of the property maxDepth.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setMaxDepth(int value) { setValue("maxDepth", value); }
-
-	/**
-	 * Gets the value of the property wrapAround.
+	 * Gets the value of theboolean property wrapAround.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public boolean isWrapAround() { return getValue("wrapAround"); }
 	/**
-	 * Sets the value of the property wrapAround.
+	 * Sets the value of the boolean property wrapAround.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setWrapAround(boolean value) { setValue("wrapAround", value); }
 
 	/**
-	 * Toggles the value of the property wrapAround.
+	 * Toggles the value of the boolean property wrapAround.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void toggleWrapAround() { setWrapAround(!isWrapAround()); }
 	/**
-	 * Gets the value of the property collisionMergingOrNeither.
+	 * Gets the value of theselector property collisionMergingOrNeither.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public String getCollisionMergingOrNeither() { return getValue("collisionMergingOrNeither"); }
 	/**
-	 * Sets the value of the property collisionMergingOrNeither.
+	 * Sets the value of the selector property collisionMergingOrNeither.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setCollisionMergingOrNeither(String value) { setValue("collisionMergingOrNeither", value); }
 
 	/**
-	 * Gets the value of the property dynamic.
+	 * Gets the selected index of the selector property collisionMergingOrNeither.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getSelectedIndexCollisionMergingOrNeither() { return getSelectedIndex("collisionMergingOrNeither"); }
+
+	/**
+	 * Gets the value of theselector property dynamic.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public String getDynamic() { return getValue("dynamic"); }
 	/**
-	 * Sets the value of the property dynamic.
+	 * Sets the value of the selector property dynamic.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setDynamic(String value) { setValue("dynamic", value); }
 
 	/**
-	 * Gets the value of the property renderMode.
+	 * Gets the selected index of the selector property dynamic.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public String getRenderMode() { return getValue("renderMode"); }
+	public int getSelectedIndexDynamic() { return getSelectedIndex("dynamic"); }
+
 	/**
-	 * Sets the value of the property renderMode.
+	 * Gets the value of thefloat property dt.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void setRenderMode(String value) { setValue("renderMode", value); }
+	public float getDt() { return getValue("dt"); }
+	/**
+	 * Sets the value of the float property dt.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setDt(float value) { setValue("dt", value); }
+
+	/**
+	 * Gets the value of thefloat property theta.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getTheta() { return getValue("theta"); }
+	/**
+	 * Sets the value of the float property theta.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setTheta(float value) { setValue("theta", value); }
+
+	/**
+	 * Gets the value of thedouble property zoom.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public double getZoom() { return getValue("zoom"); }
+	/**
+	 * Sets the value of the double property zoom.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setZoom(double value) { setValue("zoom", value); }
+
+	/**
+	 * Gets the value of thefloat property fov.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getFov() { return getValue("fov"); }
+	/**
+	 * Sets the value of the float property fov.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setFov(float value) { setValue("fov", value); }
+
+	/**
+	 * Gets the value of thedoubleArray property shift.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public double[] getShift() { return getValue("shift"); }
+	/**
+	 * Sets the value of the doubleArray property shift.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setShift(double[] value) { setValue("shift", value); }
+
+	/**
+	 * Gets the value of thefloat property softening.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getSoftening() { return getValue("softening"); }
+	/**
+	 * Sets the value of the float property softening.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setSoftening(float value) { setValue("softening", value); }
+
+	/**
+	 * Gets the value of thedouble property elasticity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public double getElasticity() { return getValue("elasticity"); }
+	/**
+	 * Sets the value of the double property elasticity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setElasticity(double value) { setValue("elasticity", value); }
+
+	/**
+	 * Gets the value of theint property sphereSegments.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getSphereSegments() { return getValue("sphereSegments"); }
+	/**
+	 * Sets the value of the int property sphereSegments.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setSphereSegments(int value) { setValue("sphereSegments", value); }
+
+	/**
+	 * Gets the value of theint property minDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getMinDepth() { return getValue("minDepth"); }
+	/**
+	 * Sets the value of the int property minDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setMinDepth(int value) { setValue("minDepth", value); }
+
+	/**
+	 * Gets the value of theint property maxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getMaxDepth() { return getValue("maxDepth"); }
+	/**
+	 * Sets the value of the int property maxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setMaxDepth(int value) { setValue("maxDepth", value); }
+
+	/**
+	 * Gets the value of thefloat property nearPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNearPlane() { return getValue("nearPlane"); }
+	/**
+	 * Sets the value of the float property nearPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNearPlane(float value) { setValue("nearPlane", value); }
+
+	/**
+	 * Gets the value of thefloat property farPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getFarPlane() { return getValue("farPlane"); }
+	/**
+	 * Sets the value of the float property farPlane.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setFarPlane(float value) { setValue("farPlane", value); }
+
+	/**
+	 * Gets the value of thefloat property cameraMoveSpeed.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getCameraMoveSpeed() { return getValue("cameraMoveSpeed"); }
+	/**
+	 * Sets the value of the float property cameraMoveSpeed.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setCameraMoveSpeed(float value) { setValue("cameraMoveSpeed", value); }
+
+	/**
+	 * Gets the value of thefloat property WASDSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getWASDSensitivity() { return getValue("WASDSensitivity"); }
+	/**
+	 * Sets the value of the float property WASDSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setWASDSensitivity(float value) { setValue("WASDSensitivity", value); }
+
+	/**
+	 * Gets the value of thefloat property mouseWheelSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getMouseWheelSensitivity() { return getValue("mouseWheelSensitivity"); }
+	/**
+	 * Sets the value of the float property mouseWheelSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setMouseWheelSensitivity(float value) { setValue("mouseWheelSensitivity", value); }
+
+	/**
+	 * Gets the value of thefloat property mouseRotationSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getMouseRotationSensitivity() { return getValue("mouseRotationSensitivity"); }
+	/**
+	 * Sets the value of the float property mouseRotationSensitivity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setMouseRotationSensitivity(float value) { setValue("mouseRotationSensitivity", value); }
+
+	/**
+	 * Gets the value of thevector3f property cameraPos.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public Vector3f getCameraPos() { return getValue("cameraPos"); }
+	/**
+	 * Sets the value of the vector3f property cameraPos.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setCameraPos(Vector3f value) { setValue("cameraPos", value); }
+
+	/**
+	 * Gets the value of thevector3f property cameraFront.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public Vector3f getCameraFront() { return getValue("cameraFront"); }
+	/**
+	 * Sets the value of the vector3f property cameraFront.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setCameraFront(Vector3f value) { setValue("cameraFront", value); }
+
+	/**
+	 * Gets the value of thevector3f property cameraUp.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public Vector3f getCameraUp() { return getValue("cameraUp"); }
+	/**
+	 * Sets the value of the vector3f property cameraUp.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setCameraUp(Vector3f value) { setValue("cameraUp", value); }
+
+	/**
+	 * Gets the value of thefloat property yaw.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getYaw() { return getValue("yaw"); }
+	/**
+	 * Sets the value of the float property yaw.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setYaw(float value) { setValue("yaw", value); }
+
+	/**
+	 * Gets the value of thefloat property pitch.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getPitch() { return getValue("pitch"); }
+	/**
+	 * Sets the value of the float property pitch.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setPitch(float value) { setValue("pitch", value); }
 
 	/**
 	 * Adds a property to the Settings class.
@@ -650,7 +706,7 @@ public class Settings {
 	public void saveSettings() {
 		try {
 			ObjectMapper mapper = new ObjectMapper();
-			Map<String, Object> jsonData = new HashMap<>();
+			Map<String, Object> jsonData = new LinkedHashMap<>();
 			
 			for (Map.Entry<String, Property<?>> entry : properties.entrySet()) {
 				String key = entry.getKey();

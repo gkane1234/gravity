@@ -13,11 +13,9 @@ import org.joml.Vector3f;
  * @since 1.0
  */
 public class PlanetGenerator {
-    private List<Planet> planetChunk;
     private int chunkSize;
     public int planetsGenerated;
     private int numPlanets;
-    private int planetOffset;
     private PlanetGeneratorFunction planetGeneratorFunction;
     private HasNextFunction hasNextFunction;
 

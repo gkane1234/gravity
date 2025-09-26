@@ -7,7 +7,6 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL43.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
-import com.grumbo.simulation.GPUSimulation;
 import com.grumbo.ui.OpenGLUI;
 
 /**

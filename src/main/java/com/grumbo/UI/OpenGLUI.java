@@ -29,11 +29,6 @@ public class OpenGLUI {
     private SettingsPane settingsPane;
     public boolean showCrosshair = false;
 
-    private boolean recordCurrentBodies = false;
-
-    private int lastBodies = 0;
-    private int lastSteps = 0;
-    private int lastDifference = 0;
     /**
      * KeyEvent class represents a key event.
      */
@@ -438,7 +433,6 @@ public class OpenGLUI {
         }
         
         // Handle relative camera movement based on key states
-        Vector3f moveDirection = new Vector3f();
         float moveSpeed = 1f;
 
         switch (key) {
@@ -466,7 +460,6 @@ public class OpenGLUI {
             return; // Skip if font is not available
         }
 
-        boolean newFrame = lastSteps != openGlWindow.gpuSimulation.getSteps();
 
      
         String statsText = String.format("FPS: %.1f", openGlWindow.getFPS());

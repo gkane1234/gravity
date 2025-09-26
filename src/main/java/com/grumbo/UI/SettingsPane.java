@@ -170,7 +170,7 @@ public class SettingsPane {
 
         glColor3f(1.0f, 1.0f, 1.0f);
 
-        float yPos = 30.0f;
+        float yPos = 50.0f;
         float xOffset = 20.0f;
         float bottomSpace = 80.0f;
         float bottomY = Settings.getInstance().getHeight() - bottomSpace;
@@ -184,6 +184,7 @@ public class SettingsPane {
         renderedRows.add(titleAndPageButtons.get(0));
        
         float pageY = yPos+titleAndPageButtons.get(0).height+verticalPadding;
+        yPos = pageY;
         pageHeight = bottomY - pageY;
 
         for (Property<?> prop : propertyRows) {

@@ -4,12 +4,57 @@
       "type": "int",
       "default": 1000,
       "description": "Window width in pixels",
-      "editable": true
+      "editable": false
     },
     "height": {
       "type": "int",
       "default": 1000,
       "description": "Window height in pixels",
+      "editable": false
+    },
+    "renderMode": {
+      "type": "selector",
+      "default": "impGlow",
+      "options": ["off", "points", "imp", "impGlow", "mesh"],
+      "description": "Render mode",
+      "editable": true
+    },
+    "showRegions": {
+      "type": "boolean",
+      "default": false,
+      "description": "Show regions",
+      "editable": true
+    },
+    "wrapAround": {
+      "type": "boolean",
+      "default": false,
+      "description": "Wrap around",
+      "editable": true
+    },
+    "collisionMergingOrNeither": {
+      "type": "selector",
+      "default": "none",
+      "options": ["none", "merge", "collision"],
+      "description": "Collision merging or neither",
+      "editable": true
+    },
+    "dynamic": {
+      "type": "selector",
+      "default": "static",
+      "options": ["static", "dynamic"],
+      "description": "Simulation bounds",
+      "editable": true
+    },
+    "dt": {
+      "type": "float",
+      "default": 6,
+      "description": "Time step",
+      "editable": true
+    },
+    "theta": {
+      "type": "float",
+      "default": 0.6,
+      "description": "Barnes-Hut acceptance criterion",
       "editable": true
     },
     "zoom": {
@@ -18,16 +63,10 @@
       "description": "Camera zoom level",
       "editable": true
     },
-    "shift": {
-      "type": "doubleArray",
-      "default": [0, 0, 0],
-      "description": "Camera shift position",
-      "editable": true
-    },
-    "dt": {
+    "fov": {
       "type": "float",
-      "default": 6,
-      "description": "Time step",
+      "default": 45.0,
+      "description": "Field of view for camera",
       "editable": true
     },
     "softening": {
@@ -50,10 +89,16 @@
       "description": "Number of segments for sphere rendering",
       "editable": true
     },
-    "fov": {
-      "type": "float",
-      "default": 45.0,
-      "description": "Field of view for camera",
+    "minDepth": {
+      "type": "int",
+      "default": 0,
+      "description": "Minimum and maximum depth for regions",
+      "editable": true
+    },
+    "maxDepth": {
+      "type": "int",
+      "default": 100,
+      "description": "Minimum and maximum depth for regions",
       "editable": true
     },
     "nearPlane": {
@@ -92,6 +137,12 @@
       "description": "Mouse rotation sensitivity",
       "editable": true
     },
+    "shift": {
+      "type": "doubleArray",
+      "default": [0, 0, 0],
+      "description": "Camera shift position",
+      "editable": true
+    },
     "cameraPos": {
       "type": "vector3f",
       "default": [0.0, 0.0, 1.0],
@@ -120,51 +171,6 @@
       "type": "float",
       "default": 0.0,
       "description": "Camera pitch",
-      "editable": true
-    },
-    "theta": {
-      "type": "float",
-      "default": 0.6,
-      "description": "Barnes-Hut acceptance criterion",
-      "editable": true
-    },
-    "minDepth": {
-      "type": "int",
-      "default": 0,
-      "description": "Minimum and maximum depth for regions",
-      "editable": true
-    },
-    "maxDepth": {
-      "type": "int",
-      "default": 100,
-      "description": "Minimum and maximum depth for regions",
-      "editable": true
-    },
-    "wrapAround": {
-      "type": "boolean",
-      "default": false,
-      "description": "Wrap around",
-      "editable": true
-    },
-    "collisionMergingOrNeither": {
-      "type": "selector",
-      "default": "none",
-      "options": ["none", "merge", "collision"],
-      "description": "Collision merging or neither",
-      "editable": true
-    },
-    "dynamic": {
-      "type": "selector",
-      "default": "static",
-      "options": ["static", "dynamic"],
-      "description": "Simulation bounds",
-      "editable": true
-    },
-    "renderMode": {
-      "type": "selector",
-      "default": "impGlow",
-      "options": ["off", "points", "imp", "impGlow", "mesh"],
-      "description": "Render mode",
       "editable": true
     }
   }
