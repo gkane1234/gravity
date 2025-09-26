@@ -15,7 +15,7 @@
   "WASDSensitivity" : 10000.0,
   "height" : 1000,
   "cameraFront" : {
-    "x" : 6.123234E-17,
+    "x" : 0.0,
     "y" : 0.0,
     "z" : -1.0,
     "finite" : true

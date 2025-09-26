@@ -33,11 +33,7 @@ public class Render {
     }
     public boolean showRegions = false;
 
-    // Render Programs
-    private RenderProgram pointsProgram; // points program
-    private RenderProgram impostorProgram; // point-sprite impostor spheres
-    private RenderProgram sphereProgram;   // instanced mesh spheres
-    private RenderProgram regionsProgram; // regions
+
     
 
     // Impostor config
@@ -67,70 +63,7 @@ public class Render {
      */
     public void init() {
 
-        for (GLSLMesh.MeshType mesh : GLSLMesh.MeshType.values()) {
-            GLSLMesh.reInitializeMesh(mesh);
-        }
-
-        // Create points render program
-        pointsProgram = new RenderProgram("points", GLSLMesh.MeshType.POINTS, gpuSimulation.initialNumBodies());
-        pointsProgram.setUniforms(new Uniform[] {
-            GPU.UNIFORM_MVP
-        });
-        pointsProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_IN,
-        });
-        GPUSimulation.checkGLError("pointsProgram");
-
-
-
-        // Create impostor render program
-        impostorProgram = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, gpuSimulation.initialNumBodies());
-        RenderProgram.checkProgram(impostorProgram.getProgram());
-        impostorProgram.setUniforms(new Uniform[] {
-            GPU.UNIFORM_POINT_SCALE,
-            GPU.UNIFORM_CAMERA_POS,
-            GPU.UNIFORM_CAMERA_FRONT,
-            GPU.UNIFORM_FOV_Y,
-            GPU.UNIFORM_ASPECT,
-            GPU.UNIFORM_PASS,
-            GPU.UNIFORM_PROJ,
-            GPU.UNIFORM_MODEL_VIEW,
-        });
-        impostorProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_IN,
-            GPU.SSBO_SIMULATION_VALUES
-        });
-        GPUSimulation.checkGLError("impostorProgram");
-
-        // Create mesh sphere render program
-        sphereProgram = new RenderProgram("sphere", GLSLMesh.MeshType.SPHERE, gpuSimulation.initialNumBodies());
-        sphereProgram.setUniforms(new Uniform[] {
-            GPU.UNIFORM_MVP,
-            GPU.UNIFORM_RADIUS_SCALE,
-            GPU.UNIFORM_CAMERA_POS,
-        });
-        sphereProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_IN,
-        });
-        GPUSimulation.checkGLError("sphereProgram");
-
-        // Enable point size
-        glEnable(GL_PROGRAM_POINT_SIZE);
-
-
-        // Initialize regions program
-        regionsProgram = new RenderProgram("regions", GLSLMesh.MeshType.REGIONS, gpuSimulation.initialNumBodies()-1);
-        regionsProgram.setUniforms(new Uniform[] {
-            GPU.UNIFORM_MVP,
-            GPU.UNIFORM_MIN_MAX_DEPTH,
-        });
-        regionsProgram.setSSBOs(new SSBO[] {
-            GPU.SSBO_INTERNAL_NODES,
-            GPU.SSBO_SIMULATION_VALUES,
-        });
-        GPUSimulation.checkGLError("regionsProgram");
-
-        GPUSimulation.checkGLError("init");
+        
 
     }
 
@@ -162,7 +95,7 @@ public class Render {
      * Renders the points.
      */
     public void renderPoints() {
-        pointsProgram.run();
+        GPU.RENDER_POINTS.run();
     }
 
     /**
@@ -176,7 +109,7 @@ public class Render {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         pass = 0;
-        impostorProgram.run();
+        GPU.RENDER_IMPOSTOR.run();
 
         if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
             //set up appropriate blending for additive glow
@@ -184,7 +117,7 @@ public class Render {
             glDepthMask(false);
             glBlendFunc(GL_ONE, GL_ONE);
             pass = 1;
-            impostorProgram.run();
+            GPU.RENDER_IMPOSTOR.run();
 
             glDepthMask(true);
         }
@@ -196,7 +129,7 @@ public class Render {
      * Renders the mesh spheres.
      */
     public void renderMeshSpheres() {
-        sphereProgram.run();
+        GPU.RENDER_SPHERE.run();
     }
 
     /**
@@ -207,7 +140,7 @@ public class Render {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(false);
-        regionsProgram.run();
+        GPU.RENDER_REGIONS.run();
 
         glDepthMask(true);
         glEnable(GL_DEPTH_TEST);
@@ -275,10 +208,10 @@ public class Render {
 
     /* --------- Cleanup --------- */
     public void cleanup() {
-        pointsProgram.delete();
-        impostorProgram.delete();
-        sphereProgram.delete();
-        regionsProgram.delete();
+        GPU.RENDER_POINTS.delete();
+        GPU.RENDER_IMPOSTOR.delete();
+        GPU.RENDER_SPHERE.delete();
+        GPU.RENDER_REGIONS.delete();
     }
 
     /* --------- Shader checking --------- */
