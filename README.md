@@ -30,7 +30,9 @@ We send out threads for the gpu to do work in batches known as workgroups. They 
 ## Before:
 
 All objects that are empty are sorted to the end of the list.
+
 This can happen if the object was found to be out of bounds on intialization or when it last moved and for half of the bodies involved in a merge.
+
 This is done identically one pass of the radix sort below with objects either being in a dead or an alive bucket. 
 
 ## Morton Encoding:
