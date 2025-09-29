@@ -15,7 +15,26 @@ public class Planet {
 	public Vector3f velocity;
 	public float density;
 	public int name;
+
+	private UnitSet unitSet;
+
     /**
+     * Constructor for the Planet class.
+     * @param x the x position of the planet
+     * @param y the y position of the planet
+     * @param z the z position of the planet
+     * @param xVelocity the x velocity of the planet
+     * @param yVelocity the y velocity of the planet
+     * @param zVelocity the z velocity of the planet
+     * @param mass the mass of the planet
+     * @param density the density of the planet
+     */
+	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass, float density, UnitSet unitSet) {
+
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, density, unitSet);
+	}
+
+	    /**
      * Constructor for the Planet class.
      * @param x the x position of the planet
      * @param y the y position of the planet
@@ -28,7 +47,7 @@ public class Planet {
      */
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass, float density) {
 
-		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, density);
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, density, null);
 	}
 
     /**
@@ -41,9 +60,25 @@ public class Planet {
      * @param zVelocity the z velocity of the planet
      * @param mass the mass of the planet
      */
+	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass, UnitSet unitSet) {
+
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, 1, unitSet);
+	
+	}
+
+	    /**
+     * Constructor for the Planet class.
+     * @param x the x position of the planet
+     * @param y the y position of the planet
+     * @param z the z position of the planet
+     * @param xVelocity the x velocity of the planet
+     * @param yVelocity the y velocity of the planet
+     * @param zVelocity the z velocity of the planet
+     * @param mass the mass of the planet
+     */
 	public Planet(float x, float y, float z, float xVelocity, float yVelocity, float zVelocity, float mass) {
 
-		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, 1);
+		this(new Vector3f(x, y, z), new Vector3f(xVelocity, yVelocity, zVelocity), mass, 1, null);
 	
 	}
 
@@ -54,11 +89,27 @@ public class Planet {
      * @param mass the mass of the planet
      * @param density the density of the planet
      */
-	public Planet(Vector3f position, Vector3f velocity, float mass, float density) {
+	public Planet(Vector3f position, Vector3f velocity, float mass, float density, UnitSet unitSet) {
 		this.position = position;
 		this.velocity = velocity;
 		this.mass = mass;
 		this.density = density;
+		if (unitSet == null) {
+			this.unitSet = UnitSet.SOLAR_SYSTEM;
+		} else {
+			this.unitSet = unitSet;
+		}
+	}
+
+	    /**
+     * Constructor for the Planet class.
+     * @param position the position of the planet
+     * @param velocity the velocity of the planet
+     * @param mass the mass of the planet
+     * @param density the density of the planet
+     */
+	public Planet(Vector3f position, Vector3f velocity, float mass, float density) {
+		this(position, velocity, mass, density, null);
 	}
 	/**
 	 * Constructor for the Planet class.
@@ -66,8 +117,18 @@ public class Planet {
 	 * @param velocity the velocity of the planet
 	 * @param mass the mass of the planet
 	 */
+	public Planet(Vector3f position, Vector3f velocity, float mass, UnitSet unitSet) {
+		this(position, velocity, mass, 1, unitSet);
+	}
+
+		/**
+	 * Constructor for the Planet class.
+	 * @param position the position of the planet
+	 * @param velocity the velocity of the planet
+	 * @param mass the mass of the planet
+	 */
 	public Planet(Vector3f position, Vector3f velocity, float mass) {
-		this(position, velocity, mass, 1);
+		this(position, velocity, mass, 1, null);
 	}
 
 	/**
@@ -75,7 +136,37 @@ public class Planet {
 	 * @return a dead planet
 	 */
 	public static Planet deadBody() {
-		return new Planet(0, 0, 0, 0, 0, 0, 0, 0);
+		return new Planet(0, 0, 0, 0, 0, 0, 0, 0, null);
+	}
+   
+	/**
+	 * Changes the unit set of the planet.
+	 * @param newUnitSet the new unit set
+	 */
+	public void changeUnitSet(UnitSet newUnitSet) {
+		if (this.unitSet == newUnitSet) {
+			return;
+		}
+		UnitSet oldUnitSet = this.unitSet;
+		this.mass = (float)(oldUnitSet.mass() * this.mass);
+		this.density = (float)(oldUnitSet.density() * this.density);
+		this.position = this.position.mul((float)oldUnitSet.len());
+		this.velocity = this.velocity.mul((float)oldUnitSet.len());
+
+		this.mass = (float)(newUnitSet.mass() / this.mass);
+		this.density = (float)(newUnitSet.density() / this.density);
+		this.position = this.position.div((float)newUnitSet.len());
+		this.velocity = this.velocity.div((float)newUnitSet.len());
+
+		this.unitSet = newUnitSet;
+	}
+
+	/**
+	 * Gets the unit set of the planet.
+	 * @return the unit set of the planet
+	 */
+	public UnitSet getUnitSet() {
+		return unitSet;
 	}
 
 	
@@ -87,6 +178,8 @@ public class Planet {
 	public String toString() {
 		return "Planet [mass=" + mass + ", position=" + position + ", velocity=" + velocity + ", density=" + density + ", name=" + name + "]";
 	}
+
+
 	
 
 }

@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.joml.Vector3f;
 
+import com.grumbo.simulation.UnitSet;
+
 /**
  * PlanetGenerator class for generating planets.
  * Used for generating planets for the simulation without holding them all in RAM.
@@ -16,6 +18,7 @@ public class PlanetGenerator {
     private int chunkSize;
     public int planetsGenerated;
     private int numPlanets;
+    private UnitSet unitSet;
     private PlanetGeneratorFunction planetGeneratorFunction;
     private HasNextFunction hasNextFunction;
 
@@ -31,6 +34,14 @@ public class PlanetGenerator {
      */
     private interface HasNextFunction {
         public boolean hasNextFunction();
+    }
+
+    /**
+     * Gets the unit set.
+     * @return the unit set.
+     */
+    public UnitSet getUnitSet() {
+        return unitSet;
     }
 
     /**
@@ -58,11 +69,16 @@ public class PlanetGenerator {
      * @param numPlanets the number of planets to generate
      * @param chunkSize the largest size of planets to hold in RAM at any given time
      */
-    public PlanetGenerator(PlanetGeneratorFunction planetGeneratorFunction, int numPlanets, int chunkSize) {
+    public PlanetGenerator(PlanetGeneratorFunction planetGeneratorFunction, int numPlanets, int chunkSize, UnitSet unitSet) {
         this.chunkSize = chunkSize;
         this.planetGeneratorFunction = planetGeneratorFunction;
         this.numPlanets = numPlanets;
         this.planetsGenerated = 0;
+        if (unitSet == null) {
+            this.unitSet = UnitSet.SOLAR_SYSTEM;
+        } else {
+            this.unitSet = unitSet;
+        }
         this.hasNextFunction = new HasNextFunction() {
             @Override
             public boolean hasNextFunction() {
@@ -75,8 +91,8 @@ public class PlanetGenerator {
      * Constructor for the PlanetGenerator class.
      * @param numPlanets the number of planets to generate
      */
-    public PlanetGenerator(int numPlanets) {
-        this(null, numPlanets, DEFAULT_CHUNK_SIZE);
+    public PlanetGenerator(int numPlanets, UnitSet unitSet) {
+        this(null, numPlanets, DEFAULT_CHUNK_SIZE, unitSet);
     }
 
     /**
@@ -85,7 +101,7 @@ public class PlanetGenerator {
      * @param numPlanets the number of planets to generate
      */
     public PlanetGenerator(PlanetGeneratorFunction planetGeneratorFunction, int numPlanets) {
-        this(planetGeneratorFunction, numPlanets, DEFAULT_CHUNK_SIZE);
+        this(planetGeneratorFunction, numPlanets, DEFAULT_CHUNK_SIZE, null);
     }
 
     /**
@@ -93,7 +109,7 @@ public class PlanetGenerator {
      * @param planets the list of planets to generate
      */
     public PlanetGenerator(List<Planet> planets) {
-        this(planets.size());
+        this(planets.size(), null);
 
         final int originalNumPlanets = this.numPlanets;
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
@@ -115,7 +131,7 @@ public class PlanetGenerator {
      * @param planet the planet to generate
      */
     public PlanetGenerator(Planet planet) {
-        this(1);
+        this(1, null);
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
             @Override
             public Planet generateNextPlanet() {
@@ -134,7 +150,7 @@ public class PlanetGenerator {
      * Default constructor for the PlanetGenerator class.
      */
     public PlanetGenerator() {
-        this(0);
+        this(0, null);
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
             @Override
             public Planet generateNextPlanet() {
@@ -153,9 +169,11 @@ public class PlanetGenerator {
      * Constructor for the PlanetGenerator class.
      * @param pg1 the first planet generator
      * @param pg2 the second planet generator
+     * Will use the unit set of the first planet generator and convert the second into it
      */
     public PlanetGenerator(PlanetGenerator pg1, PlanetGenerator pg2) {
-        this(pg1.numPlanets+pg2.numPlanets);
+        this(pg1.numPlanets+pg2.numPlanets, pg1.unitSet);
+        
         final int previousNumPlanets = pg1.numPlanets;
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
             @Override
@@ -163,6 +181,7 @@ public class PlanetGenerator {
                 if (planetsGenerated <= previousNumPlanets) {
                     return pg1.nextPlanet();
                 } else {
+
                     return pg2.nextPlanet();
                 }
             }
@@ -176,38 +195,38 @@ public class PlanetGenerator {
     }
 
 
-    // public void add(PlanetGenerator pg) {
-    //     final int prevNumPlanets = this.numPlanets;
+    public void add(PlanetGenerator pg) {
+        final int prevNumPlanets = this.numPlanets;
 
-    //     this.numPlanets += pg.numPlanets;
+        this.numPlanets += pg.numPlanets;
 
-    //     final PlanetGeneratorFunction prevGen = this.planetGeneratorFunction;
+        final PlanetGeneratorFunction prevGen = this.planetGeneratorFunction;
 
-    //     this.planetGeneratorFunction = new PlanetGeneratorFunction() {
-    //         @Override
-    //         public Planet generateNextPlanet() {
-    //             if (planetsGenerated <= prevNumPlanets) {
-    //                 return prevGen.generateNextPlanet();
-    //             } else {
-    //                 //System.out.println("on the second one");
-    //                 return pg.nextPlanet();
-    //             }
-    //         }
-    //     };
+        this.planetGeneratorFunction = new PlanetGeneratorFunction() {
+            @Override
+            public Planet generateNextPlanet() {
+                if (planetsGenerated <= prevNumPlanets) {
+                    return prevGen.generateNextPlanet();
+                } else {
+                    //System.out.println("on the second one");
+                    return pg.nextPlanet();
+                }
+            }
+        };
     
-    //     this.hasNextFunction = new HasNextFunction() {
-    //         @Override
-    //         public boolean hasNextFunction() {
-    //             return planetsGenerated < numPlanets;
-    //         }
-    //     };
-    // }
-    // public void add(Planet planet) {
-    //     add(new PlanetGenerator(planet));
-    // }
-    // public void add(List<Planet> planets) {
-    //     add(new PlanetGenerator(planets));
-    // }
+        this.hasNextFunction = new HasNextFunction() {
+            @Override
+            public boolean hasNextFunction() {
+                return planetsGenerated < numPlanets;
+            }
+        };
+    }
+    public void add(Planet planet) {
+        add(new PlanetGenerator(planet));
+    }
+    public void add(List<Planet> planets) {
+        add(new PlanetGenerator(planets));
+    }
 
     /**
      * Gets the next chunk of planets.
@@ -233,7 +252,11 @@ public class PlanetGenerator {
             throw new RuntimeException("No more planets");
         }
         planetsGenerated++;
-        return planetGeneratorFunction.generateNextPlanet();
+        Planet planet = planetGeneratorFunction.generateNextPlanet();
+        if (unitSet != planet.getUnitSet()) {
+            planet.changeUnitSet(unitSet);
+        }
+        return planet;
     }
 
     

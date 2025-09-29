@@ -21,7 +21,7 @@ float getLongestSide(Node node)
 
 vec3 force(Node node, vec3 r, float oneOverDist)
 {
-    return GRAVITATIONAL_CONSTANT*scaledMass(node) * r * oneOverDist * oneOverDist * oneOverDist/ASTRONOMICAL_UNIT/ASTRONOMICAL_UNIT;
+    return sim.units.gravitationalConstant * node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
 }
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
@@ -85,8 +85,8 @@ void forceComputeKernel()
         
             Body other = srcB.bodies[indexIn[nodeIdx]];
 
-            float bodyRadius = scaledRadius(body);
-            float otherRadius = scaledRadius(other);
+            float bodyRadius = radius(body);
+            float otherRadius = radius(other);
             float dist = length(r);
             float penetration = bodyRadius + otherRadius - dist; //The amount of overlap between the two bodies
 
@@ -97,12 +97,12 @@ void forceComputeKernel()
                 float vImpact = dot(velocityDifference, normal);
                 //If the bodies are moving towards each other, calculate and apply an impulse
                 if (vImpact < 0) {
-                    float mEff = 1/(1/scaledMass(body) + 1/scaledMass(other));
+                    float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
                     float impulse = (1+elasticity)*mEff*vImpact;
-                    body.velDensity.xyz += normal * impulse / scaledMass(body);
+                    body.velDensity.xyz += normal * impulse / body.posMass.w;
                 }
                 //Calculate the correction to the position of the body to avoid interpenetration using the overlap and the restitution coefficient
-                vec3 correction = (penetration / (scaledMass(body) + scaledMass(other))) * restitution * normal;
+                vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
                 body.posMass.xyz -= correction;
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel

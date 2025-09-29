@@ -1,7 +1,7 @@
 // =============================================================
 //                          Impostor vertex shader
 // =============================================================
-#include "render/common/render_common.glsl"
+#include "common/common.glsl"
 
 
 out vec2 vMapping;
@@ -87,7 +87,7 @@ void main() {
 
   vec3 center = scaledDist(b.posMass.xyz);
   color = getStarColor(scaledMass(b), scaledDensity(b));
-  float trueRadius = scaledRadius(b);
+  float trueRadius = radius(b);
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
 

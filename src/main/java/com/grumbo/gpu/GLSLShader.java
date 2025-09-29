@@ -1,6 +1,5 @@
 package com.grumbo.gpu;
 
-import com.grumbo.debug.Debug;
 import static org.lwjgl.opengl.GL43C.*;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -91,7 +90,7 @@ public abstract class GLSLShader {
      * @throws IOException if the shader cannot be read
      */
     protected static String hashtagIncludeShaders(String filePath) throws IOException {
-        // Very small preprocessor supporting lines of the form: #include "compute/path.comp" or #include "render/impostor/path.vert"
+        // preprocessor supporting lines of the form: #include "compute/path.comp" or #include "render/impostor/path.vert"
         Path path = Paths.get(filePath);
         Path shaderFolder = getShaderFolder(path);
         StringBuilder out = new StringBuilder();

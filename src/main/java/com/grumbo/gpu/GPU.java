@@ -17,6 +17,7 @@ import com.grumbo.simulation.PlanetGenerator;
 import com.grumbo.simulation.Planet;
 import com.grumbo.simulation.Settings;
 import com.grumbo.simulation.BarnesHut;
+import com.grumbo.simulation.UnitSet;
 
 public class GPU {
 
@@ -147,10 +148,11 @@ public class GPU {
         float[][] bounds = gpuSimulation.getBounds();
         PlanetGenerator planetGenerator = gpuSimulation.getPlanetGenerator();
         GPU.initialNumBodies = gpuSimulation.initialNumBodies();
+        UnitSet units = gpuSimulation.getUnitSet();
 
         initComputeUniforms(barnesHut);
 
-        initComputeSSBOs(planetGenerator, bounds);
+        initComputeSSBOs(planetGenerator, bounds, UnitSet.SOLAR_SYSTEM);
         initComputeSwappingBuffers();
         initComputeShaders(barnesHut);
         initRenderUniforms(render);
@@ -163,7 +165,7 @@ public class GPU {
      * Gives the SSBOs their correct sizes or data functions, and 
      * the general layout of the SSBOs.
      */
-    private static void initComputeSSBOs(PlanetGenerator planetGenerator, float[][] bounds) {
+    private static void initComputeSSBOs(PlanetGenerator planetGenerator, float[][] bounds, UnitSet units) {
         // Compute sizes (use long to avoid overflow)
         long nodesSize = Node.STRUCT_SIZE * Integer.BYTES * (long) (numBodies());
         long maxBlock = glGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
@@ -216,7 +218,7 @@ public class GPU {
 
         //This is the SSBO that holds values that are used in different shaders
         SSBO_SIMULATION_VALUES = new SSBO(SSBO.SIMULATION_VALUES_BINDING, () -> {
-            return packValues(numBodies(), bounds);
+            return packValues(numBodies(), bounds, units);
         },"SSBO_SIMULATION_VALUES", new GLSLVariable(new GLSLVariable[] {
             new GLSLVariable(VariableType.UINT,"numBodies", 1), 
             new GLSLVariable(VariableType.UINT,"initialNumBodies", 1), 
@@ -229,6 +231,15 @@ public class GPU {
             new GLSLVariable(new GLSLVariable[] {
                 new GLSLVariable(VariableType.FLOAT,"minCorner", 3), new GLSLVariable(VariableType.PADDING),
                 new GLSLVariable(VariableType.FLOAT,"maxCorner", 3), new GLSLVariable(VariableType.PADDING)},"bounds"), 
+            new GLSLVariable(new GLSLVariable[] {
+                new GLSLVariable(VariableType.FLOAT,"mass", 1), 
+                new GLSLVariable(VariableType.FLOAT,"density", 1), 
+                new GLSLVariable(VariableType.FLOAT,"len", 1), 
+                new GLSLVariable(VariableType.FLOAT,"time", 1), 
+                new GLSLVariable(VariableType.FLOAT,"gravitationalConstant", 1), 
+                new GLSLVariable(VariableType.FLOAT,"bodyLengthInSimulationLengthsConstant", 1), 
+                new GLSLVariable(VariableType.PADDING),
+                new GLSLVariable(VariableType.PADDING)}, "units"),
             new GLSLVariable(VariableType.UINT,"uintDebug", 100), 
             new GLSLVariable(VariableType.FLOAT,"floatDebug", 100)},"SimulationValues"));
         GPU.SSBOS.put(SSBO_SIMULATION_VALUES.getName(), SSBO_SIMULATION_VALUES);
@@ -928,10 +939,33 @@ public class GPU {
     /**
      * Pack the values to a float buffer.
      */
-    public static ByteBuffer packValues(int numBodies, float[][] bounds) {
+    public static ByteBuffer packValues(int numBodies, float[][] bounds, UnitSet units) {
+
+        // new GLSLVariable(VariableType.UINT,"numBodies", 1), 
+        //     new GLSLVariable(VariableType.UINT,"initialNumBodies", 1), 
+        //     new GLSLVariable(VariableType.UINT,"justDied", 1), 
+        //     new GLSLVariable(VariableType.UINT,"merged", 1), 
+        //     new GLSLVariable(VariableType.UINT,"outOfBounds", 1), 
+        //     new GLSLVariable(VariableType.UINT,"pad0", 1), 
+        //     new GLSLVariable(VariableType.UINT,"pad1", 1), 
+        //     new GLSLVariable(VariableType.UINT,"pad2", 1), 
+        //     new GLSLVariable(new GLSLVariable[] {
+        //         new GLSLVariable(VariableType.FLOAT,"minCorner", 3), new GLSLVariable(VariableType.PADDING),
+        //         new GLSLVariable(VariableType.FLOAT,"maxCorner", 3), new GLSLVariable(VariableType.PADDING)},"bounds"), 
+        //     new GLSLVariable(new GLSLVariable[] {
+        //         new GLSLVariable(VariableType.FLOAT,"mass", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"density", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"len", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"time", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"gravitationalConstant", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"bodyLengthInSimulationLengthsConstant", 1), 
+        //         new GLSLVariable(VariableType.PADDING),
+        //         new GLSLVariable(VariableType.PADDING)}, "units"),
+        //     new GLSLVariable(VariableType.UINT,"uintDebug", 100), 
+        //     new GLSLVariable(VariableType.FLOAT,"floatDebug", 100)},"SimulationValues"));
 
         //layout(std430, binding = 1) buffer SimulationValues { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
-        ByteBuffer buf = BufferUtils.createByteBuffer(8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES);
+        ByteBuffer buf = BufferUtils.createByteBuffer(8*Integer.BYTES+16*Float.BYTES+100*Integer.BYTES+100*Float.BYTES);
         buf.putInt(numBodies); // numBodies
         buf.putInt(numBodies); // initialNumBodies
         buf.putInt(0); // justDied
@@ -942,6 +976,7 @@ public class GPU {
         buf.putInt(0); // pad2
         buf.putFloat(bounds[0][0]).putFloat(bounds[0][1]).putFloat(bounds[0][2]).putInt(0); // bounds
         buf.putFloat(bounds[1][0]).putFloat(bounds[1][1]).putFloat(bounds[1][2]).putInt(0); // bounds
+        buf.putFloat((float)units.mass()).putFloat((float)units.density()).putFloat((float)units.len()).putFloat((float)units.time()).putFloat(0).putFloat(0).putInt(0).putInt(0); // units
     
         // uintDebug[100]
         for (int i = 0; i < 100; i++) buf.putInt(0);
