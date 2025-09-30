@@ -37,6 +37,8 @@ All calculations during the simulation are done using compute shaders in GLSL.
  6. Radix bits cannot be changed from 4
  7. Camera is jumpy especially when far away
  8. There is a discrete change between glow and body rendering when moving towards a body
+ 9. Buttons stay pressed down aside from selectors
+ 10. One of the settings does not show in trhe settings pane
 
 
  

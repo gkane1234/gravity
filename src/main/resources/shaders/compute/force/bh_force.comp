@@ -26,7 +26,7 @@ vec3 force(Node node, vec3 r, float oneOverDist)
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
 {
-    float dist2 = dot(r, r) + soft;
+    float dist2 = dot(r, r);// + soft;
     float inv = inversesqrt(dist2);
     return inv;
 }

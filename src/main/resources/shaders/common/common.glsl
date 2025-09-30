@@ -82,7 +82,7 @@ layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; }
 //Simulation values
 //  -Initialized to exactly fit the values. (In Java: 8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES)
 layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
-                                                        uint outOfBounds; uint pad0; uint pad1; uint pad2; 
+                                                        uint outOfBounds; uint relativeTo; uint pad1; uint pad2; 
                                                         AABB bounds; UnitSet units; uint uintDebug[100]; float floatDebug[100]; } sim;
 //Bodies of the simulation from the previous step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
@@ -168,6 +168,7 @@ uniform mat4 uProj; //Projection matrix
 uniform mat4 uModelView; //Model view matrix
 uniform float uRadiusScale; //Radius scale
 uniform ivec2 uMinMaxDepth; //Min and max depth for regions
+uniform uint uRelativeTo; //Relative to
 
 
 
@@ -228,6 +229,21 @@ vec3 scaledDist(vec3 a) {
 float scaledDist(float a) {
     return a*sim.units.len;
 }
+
+vec3 relativeLocation(vec3 a, uint relativeTo) {
+    if (relativeTo == 0xFFFFFFFFu) {
+        return a;
+    }
+    if (relativeTo >= sim.initialNumBodies) {
+        return a;
+    }
+    return a - srcB.bodies[relativeTo].posMass.xyz;
+}
+
+vec3 relativeLocation(Body b, uint relativeTo) {
+    return relativeLocation(b.posMass.xyz, relativeTo);
+}
+
 
 
 

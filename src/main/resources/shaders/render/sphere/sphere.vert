@@ -24,7 +24,7 @@ void main() {
     gl_PointSize = 0.0;
     return;
   }
-  vec3 center = scaledDist(srcB.bodies[gl_InstanceID].posMass.xyz);
+  vec3 center = scaledDist(relativeLocation(srcB.bodies[gl_InstanceID], uRelativeTo));
   float radius = radius(srcB.bodies[gl_InstanceID]);
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;

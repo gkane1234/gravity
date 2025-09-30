@@ -6,9 +6,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+
+
 public abstract class GLSLShader {
     private int shader;
     private String shaderName;
+
 
     
 
@@ -35,7 +38,8 @@ public abstract class GLSLShader {
      */
     public GLSLShader(String shaderName, ShaderType shaderType) {
         this.shader = glCreateShader(shaderType.getShaderType());
-        glShaderSource(shader, getSource(shaderName));
+        String source = getSource(shaderName);
+        glShaderSource(shader, source);
         glCompileShader(shader);
         checkShader(shader);
         this.shaderName = shaderName;

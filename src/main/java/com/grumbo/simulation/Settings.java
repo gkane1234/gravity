@@ -81,6 +81,9 @@ public class Settings {
 		// Barnes-Hut acceptance criterion
 		{ Property<Float> p = Property.createFloatProperty("theta", 0.6f, 0.6f); p.setEditable(true); properties.put("theta", p); }
 
+		// Relative to
+		{ Property<Integer> p = Property.createIntProperty("relativeTo", 0, 0); p.setEditable(true); properties.put("relativeTo", p); }
+
 		// Camera scale
 		{ Property<Float> p = Property.createFloatProperty("cameraScale", 10.0f, 10.0f); p.setEditable(true); properties.put("cameraScale", p); }
 
@@ -88,7 +91,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
 
 		// Softening parameter
-		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
+		{ Property<Float> p = Property.createFloatProperty("softening", 1.0E-12f, 1.0E-12f); p.setEditable(true); properties.put("softening", p); }
 
 		// Collision elasticity
 		properties.put("elasticity", Property.createFloatProperty("elasticity", 1.0f, 1.0f, 0.0f,  1.0f, true));
@@ -103,10 +106,10 @@ public class Settings {
 		{ Property<Integer> p = Property.createIntProperty("maxDepth", 100, 100); p.setEditable(true); properties.put("maxDepth", p); }
 
 		// Near plane for camera
-		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("nearPlane", 1.0E-7f, 1.0E-7f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
-		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E11f, 1.0E11f); p.setEditable(true); properties.put("farPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E8f, 1.0E8f); p.setEditable(true); properties.put("farPlane", p); }
 
 		// Camera move speed
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 1f, 1f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
@@ -328,6 +331,19 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setTheta(float value) { setValue("theta", value); }
+
+	/**
+	 * Gets the value of theint property relativeTo.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getRelativeTo() { return getValue("relativeTo"); }
+	/**
+	 * Sets the value of the int property relativeTo.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setRelativeTo(int value) { setValue("relativeTo", value); }
 
 	/**
 	 * Gets the value of thefloat property cameraScale.

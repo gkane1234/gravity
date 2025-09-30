@@ -132,6 +132,8 @@ public class GPU {
     public static Uniform<Matrix4f> UNIFORM_MODEL_VIEW;
     public static Uniform<Float> UNIFORM_RADIUS_SCALE;
     public static Uniform<Vector2i> UNIFORM_MIN_MAX_DEPTH;
+    public static Uniform<Integer> UNIFORM_RELATIVE_TO;
+
 
     // Render Programs
     public static RenderProgram RENDER_POINTS; // points program
@@ -829,6 +831,16 @@ public class GPU {
             return Settings.getInstance().getCameraPos();
         }, VariableType.VEC3F);
         GPU.UNIFORMS.put(UNIFORM_CAMERA_POS.getName(), UNIFORM_CAMERA_POS);
+
+        GPU.UNIFORM_RELATIVE_TO = new Uniform<Integer>("uRelativeTo", () -> {
+            int relativeTo = Settings.getInstance().getRelativeTo();
+            if (relativeTo < 0) {
+                return 0xFFFFFFFF;
+            }
+            return relativeTo;
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_RELATIVE_TO.getName(), UNIFORM_RELATIVE_TO);
+
         
         GPU.UNIFORM_MIN_MAX_DEPTH = new Uniform<Vector2i>("uMinMaxDepth", () -> {
             return new Vector2i(Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
@@ -870,6 +882,7 @@ public class GPU {
             GPU.UNIFORM_PROJ,
             GPU.UNIFORM_MODEL_VIEW,
             GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
         });
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -885,6 +898,7 @@ public class GPU {
             GPU.UNIFORM_RADIUS_SCALE,
             GPU.UNIFORM_CAMERA_POS,
             GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
         });
         GPU.RENDER_SPHERE.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -902,6 +916,7 @@ public class GPU {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_MIN_MAX_DEPTH,
             GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
         });
         GPU.RENDER_REGIONS.setSSBOs(new SSBO[] {
             GPU.SSBO_INTERNAL_NODES,

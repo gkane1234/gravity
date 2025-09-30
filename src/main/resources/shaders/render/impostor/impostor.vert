@@ -84,10 +84,9 @@ vec3 getStarColor(float mass, float density) {
 void main() {
   Body b = srcB.bodies[gl_InstanceID];
 
-
-  vec3 center = b.posMass.xyz*cameraScale;
+  vec3 center = relativeLocation(b, uRelativeTo)*cameraScale;
   color = getStarColor(scaledMass(b), scaledDensity(b));
-  float trueRadius = max (0.001, radius(b))*cameraScale;
+  float trueRadius = max (0.000001, radius(b))*cameraScale;
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
 

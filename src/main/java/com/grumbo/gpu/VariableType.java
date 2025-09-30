@@ -20,7 +20,7 @@ import org.joml.Vector2i;
 public enum VariableType {
     FLOAT(Float.class),
     INT(Integer.class),
-    UINT(Integer.class, (value) -> (Integer) value >= 0),
+    UINT(Integer.class),
     BOOL(Boolean.class),
     UINT64(Long.class),
     STRUCT(GLSLVariable.class),
