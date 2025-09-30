@@ -52,7 +52,6 @@ public class Render {
     }
 
 
-
     /**
      * Initializes anything additional to what is done in GPU.initRenderPrograms().
      */
@@ -61,7 +60,6 @@ public class Render {
         //Nothing additional to do here.
 
     }
-
 
     /**
      * Renders the simulation.
@@ -179,5 +177,4 @@ public class Render {
         Matrix4f view = new Matrix4f().lookAt(eye, center, up); 
         return view;
     }
-
 }

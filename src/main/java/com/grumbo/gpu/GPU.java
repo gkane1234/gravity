@@ -26,7 +26,7 @@ public class GPU {
     public static final int WORK_GROUP_SIZE = 256;
     public static final int RADIX_BITS = 4;
     public static final int NUM_RADIX_BUCKETS = (int)Math.pow(2, RADIX_BITS); // 16 when RADIX_BITS=4
-    public static final int MAX_RENDER_INSTANCES = 1_000_000;
+    public static final int MAX_RENDER_INSTANCES = 5_000_000;
 
 
     // These can be freely changed here
@@ -120,6 +120,13 @@ public class GPU {
     public static Uniform<Integer> UNIFORM_STATIC_OR_DYNAMIC;
 
 
+    // Render Programs
+    public static RenderProgram RENDER_POINTS; // points program
+    public static RenderProgram RENDER_IMPOSTOR; // point-sprite impostor spheres
+    public static RenderProgram RENDER_SPHERE;   // instanced mesh spheres
+    public static RenderProgram RENDER_REGIONS; // regions
+
+
     // Render Uniforms
     public static Uniform<Matrix4f> UNIFORM_MVP;
     public static Uniform<Float> UNIFORM_POINT_SCALE;
@@ -148,7 +155,7 @@ public class GPU {
 
         BarnesHut barnesHut = gpuSimulation.getBarnesHut();
         Render render = gpuSimulation.getRender();
-        float[][] bounds = gpuSimulation.getBounds();
+        float[][] bounds = gpuSimulation.getBarnesHut().getBounds();
         PlanetGenerator planetGenerator = gpuSimulation.getPlanetGenerator();
         GPU.initialNumBodies = gpuSimulation.initialNumBodies();
         UnitSet units = gpuSimulation.getUnitSet();
@@ -157,7 +164,7 @@ public class GPU {
 
         initComputeSSBOs(planetGenerator, bounds, units);
         initComputeSwappingBuffers();
-        initComputeShaders(barnesHut);
+        initComputePrograms(barnesHut);
         initRenderUniforms(render);
         initRenderPrograms(render);
     }
@@ -450,7 +457,7 @@ public class GPU {
     /**
      * Initialize the compute shaders. The names are defined in bh_main.comp. For more information on the shaders, see the glsl code in the shaders folder.
      */
-    private static void initComputeShaders(BarnesHut barnesHut) {
+    private static void initComputePrograms(BarnesHut barnesHut) {
 
         GPU.COMPUTE_PROGRAMS = new HashMap<>();
         COMPUTE_INIT = new ComputeProgram("COMPUTE_INIT");
@@ -849,11 +856,10 @@ public class GPU {
     }
 
     private static void initRenderPrograms(Render render) {
+        GPU.RENDER_PROGRAMS = new HashMap<>();
         for (GLSLMesh.MeshType mesh : GLSLMesh.MeshType.values()) {
             GLSLMesh.reInitializeMesh(mesh);
         }
-
-        GPU.RENDER_PROGRAMS = new HashMap<>();
 
         // Create points render program
         GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, GPU.initialNumBodies);
@@ -863,12 +869,13 @@ public class GPU {
         });
         GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
+        // Create points render program
+        GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, render.initialNumBodies());
+        GPU.RENDER_POINTS.setUniforms(new Uniform[] {
+            GPU.UNIFORM_MVP
         });
-        GPU.RENDER_PROGRAMS.put(GPU.RENDER_POINTS.getProgramName(), GPU.RENDER_POINTS);
-        GPUSimulation.checkGLError("RENDER_POINTS");
-
-
-
+        GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
+            GPU.SSBO_SWAPPING_BODIES_OUT,
         // Create impostor render program
         GPU.RENDER_IMPOSTOR = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, GPU.initialNumBodies);
         RenderProgram.checkProgram(GPU.RENDER_IMPOSTOR.getProgram());
@@ -887,6 +894,7 @@ public class GPU {
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SIMULATION_VALUES
+
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_IMPOSTOR.getProgramName(), GPU.RENDER_IMPOSTOR);
         GPUSimulation.checkGLError("RENDER_IMPOSTOR");

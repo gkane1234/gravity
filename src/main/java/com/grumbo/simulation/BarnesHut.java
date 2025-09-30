@@ -114,7 +114,8 @@ public class BarnesHut {
         }
 
 
-
+        //gpuSimulation.updateCurrentBodies();
+        //System.out.println(SWAPPING_BODIES_IN_SSBO.getData(0, 10));
         // Reset various values for the queues and death counting.
         resetValues();
 
@@ -148,6 +149,9 @@ public class BarnesHut {
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
 
+        System.out.println(GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut", 0, 10));
+
+        //System.out.println(GPU.SSBO_SIMULATION_VALUES.getIntegerData("uintDebug", true));
 
         // Merge the bodies, leaving empty bodies where they are.
         mergeBodies();
@@ -162,6 +166,7 @@ public class BarnesHut {
         }
         this.steps++;
 
+        //System.out.println(SIMULATION_VALUES_SSBO.getDataAsString("bounds"));
     }
 
     /* --------- Initialization --------- */
@@ -511,6 +516,19 @@ public class BarnesHut {
                 }
             }
             GPU.swapPropagateWorkQueueBuffers();
+            //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
+
+            // System.out.println(Node.getTree(NODES_SSBO.getBuffer().asIntBuffer(), numBodies(), 10));
+            //System.out.println("Operations last interation:"+passes+" : "  + (workedThreads-lastThreads) + " : using " + Math.max(1,(int)((numBodies() - 1)/Math.pow(2, passes))) + "  threads");
+            //System.out.println(WORK_QUEUE_SSBO.getHeader());
+            //System.out.println(WORK_QUEUE_B_SSBO.getHeader());
+            // lastThreads = workedThreads;
+
+            // try {
+            //     System.in.read();
+            // } catch (Exception e) {
+            //     // Ignore exception
+            // }
 
         }
         
@@ -536,6 +554,7 @@ public class BarnesHut {
             }
         }
 
+        System.out.println(GPU.UNIFORM_STATIC_OR_DYNAMIC.getValue());
 
         GPU.COMPUTE_FORCE_COMPUTE.run();
         if (debug) {
