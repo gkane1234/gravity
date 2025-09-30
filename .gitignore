@@ -2,6 +2,7 @@
 target/
 captures/
 src/main/java/com/grumbo/debug/debug_output/
+planet_data/
 # IDE files
 .idea/
 *.iml

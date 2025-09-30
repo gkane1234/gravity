@@ -655,12 +655,12 @@ public class BarnesHut {
                "\t" + propagateNodesTime/oneMillion + " ms (" + percentPropagateNodes + "%)" +":Propagate Nodes\n" +
                computeForceTime/oneMillion + " ms (" + percentComputeForce + "%)" +":Force\n" +
                mergeBodiesTime/oneMillion + " ms (" + percentMergeBodies + "%)" +":Merge Bodies\n" +
-               totalTime/oneMillion + " ms" +":Total\n" ;
-               //"Simulation Bounds: " + SIMULATION_VALUES_SSBO.getDataAsString("bounds")+"\n" +
-               //"X Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[0]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[0]+"\n" +
-               //"Y Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[1]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[1]+"\n" +
-               //"Z Bounds: " + SIMULATION_VALUES_SSBO.getData("minCorner")[2]+" "+SIMULATION_VALUES_SSBO.getData("maxCorner")[2]+"\n" +
-               //"Bodies: " + (SIMULATION_VALUES_SSBO.getIntegerData("numBodies"));
+               totalTime/oneMillion + " ms" +":Total\n";
+               //"X Bounds: " + GPU.SSBO_SIMULATION_VALUES.getData("minCorner")[0]+" "+GPU.SSBO_SIMULATION_VALUES.getData("maxCorner")[0]+"\n" +
+               //"Y Bounds: " + GPU.SSBO_SIMULATION_VALUES.getData("minCorner")[1]+" "+GPU.SSBO_SIMULATION_VALUES.getData("maxCorner")[1]+"\n" +
+               //"Z Bounds: " + GPU.SSBO_SIMULATION_VALUES.getData("minCorner")[2]+" "+GPU.SSBO_SIMULATION_VALUES.getData("maxCorner")[2]+"\n" +
+               //"Bodies: " + (GPU.SSBO_SIMULATION_VALUES.getIntegerData("numBodies") +
+               //"Merged: " + GPU.SSBO_SIMULATION_VALUES.getIntegerData("merged"));
     }
 
 

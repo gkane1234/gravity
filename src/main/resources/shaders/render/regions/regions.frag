@@ -1,7 +1,7 @@
 // =============================================================
 //                    Regions fragment shader
 // =============================================================
-#include "render/common/render_common.glsl"
+#include "common/common.glsl"
 
 out vec4 fragColor;
 

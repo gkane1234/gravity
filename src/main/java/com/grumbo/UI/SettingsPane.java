@@ -101,6 +101,11 @@ public class SettingsPane {
                 }
             }
         } else if (action == GLFW_RELEASE) {
+            for (UIRow row : renderedRows) {
+                for (UIElement element : row.getElements()) {
+                    element.handleMouseRelease();
+                }
+            }
             if (activeSlider != null) {
                 activeSlider.handleMouseRelease();
                 activeSlider = null;
@@ -170,7 +175,7 @@ public class SettingsPane {
 
         glColor3f(1.0f, 1.0f, 1.0f);
 
-        float yPos = 30.0f;
+        float yPos = 100.0f;
         float xOffset = 20.0f;
         float bottomSpace = 80.0f;
         float bottomY = Settings.getInstance().getHeight() - bottomSpace;
@@ -183,21 +188,32 @@ public class SettingsPane {
         titleAndPageButtons.get(0).draw(font);
         renderedRows.add(titleAndPageButtons.get(0));
        
-        float pageY = yPos+titleAndPageButtons.get(0).height+verticalPadding;
-        pageHeight = bottomY - pageY;
+        float pageYstart = yPos+titleAndPageButtons.get(0).height+verticalPadding;
+
+        yPos = pageYstart;
+        pageHeight = bottomY - pageYstart;
+
+        float pageOffset = (float)pageHeight*currentPage;
 
         for (Property<?> prop : propertyRows) {
             prop.update();
             UIRow row = prop.getEditorRow();
             row.calculateSize(font);
-            float yPosOnPage = (float) (yPos - pageHeight*currentPage);
-            if (yPosOnPage>=pageY && yPosOnPage+row.height<=pageY+pageHeight) {
+            float yPosOnPage = (float) (yPos - pageOffset);
+            //should have been rendered on a previous page
+            //AND was not rendered on last page becuase it was too wide
+            if (yPosOnPage<pageYstart && yPosOnPage>pageYstart-row.height) {
+                    //snap to this page start
+                    yPosOnPage = pageYstart;
+                    yPos = yPosOnPage+pageOffset;
+                }
+
+            if (yPosOnPage>=pageYstart && yPosOnPage+row.height<=pageYstart+pageHeight) {
                 row.setPosition(xOffset, yPosOnPage);
                 row.draw(font);
                 renderedRows.add(row);
             }
             yPos += row.height+verticalPadding;
-            
         }
 
         titleAndPageButtons.get(1).calculateSize(font);

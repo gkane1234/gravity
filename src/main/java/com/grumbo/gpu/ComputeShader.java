@@ -21,7 +21,9 @@ public class ComputeShader extends GLSLShader {
      */
     @Override
     public String getSource(String programName) {
-        return insertDefineAfterVersion(getComputeShaderSource(), programName);
+        String source = insertDefineAfterVersion(getComputeShaderSource(), programName);
+        source = source.replaceAll("(?s)//For render shaders:.*?//End for render shaders", "//Removed render shader code here");
+        return source;
     }
 
 
@@ -47,7 +49,7 @@ public class ComputeShader extends GLSLShader {
     /**
      * Inserts the define after the version and extension lines in order to load the appropriate compute shader.
      * @param shaderSource the shader source to insert the define after
-     * @param defineValue the define to insert (e.g. KERNEL_INIT)
+     * @param defineValue the define to insert (e.g. COMPUTE_INIT)
      * @return the shader source with the define inserted
      */
     private static String insertDefineAfterVersion(String shaderSource, String defineValue) {

@@ -1,7 +1,7 @@
 // =============================================================
 //                      Regions vertex shader
 // =============================================================
-#include "render/common/render_common.glsl"
+#include "common/common.glsl"
 
 
 layout(location = 0) in vec3 aPos; // unit cube in [-0.5, 0.5]
@@ -34,8 +34,8 @@ void main() {
         cullRegion();
         return;
     }
-	vec3 minC = ASTRONOMICAL_UNIT*vec3(node.aabb[0], node.aabb[1], node.aabb[2]);
-	vec3 maxC = ASTRONOMICAL_UNIT*vec3(node.aabb[3], node.aabb[4], node.aabb[5]);
+	vec3 minC = relativeLocation(vec3(node.aabb[0], node.aabb[1], node.aabb[2]), uRelativeTo)*sim.units.len;
+	vec3 maxC = relativeLocation(vec3(node.aabb[3], node.aabb[4], node.aabb[5]), uRelativeTo)*sim.units.len;
 	vec3 center = (minC + maxC) * 0.5;
 	vec3 size = (maxC - minC);
 	vec3 worldPos = center + aPos * size;

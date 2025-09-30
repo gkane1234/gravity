@@ -29,11 +29,6 @@ public class OpenGLUI {
     private SettingsPane settingsPane;
     public boolean showCrosshair = false;
 
-    private boolean recordCurrentBodies = false;
-
-    private int lastBodies = 0;
-    private int lastSteps = 0;
-    private int lastDifference = 0;
     /**
      * KeyEvent class represents a key event.
      */
@@ -166,8 +161,8 @@ public class OpenGLUI {
      * Initializes the key events.
      */
     public void initKeyEvents() {
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() * 1.1),true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() / 1.1),true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().setCameraScale(Settings.getInstance().getCameraScale() * 1.1f),true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().setCameraScale(Settings.getInstance().getCameraScale() / 1.1f),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_W, () -> {processWASDQEMovement(GLFW.GLFW_KEY_W);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_A, () -> {processWASDQEMovement(GLFW.GLFW_KEY_A);},true)); 
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_S, () -> {processWASDQEMovement(GLFW.GLFW_KEY_S);},true)); 
@@ -438,7 +433,6 @@ public class OpenGLUI {
         }
         
         // Handle relative camera movement based on key states
-        Vector3f moveDirection = new Vector3f();
         float moveSpeed = 1f;
 
         switch (key) {
@@ -466,10 +460,10 @@ public class OpenGLUI {
             return; // Skip if font is not available
         }
 
-        boolean newFrame = lastSteps != openGlWindow.gpuSimulation.getSteps();
 
      
-        String statsText = String.format("FPS: %.1f", openGlWindow.getFPS());
+        String statsText = String.format("FPS: %.1f\n", openGlWindow.getFPS());
+        statsText+= String.format("Location: %.2f, %.2f, %.2f", Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
 
 
         

@@ -62,8 +62,6 @@ void mergeBodiesKernel() {
             Body merged = mergeBodies(body1, body2);
             dstB.bodies[iA] = merged; //Writes to the output buffer
             dstB.bodies[iB] = EMPTY_BODY; //Writes to the output buffer
-
-            atomicAdd(sim.merged, 1u); //Increment the number of merged bodies for simulation tracking
         }
 
         // Unlock both

@@ -1,6 +1,5 @@
 package com.grumbo.simulation;
 
-import java.nio.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
@@ -33,6 +32,7 @@ public class GPUSimulation {
     private OpenGLWindow openGlWindow;
     private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue;
     private PlanetGenerator planetGenerator;
+    private UnitSet units;
     
     /**
      * State of the simulation.
@@ -51,7 +51,7 @@ public class GPUSimulation {
     }
 
     public State state = State.PAUSED;
-
+    @SuppressWarnings("unused")
     private boolean debug;
 
     // Recording
@@ -67,8 +67,18 @@ public class GPUSimulation {
     private int outOfBounds = 0;
 
     public GPUSimulation() {
+        this.commandQueue = new ConcurrentLinkedQueue<>();
 
-        PlanetGenerator planetGenerator = collisionTest();
+        String json = null;
+        try {
+            json = Files.readString(Path.of("src/main/resources/planet_data/earth_sun_moon.json"));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        PlanetGenerator planetGenerator = PlanetGenerator.fromJson(json);
+        planetGenerator.changeUnitSet(UnitSet.SOLAR_SYSTEM_HOUR);
         System.out.println("Planet generator num planets: " + planetGenerator.getNumPlanets());
 
 
@@ -77,22 +87,22 @@ public class GPUSimulation {
 
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
-            //"KERNEL_INIT",
-            // "KERNEL_MORTON_ENCODE",
-            //"KERNEL_DEAD_COUNT",
-            //"KERNEL_DEAD_EXCLUSIVE_SCAN",
-             "KERNEL_DEAD_SCATTER",
-            //"KERNEL_RADIX_HIST",
-            //"KERNEL_RADIX_PARALLEL_SCAN",
-            //"KERNEL_RADIX_EXCLUSIVE_SCAN",
-            //"KERNEL_RADIX_SCATTER",
-            //"KERNEL_BUILD_BINARY_RADIX_TREE",
-            //"KERNEL_INIT_LEAVES",
-            //"KERNEL_RESET",
-            //"KERNEL_PROPAGATE_NODES",
-             "KERNEL_FORCE_COMPUTE",
-            //"KERNEL_MERGE",
-            //"KERNEL_DEBUG",
+            //"COMPUTE_INIT",
+            // "COMPUTE_MORTON_ENCODE",
+            //"COMPUTE_DEAD_COUNT",
+            //"COMPUTE_DEAD_EXCLUSIVE_SCAN",
+            // "COMPUTE_DEAD_SCATTER",
+            //"COMPUTE_RADIX_HIST",
+            //"COMPUTE_RADIX_PARALLEL_SCAN",
+            //"COMPUTE_RADIX_EXCLUSIVE_SCAN",
+            //"COMPUTE_RADIX_SCATTER",
+            //"COMPUTE_BUILD_BINARY_RADIX_TREE",
+            //"COMPUTE_INIT_LEAVES",
+            //"COMPUTE_RESET",
+            //"COMPUTE_PROPAGATE_NODES",
+            // "COMPUTE_FORCE_COMPUTE",
+            //"COMPUTE_MERGE",
+            //"COMPUTE_DEBUG",
         });
 
 
@@ -100,13 +110,13 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this); 
         this.planetGenerator = planetGenerator;
         this.initialbodiesContained = planetGenerator.getNumPlanets();
-        float boundSize = 350_000;
+        float boundSize = 10;
         float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
         this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
-        this.commandQueue = new ConcurrentLinkedQueue<>();
+
 
     }
 
@@ -194,60 +204,61 @@ public class GPUSimulation {
 
 
 
-    // public static PlanetGenerator createDiskSimulation() {
-    //     PlanetGenerator pg = new PlanetGenerator();
-    //     float[] radius = {100, 100000};
-    //     float[] mRange = {10, 120};
-    //     float[] densityRange = {0.1f, 0.1f};
-    //     //Planet center = new Planet(1,0,0,0,0,0,100000);
-    //     //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
-    //     pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
-    //                 new float[] {0,0,0}, new float[] {0.1f,0,0},(float)(-java.lang.Math.PI*Math.random()),
-    //                  100000000f,100f,
-    //                  0.98f,1f,false, true));
-    //     pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
-    //                 new float[] {0,100000,0}, new float[] {0,0.1f,0},(float)(java.lang.Math.PI*Math.random()), 
-    //                 100000000f,100f,
-    //                 0.98f,1f,false, true));
-    //     pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
-    //     new float[] {0,-100000,0}, new float[] {0.1f,-1f,0},(float)(-java.lang.Math.PI*Math.random()),
-    //         100000000f,100f,
-    //         0.98f,1f,false, true));
-    //     pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
-    //                 new float[] {0,100000,100000}, new float[] {0,0.1f,-0.3f},(float)(java.lang.Math.PI*Math.random()), 
-    //                 100000000f,100f,
-    //                 0.98f,1f,false, true));
-    //     return pg;
-    // }
+    public static PlanetGenerator createDiskSimulation() {
+        PlanetGenerator pg = new PlanetGenerator();
+        float[] radius = {100, 100000};
+        float[] mRange = {10, 120};
+        float[] densityRange = {0.1f, 0.1f};
+        //Planet center = new Planet(1,0,0,0,0,0,100000);
+        //planets.addAll(Planet.makeNewRandomDisk(1_000_000, radius, mRange, (float)(java.lang.Math.PI/2), true, true, center));
+        pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
+                    new float[] {0,0,0}, new float[] {0.1f,0,0},(float)(-java.lang.Math.PI*Math.random()),
+                     100000000f,100f,
+                     0.98f,1f,false, true));
+        pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
+                    new float[] {0,100000,0}, new float[] {0,0.1f,0},(float)(java.lang.Math.PI*Math.random()), 
+                    100000000f,100f,
+                    0.98f,1f,false, true));
+        pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
+        new float[] {0,-100000,0}, new float[] {0.1f,-1f,0},(float)(-java.lang.Math.PI*Math.random()),
+            100000000f,100f,
+            0.98f,1f,false, true));
+        pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
+                    new float[] {0,100000,100000}, new float[] {0,0.1f,-0.3f},(float)(java.lang.Math.PI*Math.random()), 
+                    100000000f,100f,
+                    0.98f,1f,false, true));
+        return pg;
+    }
 
-    // public static PlanetGenerator createBoxSimulation() {
-    //     PlanetGenerator pg = new PlanetGenerator();
-    //     float[] xRange = {-40000, 40000};
-    //     float[] yRange = {-40000, 40000};
-    //     float[] zRange = {-40000, 40000};
-    //     float[] xVRange = {-0, 0};
-    //     float[] yVRange = {-0, 0};
-    //     float[] zVRange = {-0, 0};
-    //     float[] mRange = {10, 10000};
-    //     float[] densityRange = {1, 1};
-    //     Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
-    //     //Planet center2 = new Planet(100,0,0,0,0,0,10);
-    //     pg.add(PlanetGenerator.makeNewRandomBox(30, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange));
-    //     pg.add(center);
-    //     //planets.add(center2);
+    public static PlanetGenerator createBoxSimulation() {
+        PlanetGenerator pg = new PlanetGenerator();
+        float[] xRange = {-40000, 40000};
+        float[] yRange = {-40000, 40000};
+        float[] zRange = {-40000, 40000};
+        float[] xVRange = {-0, 0};
+        float[] yVRange = {-0, 0};
+        float[] zVRange = {-0, 0};
+        float[] mRange = {10, 10000};
+        float[] densityRange = {1, 1};
+        Planet center = new Planet(0, 0, 0, 0, 0, 0, 10000);
+        //Planet center2 = new Planet(100,0,0,0,0,0,10);
+        pg.add(PlanetGenerator.makeNewRandomBox(30, xRange, yRange, zRange, xVRange, yVRange, zVRange, mRange, densityRange));
+        pg.add(center);
+        //planets.add(center2);
 
-    //     return pg;
-    // }
+        return pg;
+    }
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
+        UnitSet units = UnitSet.SOLAR_SYSTEM_SECOND;
         int numAlive = 5_000_000;
         for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), 0, 0, 0, 0.00000000000000001f));
+            newPlanets.add(new Planet((float)(1*java.lang.Math.random()), (float)(1*java.lang.Math.random()), (float)(1*java.lang.Math.random()), 0, 0, 0, 1f));
         }
 
         Collections.shuffle(newPlanets);
-        return new PlanetGenerator(newPlanets);
+        return new PlanetGenerator(newPlanets, units);
     }
 
     public static PlanetGenerator twoPlanets() {
@@ -358,6 +369,14 @@ public class GPUSimulation {
     }
  
     /* --------- Helper functions --------- */
+
+    /**
+     * Gets the unit set.
+     * @return the unit set.
+     */
+    public UnitSet getUnitSet() {
+        return planetGenerator.getUnitSet();
+    }
         
     /**
      * Enqueues a command into the command queue.
@@ -394,14 +413,12 @@ public class GPUSimulation {
         valuesSSBO.refreshCache();
         Object[][] header = valuesSSBO.getData(new String[] {
             "numBodies",
-            "merged",
             "outOfBounds"
         });
 
         System.out.println("Header: " + Arrays.toString(header));
 
         currentBodies = (Integer)header[0][0];
-        merged = (Integer)header[1][0];
         outOfBounds = (Integer)header[2][0];
 
     }
@@ -509,7 +526,7 @@ public class GPUSimulation {
      * Toggles the regions rendering.
      */
     public void toggleRegions() {
-        render.showRegions = !render.showRegions;
+        Settings.getInstance().setShowRegions(!Settings.getInstance().isShowRegions());
     }
 
     /**
@@ -554,7 +571,6 @@ public class GPUSimulation {
     public void cleanup() {
 
         GPU.cleanup();
-        render.cleanup();
         if (isRecording) {
             stopRecording();
         }

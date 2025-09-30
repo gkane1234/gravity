@@ -1,7 +1,7 @@
 // =============================================================
 //                          Impostor vertex shader
 // =============================================================
-#include "render/common/render_common.glsl"
+#include "common/common.glsl"
 
 
 out vec2 vMapping;
@@ -84,10 +84,9 @@ vec3 getStarColor(float mass, float density) {
 void main() {
   Body b = srcB.bodies[gl_InstanceID];
 
-
-  vec3 center = scaledDist(b.posMass.xyz);
+  vec3 center = relativeLocation(b, uRelativeTo)*cameraScale;
   color = getStarColor(scaledMass(b), scaledDensity(b));
-  float trueRadius = scaledRadius(b);
+  float trueRadius = max (0.000001, radius(b))*cameraScale;
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
 

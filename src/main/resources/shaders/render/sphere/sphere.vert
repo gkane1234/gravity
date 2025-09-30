@@ -1,7 +1,7 @@
 // =============================================================
 //                     Sphere vertex shader
 // =============================================================
-#include "render/common/render_common.glsl"
+#include "common/common.glsl"
 layout (location = 0) in vec3 aPos; // unit sphere position
 
 out vec3 vWorldPos; // world position of the body
@@ -24,8 +24,8 @@ void main() {
     gl_PointSize = 0.0;
     return;
   }
-  vec3 center = scaledDist(srcB.bodies[gl_InstanceID].posMass.xyz);
-  float radius = scaledRadius(srcB.bodies[gl_InstanceID]);
+  vec3 center = scaledDist(relativeLocation(srcB.bodies[gl_InstanceID], uRelativeTo));
+  float radius = radius(srcB.bodies[gl_InstanceID]);
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;
   gl_Position = uMVP * vec4(worldPos, 1.0);

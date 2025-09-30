@@ -21,19 +21,19 @@ float getLongestSide(Node node)
 
 vec3 force(Node node, vec3 r, float oneOverDist)
 {
-    return GRAVITATIONAL_CONSTANT*scaledMass(node) * r * oneOverDist * oneOverDist * oneOverDist/ASTRONOMICAL_UNIT/ASTRONOMICAL_UNIT;
+    return sim.units.gravitationalConstant * node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
 }
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
 {
-    float dist2 = dot(r, r) + soft;
+    float dist2 = dot(r, r);// + soft;
     float inv = inversesqrt(dist2);
     return inv;
 }
 // Computes the force on a body using the Barnes-Hut algorithm
 // Also checks for collisions and merges
 // Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
-// Uniforms: softening, theta, dt, elasticity, wrapAround, collisionMergingOrNeither
+// Uniforms: softening, theta, dt, elasticity, wrapAround, mergingCollisionOrNeither
 // SSBOs: BodiesIn, BodiesOut, IndexIn, Nodes, LeafNodes, InternalNodes, MergeQueue
 const uint STACK_SIZE = 64u;
 
@@ -79,36 +79,37 @@ void forceComputeKernel()
             //If the node is a leaf node, we calculate the force and check for overlaps
             accel += force(node, r, oneOverDist);
 
-            if (collisionMergingOrNeither == NEITHER) {
+            if (mergingCollisionOrNeither == NEITHER) {
                 continue;
             }
         
             Body other = srcB.bodies[indexIn[nodeIdx]];
 
-            float bodyRadius = scaledRadius(body);
-            float otherRadius = scaledRadius(other);
+            float bodyRadius = radius(body);
+            float otherRadius = radius(other);
             float dist = length(r);
             float penetration = bodyRadius + otherRadius - dist; //The amount of overlap between the two bodies
 
-            if ((collisionMergingOrNeither == COLLISION) && (penetration > 0)) {
+            if ((mergingCollisionOrNeither == COLLISION) && (penetration > 0)) {
                 //Calculate the force of the collision
                 vec3 velocityDifference = other.velDensity.xyz - body.velDensity.xyz;
                 vec3 normal = normalize(r);
                 float vImpact = dot(velocityDifference, normal);
                 //If the bodies are moving towards each other, calculate and apply an impulse
                 if (vImpact < 0) {
-                    float mEff = 1/(1/scaledMass(body) + 1/scaledMass(other));
+                    float mEff = 1/(1/body.posMass.w + 1/other.posMass.w);
                     float impulse = (1+elasticity)*mEff*vImpact;
-                    body.velDensity.xyz += normal * impulse / scaledMass(body);
+                    body.velDensity.xyz += normal * impulse / body.posMass.w;
                 }
                 //Calculate the correction to the position of the body to avoid interpenetration using the overlap and the restitution coefficient
-                vec3 correction = (penetration / (scaledMass(body) + scaledMass(other))) * restitution * normal;
+                vec3 correction = (penetration / (body.posMass.w + other.posMass.w)) * restitution * normal;
                 body.posMass.xyz -= correction;
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel
-            if ((collisionMergingOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
+            if ((mergingCollisionOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
                 uint slot = atomicAdd(mergeQueueTail, 1u);
                 mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
+                atomicAdd(sim.merged, 1u);
             }
         }
         

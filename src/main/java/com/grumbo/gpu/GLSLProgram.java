@@ -55,6 +55,7 @@ public abstract class GLSLProgram {
     public void addShader(GLSLShader shader) {
         glAttachShader(program, shader.getShader());
         glLinkProgram(program);
+        System.out.println("Program "+ programName + " linked");
         checkProgram(program);
     }
 
@@ -103,7 +104,7 @@ public abstract class GLSLProgram {
      */
     public static void checkProgram(int program) {
         if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
-            System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
+            System.err.println("Program "+ program + " linking failed: " + glGetProgramInfoLog(program));
             throw new RuntimeException("Program linking failed");
         }
     }

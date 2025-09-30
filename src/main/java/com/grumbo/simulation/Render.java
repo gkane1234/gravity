@@ -31,15 +31,11 @@ public class Render {
             return OFF;
         }
     }
-    public boolean showRegions = false;
-
-
-    
 
     // Impostor config
     public float impostorPointScale = 1f; // mass to pixel size scale
     public float sphereRadiusScale = 1f;
-    public int pass = 0;
+    public boolean glowPass = false;
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;
     private boolean debug;
@@ -56,14 +52,15 @@ public class Render {
     }
 
 
+    /**
+     * Initializes anything additional to what is done in GPU.initRenderPrograms().
+     */
     public void init() {
-        // Nothing to do here
+
+        //Nothing additional to do here.
 
     }
 
-
-
-        /* --------- Rendering --------- */
     /**
      * Renders the simulation.
      * @param state the state of the simulation
@@ -81,7 +78,7 @@ public class Render {
             default: break;
         }
         // Render the regions
-        if (showRegions && gpuSimulation.getSteps() > 0) renderRegions();
+        if (Settings.getInstance().isShowRegions() && gpuSimulation.getSteps() > 0) renderRegions();
         GPUSimulation.checkGLError("after render");
     }
 
@@ -103,15 +100,15 @@ public class Render {
         glDepthMask(true);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        pass = 0;
+        glowPass = false;
         GPU.RENDER_IMPOSTOR.run();
 
         if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
             //set up appropriate blending for additive glow
-            glEnable    (GL_DEPTH_TEST);
+            glEnable(GL_DEPTH_TEST);
             glDepthMask(false);
             glBlendFunc(GL_ONE, GL_ONE);
-            pass = 1;
+            glowPass = true;
             GPU.RENDER_IMPOSTOR.run();
 
             glDepthMask(true);
@@ -141,8 +138,6 @@ public class Render {
         glEnable(GL_DEPTH_TEST);
     }
 
-
-
     /**
      * Gets the MVP matrix.
      * @return the MVP matrix
@@ -153,6 +148,7 @@ public class Render {
         Matrix4f mvp = new Matrix4f(proj).mul(view);
         return mvp;
     }
+    
     /**
      * Gets the camera to clip matrix.
      * @return the camera to clip matrix
@@ -166,6 +162,7 @@ public class Render {
         Matrix4f proj = new Matrix4f().perspective((float) java.lang.Math.toRadians(fov), aspect, near, far);
         return proj;
     }
+
     /**
      * Gets the view matrix.
      * @return the view matrix
@@ -180,63 +177,4 @@ public class Render {
         Matrix4f view = new Matrix4f().lookAt(eye, center, up); 
         return view;
     }
-
-    /**
-     * Sets the impostor point scale.
-     * @param scale the impostor point scale
-     */
-    public void setImpostorPointScale(float scale) {
-        this.impostorPointScale = scale <= 0 ? 1.0f : scale;
-    }
-
-
-    /**
-     * Sets the sphere radius scale.
-     * @param scale the sphere radius scale
-     */
-    public void setSphereRadiusScale(float scale) {
-        this.sphereRadiusScale = scale;
-    }
-
-
-    /**
-     * Gets the initial number of bodies.
-     * @return the initial number of bodies
-     */
-    public int initialNumBodies() {
-        return gpuSimulation.initialNumBodies();
-    }
-
-
-    
-
-    /* --------- Cleanup --------- */
-    public void cleanup() {
-        GPU.RENDER_POINTS.delete();
-        GPU.RENDER_IMPOSTOR.delete();
-        GPU.RENDER_SPHERE.delete();
-        GPU.RENDER_REGIONS.delete();
-    }
-
-    /* --------- Shader checking --------- */
-    /**
-     * Checks if the shader compiled successfully.
-     * @param shader the shader to check
-     */
-    public static void checkShader(int shader) {
-        if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
-            System.err.println("Shader compilation failed: " + glGetShaderInfoLog(shader));
-        }
-    }
-
-    /**
-     * Checks if the program linked successfully.
-     * @param program the program to check
-     */
-    public static void checkProgram(int program) {
-        if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
-            System.err.println("Program linking failed: " + glGetProgramInfoLog(program));
-        }
-    }
-
 }

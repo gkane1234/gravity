@@ -5,14 +5,9 @@ import static org.lwjgl.opengl.GL11.*;
 
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * Bitmap font renderer that loads characters from a PNG texture atlas.

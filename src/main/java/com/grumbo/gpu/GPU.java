@@ -17,6 +17,7 @@ import com.grumbo.simulation.PlanetGenerator;
 import com.grumbo.simulation.Planet;
 import com.grumbo.simulation.Settings;
 import com.grumbo.simulation.BarnesHut;
+import com.grumbo.simulation.UnitSet;
 
 public class GPU {
 
@@ -105,13 +106,14 @@ public class GPU {
     public static ComputeProgram COMPUTE_DEBUG; // bh_debug.comp
 
     // Compute Uniforms
+    public static Uniform<Float> UNIFORM_CAMERA_SCALE;
     public static Uniform<Integer> UNIFORM_NUM_WORK_GROUPS;
     public static Uniform<Float> UNIFORM_SOFTENING;
     public static Uniform<Float> UNIFORM_THETA;
     public static Uniform<Float> UNIFORM_DT;
     public static Uniform<Float> UNIFORM_ELASTICITY;
     public static Uniform<Float> UNIFORM_RESTITUTION;
-    public static Uniform<Integer> UNIFORM_COLLISION_MERGING_OR_NEITHER;
+    public static Uniform<Integer> UNIFORM_MERGING_COLLISION_OR_NEITHER;
     public static Uniform<Integer> UNIFORM_PASS_SHIFT;
     public static Uniform<Boolean> UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES;
     public static Uniform<Boolean> UNIFORM_WRAP_AROUND;
@@ -137,6 +139,14 @@ public class GPU {
     public static Uniform<Matrix4f> UNIFORM_MODEL_VIEW;
     public static Uniform<Float> UNIFORM_RADIUS_SCALE;
     public static Uniform<Vector2i> UNIFORM_MIN_MAX_DEPTH;
+    public static Uniform<Integer> UNIFORM_RELATIVE_TO;
+
+
+    // Render Programs
+    public static RenderProgram RENDER_POINTS; // points program
+    public static RenderProgram RENDER_IMPOSTOR; // point-sprite impostor spheres
+    public static RenderProgram RENDER_SPHERE;   // instanced mesh spheres
+    public static RenderProgram RENDER_REGIONS; // regions
 
 
     
@@ -148,10 +158,11 @@ public class GPU {
         float[][] bounds = gpuSimulation.getBarnesHut().getBounds();
         PlanetGenerator planetGenerator = gpuSimulation.getPlanetGenerator();
         GPU.initialNumBodies = gpuSimulation.initialNumBodies();
+        UnitSet units = gpuSimulation.getUnitSet();
 
         initComputeUniforms(barnesHut);
 
-        initComputeSSBOs(planetGenerator, bounds);
+        initComputeSSBOs(planetGenerator, bounds, units);
         initComputeSwappingBuffers();
         initComputePrograms(barnesHut);
         initRenderUniforms(render);
@@ -164,7 +175,7 @@ public class GPU {
      * Gives the SSBOs their correct sizes or data functions, and 
      * the general layout of the SSBOs.
      */
-    private static void initComputeSSBOs(PlanetGenerator planetGenerator, float[][] bounds) {
+    private static void initComputeSSBOs(PlanetGenerator planetGenerator, float[][] bounds, UnitSet units) {
         // Compute sizes (use long to avoid overflow)
         long nodesSize = Node.STRUCT_SIZE * Integer.BYTES * (long) (numBodies());
         long maxBlock = glGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
@@ -217,7 +228,7 @@ public class GPU {
 
         //This is the SSBO that holds values that are used in different shaders
         SSBO_SIMULATION_VALUES = new SSBO(SSBO.SIMULATION_VALUES_BINDING, () -> {
-            return packValues(numBodies(), bounds);
+            return packValues(numBodies(), bounds, units);
         },"SSBO_SIMULATION_VALUES", new GLSLVariable(new GLSLVariable[] {
             new GLSLVariable(VariableType.UINT,"numBodies", 1), 
             new GLSLVariable(VariableType.UINT,"initialNumBodies", 1), 
@@ -230,6 +241,15 @@ public class GPU {
             new GLSLVariable(new GLSLVariable[] {
                 new GLSLVariable(VariableType.FLOAT,"minCorner", 3), new GLSLVariable(VariableType.PADDING),
                 new GLSLVariable(VariableType.FLOAT,"maxCorner", 3), new GLSLVariable(VariableType.PADDING)},"bounds"), 
+            new GLSLVariable(new GLSLVariable[] {
+                new GLSLVariable(VariableType.FLOAT,"mass", 1), 
+                new GLSLVariable(VariableType.FLOAT,"density", 1), 
+                new GLSLVariable(VariableType.FLOAT,"len", 1), 
+                new GLSLVariable(VariableType.FLOAT,"time", 1), 
+                new GLSLVariable(VariableType.FLOAT,"gravitationalConstant", 1), 
+                new GLSLVariable(VariableType.FLOAT,"bodyLengthInSimulationLengthsConstant", 1), 
+                new GLSLVariable(VariableType.PADDING),
+                new GLSLVariable(VariableType.PADDING)}, "units"),
             new GLSLVariable(VariableType.UINT,"uintDebug", 100), 
             new GLSLVariable(VariableType.FLOAT,"floatDebug", 100)},"SimulationValues"));
         GPU.SSBOS.put(SSBO_SIMULATION_VALUES.getName(), SSBO_SIMULATION_VALUES);
@@ -359,7 +379,13 @@ public class GPU {
      */
     private static void initComputeUniforms(BarnesHut barnesHut) {
         GPU.UNIFORMS = new HashMap<>();
-        
+
+        UNIFORM_CAMERA_SCALE = new Uniform<Float>("cameraScale", () -> {
+            return Settings.getInstance().getCameraScale();
+        }, VariableType.FLOAT);
+
+        GPU.UNIFORMS.put(UNIFORM_CAMERA_SCALE.getName(), UNIFORM_CAMERA_SCALE);
+
         UNIFORM_NUM_WORK_GROUPS = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
         }, VariableType.UINT);
@@ -402,21 +428,11 @@ public class GPU {
 
         GPU.UNIFORMS.put(UNIFORM_PASS_SHIFT.getName(), UNIFORM_PASS_SHIFT);
 
-        UNIFORM_COLLISION_MERGING_OR_NEITHER = new Uniform<Integer>("collisionMergingOrNeither", () -> {
-            String selected = Settings.getInstance().getCollisionMergingOrNeither();
-            switch (selected) {
-                case "none":
-                    return 0;
-                case "merge":
-                    return 2;
-                case "collision":
-                    return 1;
-                default:
-                    return 0;
-            }
+        UNIFORM_MERGING_COLLISION_OR_NEITHER = new Uniform<Integer>("mergingCollisionOrNeither", () -> {
+            return Settings.getInstance().getSelectedIndexMergingCollisionOrNeither();
         }, VariableType.UINT);
 
-        GPU.UNIFORMS.put(UNIFORM_COLLISION_MERGING_OR_NEITHER.getName(), UNIFORM_COLLISION_MERGING_OR_NEITHER);
+        GPU.UNIFORMS.put(UNIFORM_MERGING_COLLISION_OR_NEITHER.getName(), UNIFORM_MERGING_COLLISION_OR_NEITHER);
 
         UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES = new Uniform<Boolean>("resetValuesOrDecrementDeadBodies", () -> {
             return barnesHut.resetValuesOrDecrementDeadBodies ? true : false;
@@ -431,15 +447,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_WRAP_AROUND.getName(), UNIFORM_WRAP_AROUND);
 
         UNIFORM_STATIC_OR_DYNAMIC = new Uniform<Integer>("staticOrDynamic", () -> {
-            String selected = Settings.getInstance().getDynamic();
-            switch (selected) {
-                case "static":
-                    return 0;
-                case "dynamic":
-                    return 1;
-                default:
-                    return 0;
-            }
+            return Settings.getInstance().getSelectedIndexDynamic();
         }, VariableType.UINT);
 
         GPU.UNIFORMS.put(UNIFORM_STATIC_OR_DYNAMIC.getName(), UNIFORM_STATIC_OR_DYNAMIC);
@@ -722,7 +730,7 @@ public class GPU {
             UNIFORM_ELASTICITY,
             UNIFORM_WRAP_AROUND,
             UNIFORM_SOFTENING,
-            UNIFORM_COLLISION_MERGING_OR_NEITHER,
+            UNIFORM_MERGING_COLLISION_OR_NEITHER,
             UNIFORM_STATIC_OR_DYNAMIC,
         });
 
@@ -807,7 +815,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_ASPECT.getName(), UNIFORM_ASPECT);
 
         GPU.UNIFORM_PASS = new Uniform<Integer>("uPass", () -> {
-            return render.pass;
+            return render.glowPass ? 1 : 0;
         }, VariableType.INT);
         GPU.UNIFORMS.put(UNIFORM_PASS.getName(), UNIFORM_PASS);
 
@@ -830,6 +838,16 @@ public class GPU {
             return Settings.getInstance().getCameraPos();
         }, VariableType.VEC3F);
         GPU.UNIFORMS.put(UNIFORM_CAMERA_POS.getName(), UNIFORM_CAMERA_POS);
+
+        GPU.UNIFORM_RELATIVE_TO = new Uniform<Integer>("uRelativeTo", () -> {
+            int relativeTo = Settings.getInstance().getRelativeTo();
+            if (relativeTo < 0) {
+                return 0xFFFFFFFF;
+            }
+            return relativeTo;
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_RELATIVE_TO.getName(), UNIFORM_RELATIVE_TO);
+
         
         GPU.UNIFORM_MIN_MAX_DEPTH = new Uniform<Vector2i>("uMinMaxDepth", () -> {
             return new Vector2i(Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
@@ -838,13 +856,19 @@ public class GPU {
     }
 
     private static void initRenderPrograms(Render render) {
-
         GPU.RENDER_PROGRAMS = new HashMap<>();
-
         for (GLSLMesh.MeshType mesh : GLSLMesh.MeshType.values()) {
             GLSLMesh.reInitializeMesh(mesh);
         }
 
+        // Create points render program
+        GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, GPU.initialNumBodies);
+        GPU.RENDER_POINTS.setUniforms(new Uniform[] {
+            GPU.UNIFORM_MVP,
+            GPU.UNIFORM_CAMERA_SCALE,
+        });
+        GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
+            GPU.SSBO_SWAPPING_BODIES_IN,
         // Create points render program
         GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, render.initialNumBodies());
         GPU.RENDER_POINTS.setUniforms(new Uniform[] {
@@ -852,14 +876,9 @@ public class GPU {
         });
         GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_OUT,
-        });
-        GPU.RENDER_PROGRAMS.put(GPU.RENDER_POINTS.getProgramName(), GPU.RENDER_POINTS);
-        GPUSimulation.checkGLError("RENDER_POINTS");
-
-
-
         // Create impostor render program
-        GPU.RENDER_IMPOSTOR = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, render.initialNumBodies());
+        GPU.RENDER_IMPOSTOR = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, GPU.initialNumBodies);
+        RenderProgram.checkProgram(GPU.RENDER_IMPOSTOR.getProgram());
         GPU.RENDER_IMPOSTOR.setUniforms(new Uniform[] {
             GPU.UNIFORM_POINT_SCALE,
             GPU.UNIFORM_CAMERA_POS,
@@ -869,45 +888,52 @@ public class GPU {
             GPU.UNIFORM_PASS,
             GPU.UNIFORM_PROJ,
             GPU.UNIFORM_MODEL_VIEW,
+            GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
         });
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_OUT,
+            GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_SIMULATION_VALUES
+
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_IMPOSTOR.getProgramName(), GPU.RENDER_IMPOSTOR);
         GPUSimulation.checkGLError("RENDER_IMPOSTOR");
 
         // Create mesh sphere render program
-        GPU.RENDER_SPHERE = new RenderProgram("sphere", GLSLMesh.MeshType.SPHERE, render.initialNumBodies());
+        GPU.RENDER_SPHERE = new RenderProgram("sphere", GLSLMesh.MeshType.SPHERE, GPU.initialNumBodies);
         GPU.RENDER_SPHERE.setUniforms(new Uniform[] {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_RADIUS_SCALE,
             GPU.UNIFORM_CAMERA_POS,
+            GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
         });
         GPU.RENDER_SPHERE.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_OUT,
+            GPU.SSBO_SWAPPING_BODIES_IN,
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_SPHERE.getProgramName(), GPU.RENDER_SPHERE);
-        GPUSimulation.checkGLError("RENDER_SPHERE");
+        GPUSimulation.checkGLError("GPU.RENDER_SPHERE");
 
         // Enable point size
         glEnable(GL_PROGRAM_POINT_SIZE);
 
 
         // Initialize regions program
-        GPU.RENDER_REGIONS = new RenderProgram("regions", GLSLMesh.MeshType.REGIONS, render.initialNumBodies()-1);
+        GPU.RENDER_REGIONS = new RenderProgram("regions", GLSLMesh.MeshType.REGIONS, GPU.initialNumBodies-1);
         GPU.RENDER_REGIONS.setUniforms(new Uniform[] {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_MIN_MAX_DEPTH,
+            GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
         });
         GPU.RENDER_REGIONS.setSSBOs(new SSBO[] {
             GPU.SSBO_INTERNAL_NODES,
             GPU.SSBO_SIMULATION_VALUES,
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_REGIONS.getProgramName(), GPU.RENDER_REGIONS);
-        GPUSimulation.checkGLError("RENDER_REGIONS");
+        GPUSimulation.checkGLError("GPU.RENDER_REGIONS");
 
-        GPUSimulation.checkGLError("initRenderPrograms");
-
+        GPUSimulation.checkGLError("init");
     }
 
         
@@ -947,10 +973,33 @@ public class GPU {
     /**
      * Pack the values to a float buffer.
      */
-    public static ByteBuffer packValues(int numBodies, float[][] bounds) {
+    public static ByteBuffer packValues(int numBodies, float[][] bounds, UnitSet units) {
+
+        // new GLSLVariable(VariableType.UINT,"numBodies", 1), 
+        //     new GLSLVariable(VariableType.UINT,"initialNumBodies", 1), 
+        //     new GLSLVariable(VariableType.UINT,"justDied", 1), 
+        //     new GLSLVariable(VariableType.UINT,"merged", 1), 
+        //     new GLSLVariable(VariableType.UINT,"outOfBounds", 1), 
+        //     new GLSLVariable(VariableType.UINT,"pad0", 1), 
+        //     new GLSLVariable(VariableType.UINT,"pad1", 1), 
+        //     new GLSLVariable(VariableType.UINT,"pad2", 1), 
+        //     new GLSLVariable(new GLSLVariable[] {
+        //         new GLSLVariable(VariableType.FLOAT,"minCorner", 3), new GLSLVariable(VariableType.PADDING),
+        //         new GLSLVariable(VariableType.FLOAT,"maxCorner", 3), new GLSLVariable(VariableType.PADDING)},"bounds"), 
+        //     new GLSLVariable(new GLSLVariable[] {
+        //         new GLSLVariable(VariableType.FLOAT,"mass", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"density", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"len", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"time", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"gravitationalConstant", 1), 
+        //         new GLSLVariable(VariableType.FLOAT,"bodyLengthInSimulationLengthsConstant", 1), 
+        //         new GLSLVariable(VariableType.PADDING),
+        //         new GLSLVariable(VariableType.PADDING)}, "units"),
+        //     new GLSLVariable(VariableType.UINT,"uintDebug", 100), 
+        //     new GLSLVariable(VariableType.FLOAT,"floatDebug", 100)},"SimulationValues"));
 
         //layout(std430, binding = 1) buffer SimulationValues { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; } sim;
-        ByteBuffer buf = BufferUtils.createByteBuffer(8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES);
+        ByteBuffer buf = BufferUtils.createByteBuffer(8*Integer.BYTES+16*Float.BYTES+100*Integer.BYTES+100*Float.BYTES);
         buf.putInt(numBodies); // numBodies
         buf.putInt(numBodies); // initialNumBodies
         buf.putInt(0); // justDied
@@ -961,6 +1010,7 @@ public class GPU {
         buf.putInt(0); // pad2
         buf.putFloat(bounds[0][0]).putFloat(bounds[0][1]).putFloat(bounds[0][2]).putInt(0); // bounds
         buf.putFloat(bounds[1][0]).putFloat(bounds[1][1]).putFloat(bounds[1][2]).putInt(0); // bounds
+        buf.putFloat((float)units.mass()).putFloat((float)units.density()).putFloat((float)units.len()).putFloat((float)units.time()).putFloat(0).putFloat(0).putInt(0).putInt(0); // units
     
         // uintDebug[100]
         for (int i = 0; i < 100; i++) buf.putInt(0);
@@ -1031,12 +1081,12 @@ public class GPU {
         for (ComputeProgram program : GPU.COMPUTE_PROGRAMS.values()) {
             program.delete();
         }
-        //for (VertexShader shader : GPU.VERTEX_SHADERS.values()) {
-        //    shader.delete();
-        //}
-        //for (FragmentShader shader : GPU.FRAGMENT_SHADERS.values()) {
-        //    shader.delete();
-        //}
+        for (RenderProgram program : GPU.RENDER_PROGRAMS.values()) {
+                program.delete();
+        }
+        for (RenderProgram program : GPU.RENDER_PROGRAMS.values()) {
+            program.delete();
+        }
         for (SSBO ssbo : GPU.SSBOS.values()) {
             ssbo.delete();
         }
