@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * SSBO class for creating SSBO objects on the GPU
@@ -36,22 +37,22 @@ public class SSBO {
     // layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
     // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
 
-    public static final int LEAF_NODES_SSBO_BINDING = 0;
-    public static final int INTERNAL_NODES_SSBO_BINDING = 1;
-    public static final int SIMULATION_VALUES_SSBO_BINDING = 2;
-    public static final int BODIES_IN_SSBO_BINDING = 3;
-    public static final int BODIES_OUT_SSBO_BINDING = 4;
-    public static final int MORTON_IN_SSBO_BINDING = 5;
-    public static final int MORTON_OUT_SSBO_BINDING = 6;
-    public static final int INDEX_IN_SSBO_BINDING = 7;
-    public static final int INDEX_OUT_SSBO_BINDING = 8;
-    public static final int PROPAGATE_WORK_QUEUE_IN_SSBO_BINDING = 9;
-    public static final int PROPAGATE_WORK_QUEUE_OUT_SSBO_BINDING = 10;
-    public static final int RADIX_WG_HIST_SSBO_BINDING = 11;
-    public static final int RADIX_WG_SCANNED_SSBO_BINDING = 12;
-    public static final int RADIX_BUCKET_TOTALS_SSBO_BINDING = 13;
-    public static final int MERGE_QUEUE_SSBO_BINDING = 14;
-    public static final int MERGE_BODY_LOCKS_SSBO_BINDING = 15;
+    public static final int LEAF_NODES_BINDING = 0;
+    public static final int INTERNAL_NODES_BINDING = 1;
+    public static final int SIMULATION_VALUES_BINDING = 2;
+    public static final int BODIES_IN_BINDING = 3;
+    public static final int BODIES_OUT_BINDING = 4;
+    public static final int MORTON_IN_BINDING = 5;
+    public static final int MORTON_OUT_BINDING = 6;
+    public static final int INDEX_IN_BINDING = 7;
+    public static final int INDEX_OUT_BINDING = 8;
+    public static final int PROPAGATE_WORK_QUEUE_IN_BINDING = 9;
+    public static final int PROPAGATE_WORK_QUEUE_OUT_BINDING = 10;
+    public static final int RADIX_WG_HIST_BINDING = 11;
+    public static final int RADIX_WG_SCANNED_BINDING = 12;
+    public static final int RADIX_BUCKET_TOTALS_BINDING = 13;
+    public static final int MERGE_QUEUE_BINDING = 14;
+    public static final int MERGE_BODY_LOCKS_BINDING = 15;
 
 
     // Buffer location of the SSBO
@@ -65,11 +66,13 @@ public class SSBO {
     private dataFunction dataFunction;
     // Name of the SSBO
     private String name;
+    private int size;
 
     // Types of the fields of the struct
     private GLSLVariable SSBOLayout;
     private HashMap<String, GLSLVariable> SSBOLayoutMap;
     private HashMap<String, Integer> SSBOByteOffsets;
+    private Map<Integer, Integer[]> ProgramBindingRanges;
     /**
      * Function to get the size of the SSBO, this or the data function is used.
      */
@@ -110,6 +113,7 @@ public class SSBO {
         this.SSBOLayout = SSBOLayout;
         this.SSBOLayoutMap = new HashMap<>();
         this.SSBOByteOffsets = new HashMap<>();
+        this.ProgramBindingRanges = new HashMap<>();
         addToSSBOLayoutMap(SSBOLayout, 0);
     }
 
@@ -182,9 +186,27 @@ public class SSBO {
     /**
      * Binds the SSBO
      */
+    public void bind(int startIndex, int endIndex) {
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation, startIndex, endIndex);
+    }
+
     public void bind() {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation);
     }
+
+    public void bind(int program) {
+        if (ProgramBindingRanges.containsKey(program)) {
+            bind(ProgramBindingRanges.get(program)[0], ProgramBindingRanges.get(program)[1]);
+        } else {
+            bind();
+        }
+    }
+
+
+    public void setProgramBindingRange(int program, int startIndex, int endIndex) {
+        ProgramBindingRanges.put(program, new Integer[] {startIndex, endIndex});
+    }
+
     /**
      * Unbinds the SSBO
      */
@@ -198,9 +220,13 @@ public class SSBO {
     public void createBufferData() {
         bind();
         if (sizeFunction != null) {
-            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeFunction.getSize(), GL_DYNAMIC_COPY);
+            size = sizeFunction.getSize();
+            glBufferData(GL_SHADER_STORAGE_BUFFER, size, GL_DYNAMIC_COPY);
+
         } else {
-            glBufferData(GL_SHADER_STORAGE_BUFFER, dataFunction.setData(), GL_DYNAMIC_COPY);
+            ByteBuffer data = dataFunction.setData();
+            size = data.capacity();
+            glBufferData(GL_SHADER_STORAGE_BUFFER, data, GL_DYNAMIC_COPY);
         }
         unbind();
     }
@@ -217,6 +243,10 @@ public class SSBO {
         return bufferCache;
     }
 
+    public int getSize() {
+        return size;
+    }
+
     public void refreshCache() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer mapped = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
@@ -227,7 +257,6 @@ public class SSBO {
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         bufferCache = copy;
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         System.out.println("Buffer cache created for " + name);
     }
 
@@ -242,10 +271,10 @@ public class SSBO {
     public String getDataAsString(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
         int baseOffset = SSBOByteOffsets.getOrDefault(variableName, 0);
-        ByteBuffer buf = getBuffer();
         if (updateCache) {
             refreshCache();
         }
+        ByteBuffer buf = getBuffer();
         return variable.getDataAsStringAt(buf, baseOffset, startIndex, endIndex);
     }
     public String getDataAsString(String variableName, int startIndex, int endIndex) {
@@ -274,7 +303,6 @@ public class SSBO {
 
     public Object[] getData(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
-        System.out.println("Getting data for variable: " + variableName + " from index " + startIndex + " to " + endIndex);
         if (updateCache) {
             refreshCache();
         }

@@ -1,8 +1,7 @@
-#version 430
 // =============================================================
 //                          Points fragment shader
 // =============================================================
-
+#include "common/common.glsl"
 // This fragment shader is used to render the points.
 // It is done by rendering points at the position of the body.
 out vec4 fragColor;

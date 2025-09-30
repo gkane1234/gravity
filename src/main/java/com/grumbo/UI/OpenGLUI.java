@@ -29,11 +29,6 @@ public class OpenGLUI {
     private SettingsPane settingsPane;
     public boolean showCrosshair = false;
 
-    private boolean recordCurrentBodies = false;
-
-    private int lastBodies = 0;
-    private int lastSteps = 0;
-    private int lastDifference = 0;
     /**
      * KeyEvent class represents a key event.
      */
@@ -166,8 +161,8 @@ public class OpenGLUI {
      * Initializes the key events.
      */
     public void initKeyEvents() {
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() * 1.1),true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() / 1.1),true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().setCameraScale(Settings.getInstance().getCameraScale() * 1.1f),true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().setCameraScale(Settings.getInstance().getCameraScale() / 1.1f),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_W, () -> {processWASDQEMovement(GLFW.GLFW_KEY_W);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_A, () -> {processWASDQEMovement(GLFW.GLFW_KEY_A);},true)); 
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_S, () -> {processWASDQEMovement(GLFW.GLFW_KEY_S);},true)); 
@@ -179,7 +174,6 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_J, () -> {processIJKLMovement(GLFW.GLFW_KEY_J);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_K, () -> {processIJKLMovement(GLFW.GLFW_KEY_K);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_L, () -> {processIJKLMovement(GLFW.GLFW_KEY_L);},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F, () -> Settings.getInstance().toggleFollow()));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_R, () -> {}));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
@@ -188,8 +182,6 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 0.9));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 1.1));},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_B, () -> {}));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_T, () -> Settings.getInstance().setDrawTail(!Settings.getInstance().isDrawTail()),false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_SPACE, () -> Settings.getInstance().toggleFollow()));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 0.9)),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 1.1)),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_GRAVE_ACCENT, () -> {displaySettings = !displaySettings;},false));
@@ -208,7 +200,7 @@ public class OpenGLUI {
                 System.out.println("Switched to frame advance mode - press ENTER to advance frames");
             }
         },false));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {openGlWindow.gpuSimulation.toggleRegions();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F2, () -> {openGlWindow.gpuSimulation.toggleRegions(); System.out.println("Toggled regions");},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F3, () -> {displayDebug = !displayDebug;},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {showStats = !showStats;},false));
         //keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F4, () -> {recordCurrentBodies = !recordCurrentBodies;},false));
@@ -441,7 +433,6 @@ public class OpenGLUI {
         }
         
         // Handle relative camera movement based on key states
-        Vector3f moveDirection = new Vector3f();
         float moveSpeed = 1f;
 
         switch (key) {
@@ -469,10 +460,10 @@ public class OpenGLUI {
             return; // Skip if font is not available
         }
 
-        boolean newFrame = lastSteps != openGlWindow.gpuSimulation.getSteps();
 
      
-        String statsText = String.format("FPS: %.1f", openGlWindow.getFPS());
+        String statsText = String.format("FPS: %.1f\n", openGlWindow.getFPS());
+        statsText+= String.format("Location: %.2f, %.2f, %.2f", Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
 
 
         

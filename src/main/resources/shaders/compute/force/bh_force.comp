@@ -15,25 +15,28 @@ float getLongestSide(Node node)
 {
     AABB aabb = unpackAABB(node.aabb);
     vec3 extent = aabb.maxCorner - aabb.minCorner;
-    return max(extent.x, max(extent.y, extent.z));
+    float longestSize = max(extent.x, max(extent.y, extent.z));
+    return longestSize/2;
 }
+
 vec3 force(Node node, vec3 r, float oneOverDist)
 {
-    return node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
+    return sim.units.gravitationalConstant * node.comMass.w * r * oneOverDist * oneOverDist * oneOverDist;
 }
 // Calculates the inverse square root of the distance between two bodies with softening parameter
 float invDistWithSoftening(vec3 r, float soft)
 {
-    float dist2 = dot(r, r) + soft;
+    float dist2 = dot(r, r);// + soft;
     float inv = inversesqrt(dist2);
     return inv;
 }
 // Computes the force on a body using the Barnes-Hut algorithm
 // Also checks for collisions and merges
 // Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
-// Uniforms: softening, theta, dt, elasticity, wrapAround, collisionMergingOrNeither
+// Uniforms: softening, theta, dt, elasticity, wrapAround, mergingCollisionOrNeither
 // SSBOs: BodiesIn, BodiesOut, IndexIn, Nodes, LeafNodes, InternalNodes, MergeQueue
 const uint STACK_SIZE = 64u;
+
 void forceComputeKernel() 
 {
 
@@ -59,13 +62,14 @@ void forceComputeKernel()
         if (isInternalNode(node)) {
             //Check to see if we should continue into the node using the longest radius of the AABB
             //This is the standard method for a binary radix tree implementation
-            if (acceptanceCriterion(getLongestSide(node)/2, oneOverDist, theta)) {
+            if (acceptanceCriterion(getLongestSide(node), oneOverDist, theta)) {
                 accel += force(node, r, oneOverDist);
             }
             //Add the children to the stack
             else {
                 stack[currentStackSize++] = node.childA;
                 stack[currentStackSize++] = node.childB;
+                atomicAdd(sim.uintDebug[0], 1u);
             }
         }
         else {
@@ -75,7 +79,7 @@ void forceComputeKernel()
             //If the node is a leaf node, we calculate the force and check for overlaps
             accel += force(node, r, oneOverDist);
 
-            if (collisionMergingOrNeither == NEITHER) {
+            if (mergingCollisionOrNeither == NEITHER) {
                 continue;
             }
         
@@ -86,7 +90,7 @@ void forceComputeKernel()
             float dist = length(r);
             float penetration = bodyRadius + otherRadius - dist; //The amount of overlap between the two bodies
 
-            if ((collisionMergingOrNeither == COLLISION) && (penetration > 0)) {
+            if ((mergingCollisionOrNeither == COLLISION) && (penetration > 0)) {
                 //Calculate the force of the collision
                 vec3 velocityDifference = other.velDensity.xyz - body.velDensity.xyz;
                 vec3 normal = normalize(r);
@@ -102,9 +106,10 @@ void forceComputeKernel()
                 body.posMass.xyz -= correction;
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel
-            if ((collisionMergingOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
+            if ((mergingCollisionOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
                 uint slot = atomicAdd(mergeQueueTail, 1u);
                 mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
+                atomicAdd(sim.merged, 1u);
             }
         }
         

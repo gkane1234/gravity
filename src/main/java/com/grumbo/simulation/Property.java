@@ -2,6 +2,7 @@ package com.grumbo.simulation;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.function.Predicate;
 import org.joml.Vector3f;
 
@@ -29,6 +30,7 @@ public class Property<T> {
     private UIRow editorRow;
     private T cachedValue;
     private String[] options; // Options for a selector property
+    private int selectedIndex; // Index of the selected option for a selector property
     /**
      * Enum for the type of the property.
      */
@@ -269,6 +271,23 @@ public class Property<T> {
     }
 
     /**
+     * Gets the selected index of the property.
+     * @return the selected index of the property
+     */
+    public int getSelectedIndex() { 
+        if (typeName != PropertyType.SELECTOR) throw new IllegalArgumentException("Property is not a selector"); 
+        return selectedIndex; 
+    }
+    /**
+     * Sets the selected index of the property.
+     * @param selectedIndex the selected index of the property
+     */
+    public void setSelectedIndex(int selectedIndex) { 
+        if (typeName != PropertyType.SELECTOR) throw new IllegalArgumentException("Property is not a selector"); 
+        this.selectedIndex = selectedIndex; 
+    }
+
+    /**
      * Updates the property.
      */
     public void update() {
@@ -283,6 +302,9 @@ public class Property<T> {
         if (cachedValue == null || !cachedValue.equals(value)) {
             syncEditorRowFromValue();
             cachedValue = value;
+            if (typeName == PropertyType.SELECTOR) {
+                selectedIndex = Arrays.asList(options).indexOf(value);
+            }
         }
     }
     
@@ -601,8 +623,10 @@ public class Property<T> {
         p.typeName = PropertyType.SELECTOR;
         p.setEditable(editable);
         p.options = options;
+        p.selectedIndex = Arrays.asList(options).indexOf(value);
         return p;
     }
+
     
     /**
      * Creates a color property.
@@ -946,28 +970,8 @@ public class Property<T> {
     private ArrayList<UIElement> createSelectorEditorElements() {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
-        UIButton[] buttons = new UIButton[options.length];
-        String initialState = (String) Settings.getInstance().getValue(name);
-        for (int i = 0; i < options.length; i++) {
-            String option = options[i];
-            UIButton button = new UIButton(option);
-            buttons[i] = button;
-        }
-        for (int i = 0; i < options.length; i++) {
-            final int index = i;
-            final String option = options[index];
-            buttons[i].setOnClick(() -> {
-                Settings.getInstance().setValue(name, option);
-                Settings.getInstance().saveSettings();
-                for (int j = 0; j < options.length; j++) {
-                    buttons[j].setSelected(j == index);
-                }
-            });
-            buttons[i].setOnRelease(() -> {});
-            System.out.println("Initial state: " + initialState + " Option: " + option + " Index: " + i);
-            buttons[i].setSelected(initialState.equals(option));
-            elements.add(buttons[i]);
-        }
+        UISelector selector = new UISelector(name, options);
+        elements.add(selector);
         return elements;
     }
 

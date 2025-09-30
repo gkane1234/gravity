@@ -11,7 +11,7 @@ import java.util.Arrays;
  * Debug is a class that represents a debug object.
  * It is used to debug the code by logging to a file.
  * The debug object can be selected by setting the debugsSelected array. Available debugs can be found by running outputAllConnectedDebugs().
- * Each ComputeShader object has a debug object before and after the shader is run that can be changed in BoundedBarnesHut.
+ * Each ComputeShader object has a debug object before and after the shader is run that can be changed in BarnesHut.
  * 
  * @author Grumbo
  * @version 1.0
@@ -155,17 +155,20 @@ public class Debug {
      * @param frame the frame
      */
     public static void addDebugToFile(int frame) {
-        debugFileString += "--------------------------------Frame " + frame + "--------------------------------\n";
+        String header = "--------------------------------Frame " + frame + "--------------------------------\n";
+
         String debugOutputs = "";
+        int numSelectedDebugs = 0;
         for (Debug debug : debugs) {
             if (debug.isSelected()) {
                 debugOutputs += debug.getDebug() + "\n";
+                numSelectedDebugs++;
             }
         }
-        if (debugOutputs.length() == 0) {
+        if (debugOutputs.length() == numSelectedDebugs) {
             return;
         }
-        debugFileString += debugOutputs;
+        debugFileString += header + debugOutputs;
         saveDebug();
     }
 

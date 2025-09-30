@@ -86,7 +86,7 @@ public class SettingsGenerator {
             import java.awt.Color;
             import java.io.File;
             import java.io.IOException;
-            import java.util.HashMap;
+            import java.util.LinkedHashMap;
             import java.util.Map;
             import com.fasterxml.jackson.databind.ObjectMapper;
             import java.util.ArrayList;
@@ -105,7 +105,7 @@ public class SettingsGenerator {
                 private static Settings instance;
                 
                 // Property map to store all settings
-                private Map<String, Property<?>> properties = new HashMap<>();
+                private Map<String, Property<?>> properties = new LinkedHashMap<>();
                 
                 private Settings() {
                     initializeProperties();
@@ -273,6 +273,7 @@ public class SettingsGenerator {
         optionsBuilder.append("}");
         return optionsBuilder.toString();
     }
+
     /**
      * Generates the convenience methods for the Settings.java class.
      * @param properties the properties to generate the convenience methods for
@@ -308,6 +309,21 @@ public class SettingsGenerator {
         code.append("\t\t}\n");
         code.append("\t\tprop.setValue(value);\n");
         code.append("\t}\n");
+
+
+        code.append("\t/**\n");
+        code.append("\t * Gets the selected index of a given selector property.\n");
+        code.append("\t * This method is automatically generated from defaultProperties.json\n");
+        code.append("\t * Any changes made here will be overwritten when regenerating\n");
+        code.append("\t */\n");
+        code.append("\t@SuppressWarnings(\"unchecked\")\n");
+        code.append("\tpublic int getSelectedIndex(String propertyName) {\n");
+        code.append("\t\tProperty<String> prop = (Property<String>) properties.get(propertyName);\n");
+        code.append("\t\tif (prop == null) {\n");
+        code.append("\t\t\tthrow new IllegalArgumentException(\"Property not found: \" + propertyName);\n");
+        code.append("\t\t}\n");
+        code.append("\t\treturn prop.getSelectedIndex();\n");
+        code.append("\t}\n");
         
         // Get list of methods that are already in preserved section
         Set<String> preservedMethods = getPreservedMethodNames(existingContent);
@@ -325,7 +341,7 @@ public class SettingsGenerator {
             String javaType = getJavaType(type);
             String getterName = getGetterName(propertyName, type);
             code.append("\t/**\n");
-            code.append("\t * Gets the value of the property " + propertyName + ".\n");
+            code.append("\t * Gets the value of the"+  property.get("type").asText() + " property " + propertyName + ".\n");
             code.append("\t * This method is automatically generated from defaultProperties.json\n");
             code.append("\t * Any changes made here will be overwritten when regenerating\n");
             code.append("\t */\n");
@@ -335,7 +351,7 @@ public class SettingsGenerator {
             // Generate setter
             String setterName = "set" + capitalize(propertyName);
             code.append("\t/**\n");
-            code.append("\t * Sets the value of the property " + propertyName + ".\n");
+            code.append("\t * Sets the value of the " + property.get("type").asText() + " property " + propertyName + ".\n");
             code.append("\t * This method is automatically generated from defaultProperties.json\n");
             code.append("\t * Any changes made here will be overwritten when regenerating\n");
             code.append("\t */\n");
@@ -343,12 +359,24 @@ public class SettingsGenerator {
                 setterName, javaType, propertyName));
             code.append("\n");
 
+            if (type.equals("selector")) {
+                String methodName = "getSelectedIndex" + capitalize(propertyName);
+                code.append("\t/**\n");
+                code.append("\t * Gets the selected index of the selector property " + propertyName + ".\n");
+                code.append("\t * This method is automatically generated from defaultProperties.json\n");
+                code.append("\t * Any changes made here will be overwritten when regenerating\n");
+                code.append("\t */\n");
+                code.append(String.format("\tpublic int %s() { return getSelectedIndex(\"%s\"); }\n", 
+                    methodName, propertyName));
+                code.append("\n");
+            }
+
             // Only generate toggle method if it's not already in preserved methods
             if (type.equals("boolean")) {
                 String toggleMethodName = "toggle" + capitalize(propertyName);
                 if (!preservedMethods.contains(toggleMethodName)) {
                     code.append("\t/**\n");
-                    code.append("\t * Toggles the value of the property " + propertyName + ".\n");
+                    code.append("\t * Toggles the value of the boolean property " + propertyName + ".\n");
                     code.append("\t * This method is automatically generated from defaultProperties.json\n");
                     code.append("\t * Any changes made here will be overwritten when regenerating\n");
                     code.append("\t */\n");
@@ -522,7 +550,7 @@ public class SettingsGenerator {
                 \tpublic void saveSettings() {
                 \t\ttry {
                 \t\t\tObjectMapper mapper = new ObjectMapper();
-                \t\t\tMap<String, Object> jsonData = new HashMap<>();
+                \t\t\tMap<String, Object> jsonData = new LinkedHashMap<>();
                 \t\t\t
                 \t\t\tfor (Map.Entry<String, Property<?>> entry : properties.entrySet()) {
                 \t\t\t\tString key = entry.getKey();

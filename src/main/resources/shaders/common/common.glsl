@@ -1,10 +1,20 @@
 // =============================================================
-//      Common definitions, structs, buffers, and helpers
+//                  Common layout and structs
 // =============================================================
+
+//For compute shaders:
 layout(local_size_x = 256u) in;
 const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
+//End for compute shaders
 
-//To change these, you need to also change them in BoundedBarnesHut.java
+//For render shaders:
+#version 430
+#extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_shading_language_include : enable
+//End for render shaders
+
+
+//To change these, you need to also change them in BarnesHut.java
 //Radix sort constants:
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
@@ -45,7 +55,24 @@ struct Node {
     uint parentId;
 };
 
-//SSBO bindings:
+
+struct UnitSet {
+    float mass; //body mass unit
+    float density; //body density unit
+    float len; //simulation length unit (length is a keyword)
+    float time; //simulation time unit
+    float cameraScale; //what one length unit is in camera units
+    //Derived unit that is set during the init compute program
+    float gravitationalConstant;
+    float bodyLengthInSimulationLengthsConstant;
+};
+
+// =============================================================
+//                       SSBO bindings
+// =============================================================
+
+//Note: in render shaders, these SSBO bindings are changed to readonly
+
 //Leaf nodes of the radix tree (node representation of a body).
 //  -Initialized with numBodies nodes (In Java: numBodies * Node.STRUCT_SIZE * Integer.BYTES)
 layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
@@ -55,8 +82,8 @@ layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; }
 //Simulation values
 //  -Initialized to exactly fit the values. (In Java: 8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES)
 layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
-                                                        uint outOfBounds; uint pad0; uint pad1; uint pad2; 
-                                                        AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
+                                                        uint outOfBounds; uint relativeTo; uint pad1; uint pad2; 
+                                                        AABB bounds; UnitSet units; uint uintDebug[100]; float floatDebug[100]; } sim;
 //Bodies of the simulation from the previous step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
 layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
@@ -90,35 +117,75 @@ layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; ui
 //  -Initialized with numBodies locks (uints) (In Java: numBodies * Integer.BYTES)
 layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
 
+// =============================================================
+//           Common functions, uniforms, and constants
+// =============================================================
 
-//Uniforms
+//Compute Uniforms
 //Update uniforms:
 uniform uint resetValuesOrDecrementDeadBodies; //Used to determine if the update kernel is resetting values or decrementing dead bodies
 //Force uniforms: 
 uniform float softening; //Used to soften the force calculation (F ∝ (r+softening)^-2)
 uniform float theta; //Used to determine acceptance criterion for force calculation in node traversal
 uniform float dt; // Time step used to update the position and velocity of bodies
-uniform uint collisionMergingOrNeither; // Selects collision, merging, or neither. 0 = neither, 1 = collision, 2 = merging, 3 = both
+uniform uint mergingCollisionOrNeither; // Selects collision, merging, or neither. 0 = neither, 1 = collision, 2 = merging, 3 = both
+uniform float cameraScale;
+//Constants for the mergingCollisionOrNeither uniform
+const uint NEITHER = 0u;
+const uint MERGING = 1u;
+const uint COLLISION = 2u;
+
+const uint BOTH = 3u;
+
 uniform float elasticity; //Elasticity of collisions
 uniform float restitution; //Restitution of overlapping bodies in collisions 
 uniform float bothCriterion; //Used to determine if the body is colliding or merging
 uniform bool wrapAround; //If the simulation wraps around or kills OOB bodies 
 uniform uint staticOrDynamic; //If the simulation is static or dynamic
+//Constants for the dynamic uniform
+const uint STATIC = 0u;
+const uint DYNAMIC = 1u;
+
 //Radix sort uniforms:
 uniform uint passShift; //Pass shift for radix sort passes.
 //Common uniforms:
 uniform uint numWorkGroups; //Used to determine the number of work groups during the radix sort
 
-//Constants for the collisionMergingOrNeither uniform
-const uint NEITHER = 0u;
-const uint COLLISION = 1u;
-const uint MERGING = 2u;
-const uint BOTH = 3u;
-//Constants for the dynamic uniform
-const uint STATIC = 0u;
-const uint DYNAMIC = 1u;
+
+//Render Uniforms
+uniform mat4 uMVP; // model-view-projection matrix
+uniform float uPointScale; //Used to scale the points
+uniform vec3 uCameraPos; //Camera position
+uniform vec3 uCameraFront; //Camera front
+uniform float uFovY; //FOV
+uniform float uAspect; //Aspect ratio
+uniform int uPass; //Used standard or glow pass in impostor spheres 
+//Constants for the pass uniform
+const int STANDARD = 0;
+const int GLOW = 1;
+
+uniform mat4 uProj; //Projection matrix
+uniform mat4 uModelView; //Model view matrix
+uniform float uRadiusScale; //Radius scale
+uniform ivec2 uMinMaxDepth; //Min and max depth for regions
+uniform uint uRelativeTo; //Relative to
+
+
+
 //Empty body constant for merged bodies or OOB bodies
 const Body EMPTY_BODY = Body(vec4(0.0), vec4(0.0));
+
+const AABB DEFAULT_AABB = AABB(vec3(1e38), vec3(-1e38));
+
+//Numerical Constants
+const float PI = 3.14159265358979323846;
+const float THREE_OVER_FOUR_PI_TO_THE_ONE_THIRD = 0.6203504909; 
+const float GRAVITATIONAL_CONSTANT = 6.67430e-11; //m^3 kg^-1 s^-2
+const float STELLAR_DENSITY = 1.408e3; //kg/m^3
+const float SOLAR_MASS = 1.989e30; //kg
+const float ASTRONOMICAL_UNIT = 1.496e11; //m
+
+
 
 //Checks if a body is empty
 bool isEmpty(Body b) {
@@ -132,10 +199,53 @@ bool outOfBounds(Body b) {
            b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
 }
 
+float scaledDensity(Body b) {
+    return b.velDensity.w*STELLAR_DENSITY;
+}
+
+float scaledMass(Body b) {
+    return b.posMass.w*sim.units.mass;
+}
+
+float scaledMass(Node node) {
+    return node.comMass.w*sim.units.mass;
+}
+
+
 //Calculates the radius of a body
 float radius(Body b) {
-    return pow(b.posMass.w, 1.0/3.0)/b.velDensity.w;
+    return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
 }
+
+
+vec3 scaledDist(vec3 a, vec3 b) {
+    return (b - a)*sim.units.len;
+}
+
+vec3 scaledDist(vec3 a) {
+    return a*sim.units.len;
+}
+
+float scaledDist(float a) {
+    return a*sim.units.len;
+}
+
+vec3 relativeLocation(vec3 a, uint relativeTo) {
+    if (relativeTo == 0xFFFFFFFFu) {
+        return a;
+    }
+    if (relativeTo >= sim.initialNumBodies) {
+        return a;
+    }
+    return a - srcB.bodies[relativeTo].posMass.xyz;
+}
+
+vec3 relativeLocation(Body b, uint relativeTo) {
+    return relativeLocation(b.posMass.xyz, relativeTo);
+}
+
+
+
 
 //Creates an AABB that is the union of two AABBs
 AABB updateAABB(AABB a, AABB b) {
@@ -154,6 +264,16 @@ AABB unpackAABB(float[6] aabb) {
 float[6] packAABB(AABB aabb) {
     return float[6](aabb.minCorner.x, aabb.minCorner.y, aabb.minCorner.z, aabb.maxCorner.x, aabb.maxCorner.y, aabb.maxCorner.z);
 }
+
+
+
+bool emptyAABB(AABB aabb) {
+    return aabb.minCorner.x > aabb.maxCorner.x;
+}
+
+bool emptyAABB(float[6] aabb) {
+    return aabb[0] > aabb[3];
+}
 // Gets a node from the leaf or internal nodes buffer depending on the index
 Node getNode(uint nodeIdx) {
     return nodeIdx < sim.initialNumBodies ? leafNodes[nodeIdx] : internalNodes[nodeIdx-sim.initialNumBodies];
@@ -162,3 +282,5 @@ Node getNode(uint nodeIdx) {
 bool isInternalNode(Node node) {
     return node.childA != 0xFFFFFFFFu;
 }
+
+
