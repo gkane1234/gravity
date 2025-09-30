@@ -31,7 +31,7 @@
       "description": "Wrap around",
       "editable": true
     },
-    "collisionMergingOrNeither": {
+    "mergingCollisionOrNeither": {
       "type": "selector",
       "default": "none",
       "options": ["none", "merge", "collision"],
@@ -47,7 +47,7 @@
     },
     "dt": {
       "type": "float",
-      "default": 6,
+      "default": 1,
       "description": "Time step",
       "editable": true
     },
@@ -57,10 +57,10 @@
       "description": "Barnes-Hut acceptance criterion",
       "editable": true
     },
-    "zoom": {
-      "type": "double",
-      "default": 0.01,
-      "description": "Camera zoom level",
+    "cameraScale": {
+      "type": "float",
+      "default": 10.0,
+      "description": "Camera scale",
       "editable": true
     },
     "fov": {
@@ -76,7 +76,7 @@
       "editable": true
     },
     "elasticity": {
-      "type": "double",
+      "type": "float",
       "default": 1.0,
       "min": 0.0,
       "max": 1.0,
@@ -109,25 +109,25 @@
     },
     "farPlane": {
       "type": "float",
-      "default": 10000000000000000.0,
+      "default": 100000000000.0,
       "description": "Far plane for camera",
       "editable": true
     },
     "cameraMoveSpeed": {
       "type": "float",
-      "default": 5.0,
+      "default": 1,
       "description": "Camera move speed",
       "editable": true
     },
     "WASDSensitivity": { 
       "type": "float",
-      "default": 10000,
+      "default": 1,
       "description": "WASD movement sensitivity",
       "editable": true
     },
     "mouseWheelSensitivity": {
       "type": "float",
-      "default": 20.0,
+      "default": 1,
       "description": "Mouse wheel sensitivity",
       "editable": true
     },

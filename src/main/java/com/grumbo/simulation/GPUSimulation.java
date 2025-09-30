@@ -67,8 +67,18 @@ public class GPUSimulation {
     private int outOfBounds = 0;
 
     public GPUSimulation() {
+        this.commandQueue = new ConcurrentLinkedQueue<>();
 
-        PlanetGenerator planetGenerator = collisionTest();
+        String json = null;
+        try {
+            json = Files.readString(Path.of("src/main/resources/planet_data/planetary_state_vectors.json"));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        PlanetGenerator planetGenerator = PlanetGenerator.fromJson(json);
+        planetGenerator.changeUnitSet(UnitSet.SOLAR_SYSTEM);
         System.out.println("Planet generator num planets: " + planetGenerator.getNumPlanets());
 
 
@@ -100,13 +110,13 @@ public class GPUSimulation {
         this.openGlWindow = new OpenGLWindow(this); 
         this.planetGenerator = planetGenerator;
         this.initialbodiesContained = planetGenerator.getNumPlanets();
-        float boundSize = 350_000;
+        float boundSize = 10;
         float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
 
         this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
-        this.commandQueue = new ConcurrentLinkedQueue<>();
+
 
     }
 
@@ -241,13 +251,14 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
+        UnitSet units = UnitSet.SOLAR_SYSTEM;
         int numAlive = 5_000_000;
         for (int i = 0; i < numAlive; i++) {
-            newPlanets.add(new Planet((float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), (float)(0.0001*java.lang.Math.random()), 0, 0, 0, 0.00000000000000001f));
+            newPlanets.add(new Planet((float)(1*java.lang.Math.random()), (float)(1*java.lang.Math.random()), (float)(1*java.lang.Math.random()), 0, 0, 0, 1f));
         }
 
         Collections.shuffle(newPlanets);
-        return new PlanetGenerator(newPlanets);
+        return new PlanetGenerator(newPlanets, units);
     }
 
     public static PlanetGenerator twoPlanets() {

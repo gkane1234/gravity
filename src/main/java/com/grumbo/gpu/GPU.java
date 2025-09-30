@@ -106,13 +106,14 @@ public class GPU {
     public static ComputeProgram COMPUTE_DEBUG; // bh_debug.comp
 
     // Compute Uniforms
+    public static Uniform<Float> UNIFORM_CAMERA_SCALE;
     public static Uniform<Integer> UNIFORM_NUM_WORK_GROUPS;
     public static Uniform<Float> UNIFORM_SOFTENING;
     public static Uniform<Float> UNIFORM_THETA;
     public static Uniform<Float> UNIFORM_DT;
     public static Uniform<Float> UNIFORM_ELASTICITY;
     public static Uniform<Float> UNIFORM_RESTITUTION;
-    public static Uniform<Integer> UNIFORM_COLLISION_MERGING_OR_NEITHER;
+    public static Uniform<Integer> UNIFORM_MERGING_COLLISION_OR_NEITHER;
     public static Uniform<Integer> UNIFORM_PASS_SHIFT;
     public static Uniform<Boolean> UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES;
     public static Uniform<Boolean> UNIFORM_WRAP_AROUND;
@@ -369,7 +370,13 @@ public class GPU {
      */
     private static void initComputeUniforms(BarnesHut barnesHut) {
         GPU.UNIFORMS = new HashMap<>();
-        
+
+        UNIFORM_CAMERA_SCALE = new Uniform<Float>("cameraScale", () -> {
+            return Settings.getInstance().getCameraScale();
+        }, VariableType.FLOAT);
+
+        GPU.UNIFORMS.put(UNIFORM_CAMERA_SCALE.getName(), UNIFORM_CAMERA_SCALE);
+
         UNIFORM_NUM_WORK_GROUPS = new Uniform<Integer>("numWorkGroups", () -> {
             return numGroups();
         }, VariableType.UINT);
@@ -412,11 +419,11 @@ public class GPU {
 
         GPU.UNIFORMS.put(UNIFORM_PASS_SHIFT.getName(), UNIFORM_PASS_SHIFT);
 
-        UNIFORM_COLLISION_MERGING_OR_NEITHER = new Uniform<Integer>("collisionMergingOrNeither", () -> {
-            return Settings.getInstance().getSelectedIndexCollisionMergingOrNeither();
+        UNIFORM_MERGING_COLLISION_OR_NEITHER = new Uniform<Integer>("mergingCollisionOrNeither", () -> {
+            return Settings.getInstance().getSelectedIndexMergingCollisionOrNeither();
         }, VariableType.UINT);
 
-        GPU.UNIFORMS.put(UNIFORM_COLLISION_MERGING_OR_NEITHER.getName(), UNIFORM_COLLISION_MERGING_OR_NEITHER);
+        GPU.UNIFORMS.put(UNIFORM_MERGING_COLLISION_OR_NEITHER.getName(), UNIFORM_MERGING_COLLISION_OR_NEITHER);
 
         UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES = new Uniform<Boolean>("resetValuesOrDecrementDeadBodies", () -> {
             return barnesHut.resetValuesOrDecrementDeadBodies ? true : false;
@@ -714,7 +721,7 @@ public class GPU {
             UNIFORM_ELASTICITY,
             UNIFORM_WRAP_AROUND,
             UNIFORM_SOFTENING,
-            UNIFORM_COLLISION_MERGING_OR_NEITHER,
+            UNIFORM_MERGING_COLLISION_OR_NEITHER,
             UNIFORM_STATIC_OR_DYNAMIC,
         });
 
@@ -839,7 +846,8 @@ public class GPU {
         // Create points render program
         GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, GPU.initialNumBodies);
         GPU.RENDER_POINTS.setUniforms(new Uniform[] {
-            GPU.UNIFORM_MVP
+            GPU.UNIFORM_MVP,
+            GPU.UNIFORM_CAMERA_SCALE,
         });
         GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -861,6 +869,7 @@ public class GPU {
             GPU.UNIFORM_PASS,
             GPU.UNIFORM_PROJ,
             GPU.UNIFORM_MODEL_VIEW,
+            GPU.UNIFORM_CAMERA_SCALE,
         });
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -875,6 +884,7 @@ public class GPU {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_RADIUS_SCALE,
             GPU.UNIFORM_CAMERA_POS,
+            GPU.UNIFORM_CAMERA_SCALE,
         });
         GPU.RENDER_SPHERE.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -891,6 +901,7 @@ public class GPU {
         GPU.RENDER_REGIONS.setUniforms(new Uniform[] {
             GPU.UNIFORM_MVP,
             GPU.UNIFORM_MIN_MAX_DEPTH,
+            GPU.UNIFORM_CAMERA_SCALE,
         });
         GPU.RENDER_REGIONS.setSSBOs(new SSBO[] {
             GPU.SSBO_INTERNAL_NODES,

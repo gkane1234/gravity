@@ -23,11 +23,6 @@ public class ComputeShader extends GLSLShader {
     public String getSource(String programName) {
         String source = insertDefineAfterVersion(getComputeShaderSource(), programName);
         source = source.replaceAll("(?s)//For render shaders:.*?//End for render shaders", "//Removed render shader code here");
-        String[] lines = source.split("\n");
-        for (int i = 0; i < 200; i++) {
-            String line = lines[i];
-            System.out.println(line);
-        }
         return source;
     }
 

@@ -77,6 +77,9 @@ class Unit {
     public static final Unit STELLAR_DENSITY = new Unit(1.408e3, Dimensions.DENSITY); //kg/m^3
     public static final Unit GRAVITATIONAL_CONSTANT = new Unit(6.67430e-11, Dimensions.GRAVITATIONAL_CONSTANT); //m^3 kg^-1 s^-2
     public static final Unit SECOND = new Unit(1, Dimensions.TIME); //s
+    public static final Unit KILOGRAM = new Unit(1, Dimensions.MASS); //kg
+    public static final Unit METER = new Unit(1, Dimensions.LENGTH); //m
+    public static final Unit KILOGRAM_PER_CUBIC_METER = new Unit(1, Dimensions.DENSITY); //kg/m^3
 
     public Dimensions dimensions;
     public double value;
@@ -107,6 +110,7 @@ public class UnitSet {
 
     public static final UnitSet SOLAR_SYSTEM = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
     public static final UnitSet ASTRONOMICAL = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
+    public static final UnitSet METRIC = new UnitSet(Unit.KILOGRAM, Unit.KILOGRAM_PER_CUBIC_METER, Unit.METER, Unit.SECOND);
     
     //The unit of a body's mass (in kg) e.g. solar mass
     private Unit mass;
@@ -157,7 +161,6 @@ public class UnitSet {
 
     /**
      * Gets the gravitational constant for a body.
-     * Includes 
      * @return the gravitational constant for a body
      */
 

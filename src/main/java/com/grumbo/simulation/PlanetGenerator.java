@@ -1,10 +1,13 @@
 package com.grumbo.simulation;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.joml.Vector3f;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grumbo.simulation.UnitSet;
 
 /**
@@ -108,8 +111,8 @@ public class PlanetGenerator {
      * Constructor for the PlanetGenerator class.
      * @param planets the list of planets to generate
      */
-    public PlanetGenerator(List<Planet> planets) {
-        this(planets.size(), null);
+    public PlanetGenerator(List<Planet> planets, UnitSet unitSet) {
+        this(planets.size(), unitSet);
 
         final int originalNumPlanets = this.numPlanets;
         this.planetGeneratorFunction = new PlanetGeneratorFunction() {
@@ -124,6 +127,14 @@ public class PlanetGenerator {
                 return planetsGenerated < originalNumPlanets;
             }
         };
+    }
+
+    /**
+     * Constructor for the PlanetGenerator class.
+     * @param planets the list of planets to generate
+     */
+    public PlanetGenerator(List<Planet> planets) {
+        this(planets, null);
     }
 
     /**
@@ -254,9 +265,18 @@ public class PlanetGenerator {
         planetsGenerated++;
         Planet planet = planetGeneratorFunction.generateNextPlanet();
         if (unitSet != planet.getUnitSet()) {
+            System.out.println("Changing unit set of planet " + planet.position.x+ " from " + planet.getUnitSet() + " to " + unitSet);
             planet.changeUnitSet(unitSet);
         }
         return planet;
+    }
+
+    /**
+     * Changes the unit set of the planet generator.
+     * @param unitSet the new unit set
+     */
+    public void changeUnitSet(UnitSet unitSet) {
+        this.unitSet = unitSet;
     }
 
     
@@ -489,6 +509,22 @@ public class PlanetGenerator {
 		}
 		return ret;
 	}
+
+    public static PlanetGenerator fromJson(String json) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(json);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+        List<Planet> planets = new ArrayList<>();
+        for (JsonNode planetNode : jsonNode.get("bodies")) {
+            planets.add(Planet.fromJson(planetNode.toString()));
+        }
+        return new PlanetGenerator(planets, UnitSet.METRIC);
+    }
 
     /**
      * Randomly selects a value from a range.

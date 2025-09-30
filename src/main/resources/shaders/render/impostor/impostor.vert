@@ -85,9 +85,9 @@ void main() {
   Body b = srcB.bodies[gl_InstanceID];
 
 
-  vec3 center = scaledDist(b.posMass.xyz);
+  vec3 center = b.posMass.xyz*cameraScale;
   color = getStarColor(scaledMass(b), scaledDensity(b));
-  float trueRadius = radius(b);
+  float trueRadius = max (0.001, radius(b))*cameraScale;
   worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
   bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
 

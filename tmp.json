@@ -1,0 +1,856 @@
+{
+  "relative_to": {
+    "name": "Jupiter",
+    "naif_id": 599
+  },
+  "epoch": "2025-09-30T03:22:08Z",
+  "units": {
+    "position": "kilometres",
+    "velocity": "kilometres per second",
+    "mass": "kilograms"
+  },
+  "source_kernels": [
+    "de421.bsp",
+    "jup347.bsp",
+    "jup365.bsp",
+    "mar099.bsp",
+    "nep105.bsp",
+    "plu060.bsp",
+    "sat457.bsp",
+    "ura184.bsp"
+  ],
+  "body_count": 39,
+  "bodies": [
+    {
+      "naif_id": 515,
+      "name": "Adrastea",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 2082615405360861.8,
+      "position_km": [
+        94253.7272670269,
+        -80071.70406651497,
+        -36663.62362802029
+      ],
+      "velocity_km_s": [
+        21.449748408804368,
+        20.619720181701055,
+        10.173614103068612
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "ADRASTEA"
+      ]
+    },
+    {
+      "naif_id": 505,
+      "name": "Amalthea",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 2.465628657384683e+18,
+      "position_km": [
+        86223.76186153293,
+        143900.98601412773,
+        68795.22540128231
+      ],
+      "velocity_km_s": [
+        -23.25342030847535,
+        11.550740032765374,
+        5.212994172379064
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "AMALTHEA"
+      ]
+    },
+    {
+      "naif_id": 701,
+      "name": "Ariel",
+      "center_naif_id": 7,
+      "center_name": "Uranus Barycenter",
+      "mass_kg": 1.2505198195721615e+21,
+      "position_km": [
+        151695529.43413445,
+        -696226195.5403526,
+        -302229671.67728704
+      ],
+      "velocity_km_s": [
+        9.877685501129989,
+        3.750769761443796,
+        -3.673740563290513
+      ],
+      "kernel": "ura184.bsp",
+      "aliases": [
+        "ARIEL"
+      ]
+    },
+    {
+      "naif_id": 504,
+      "name": "Callisto",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 1.0756608786808858e+23,
+      "position_km": [
+        -795040.5098486543,
+        -1546832.2155691385,
+        -740773.013444066
+      ],
+      "velocity_km_s": [
+        7.432745143949885,
+        -3.111649336499103,
+        -1.355648006900366
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "CALLISTO"
+      ]
+    },
+    {
+      "naif_id": 901,
+      "name": "Charon",
+      "center_naif_id": 9,
+      "center_name": "Pluto Barycenter",
+      "mass_kg": 1.586383423882476e+21,
+      "position_km": [
+        151531773.80061227,
+        -696232296.6413794,
+        -302104896.00101525
+      ],
+      "velocity_km_s": [
+        13.042657364693303,
+        1.9905127650321834,
+        0.6546137845337804
+      ],
+      "kernel": "plu060.bsp",
+      "aliases": [
+        "CHARON"
+      ]
+    },
+    {
+      "naif_id": 402,
+      "name": "Deimos",
+      "center_naif_id": 4,
+      "center_name": "Mars Barycenter",
+      "mass_kg": 1440685861906164.5,
+      "position_km": [
+        151526265.41905418,
+        -696240329.6581119,
+        -302115822.2493753
+      ],
+      "velocity_km_s": [
+        13.757720838307554,
+        1.136160295200999,
+        -0.2919535212410657
+      ],
+      "kernel": "mar099.bsp",
+      "aliases": [
+        "DEIMOS"
+      ]
+    },
+    {
+      "naif_id": 399,
+      "name": "Earth",
+      "center_naif_id": 3,
+      "center_name": "Earth Barycenter",
+      "mass_kg": 5.972168399787583e+24,
+      "position_km": [
+        299728000.5600364,
+        -680522076.7224207,
+        -295285963.32593364
+      ],
+      "velocity_km_s": [
+        8.91715716121352,
+        28.924817320756357,
+        12.212810512884348
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "EARTH"
+      ]
+    },
+    {
+      "naif_id": 3,
+      "name": "Earth Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 6.045626292277545e+24,
+      "position_km": [
+        299728712.1896239,
+        -680526278.1763518,
+        -295288235.8040096
+      ],
+      "velocity_km_s": [
+        8.928874302910799,
+        28.92678340304534,
+        12.214139363749469
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "EARTH_BARYCENTER",
+        "EMB",
+        "EARTH MOON BARYCENTER",
+        "EARTH-MOON BARYCENTER",
+        "EARTH BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 502,
+      "name": "Europa",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 4.79857378243006e+22,
+      "position_km": [
+        -473548.035882324,
+        -428590.47744333744,
+        -213190.33100742102
+      ],
+      "velocity_km_s": [
+        9.648457796242797,
+        -8.878254967971339,
+        -3.958075116305175
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "EUROPA"
+      ]
+    },
+    {
+      "naif_id": 503,
+      "name": "Ganymede",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 1.4814786198881738e+23,
+      "position_km": [
+        1047674.1068173349,
+        -193327.68505823612,
+        -75994.43305456638
+      ],
+      "velocity_km_s": [
+        2.122890064526663,
+        9.629090925958272,
+        4.652843577692547
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "GANYMEDE"
+      ]
+    },
+    {
+      "naif_id": 506,
+      "name": "Himalia",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 2.2706865133591014e+18,
+      "position_km": [
+        2624312.357581526,
+        -8186119.110301375,
+        -9972396.65068239
+      ],
+      "velocity_km_s": [
+        2.641372510251802,
+        1.121858755799569,
+        0.037792938941003495
+      ],
+      "kernel": "jup347.bsp",
+      "aliases": [
+        "HIMALIA"
+      ]
+    },
+    {
+      "naif_id": 903,
+      "name": "Hydra",
+      "center_naif_id": 9,
+      "center_name": "Pluto Barycenter",
+      "mass_kg": 4.811050156803342e+16,
+      "position_km": [
+        151531182.26709175,
+        -696243106.262252,
+        -302175988.8694595
+      ],
+      "velocity_km_s": [
+        12.878691382065446,
+        1.8196514185855863,
+        0.5375092036517783
+      ],
+      "kernel": "plu060.bsp",
+      "aliases": [
+        "HYDRA"
+      ]
+    },
+    {
+      "naif_id": 501,
+      "name": "IO",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 8.929648751450397e+22,
+      "position_km": [
+        -383503.83941701055,
+        163549.02196002007,
+        71947.21616369486
+      ],
+      "velocity_km_s": [
+        -7.25157190377084,
+        -14.117037009262134,
+        -6.842487588608467
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "IO"
+      ]
+    },
+    {
+      "naif_id": 599,
+      "name": "Jupiter",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 1.8981246258090047e+27,
+      "position_km": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "velocity_km_s": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "kernel": "jup347.bsp",
+      "aliases": [
+        "JUPITER"
+      ]
+    },
+    {
+      "naif_id": 5,
+      "name": "Jupiter Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 1.8985176587806957e+27,
+      "position_km": [
+        115.25124594569206,
+        -32.22728252410889,
+        -101.6903732419014
+      ],
+      "velocity_km_s": [
+        0.0004895446695165617,
+        -0.0003134824800414826,
+        -0.00013493482813592417
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "JUPITER_BARYCENTER",
+        "JUPITER BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 904,
+      "name": "Kerberos",
+      "center_naif_id": 9,
+      "center_name": "Pluto Barycenter",
+      "mass_kg": 1.6631569610845724e+16,
+      "position_km": [
+        151503029.86438558,
+        -696256710.3948072,
+        -302089922.5966824
+      ],
+      "velocity_km_s": [
+        13.000001858181506,
+        1.9457691932897403,
+        0.6129873118405897
+      ],
+      "kernel": "plu060.bsp",
+      "aliases": [
+        "KERBEROS"
+      ]
+    },
+    {
+      "naif_id": 499,
+      "name": "MARS",
+      "center_naif_id": 4,
+      "center_name": "Mars Barycenter",
+      "mass_kg": 6.416908682663213e+23,
+      "position_km": [
+        10987487.857531846,
+        -865358643.4062331,
+        -375874800.754776
+      ],
+      "velocity_km_s": [
+        33.16358532846766,
+        -9.372431126095009,
+        -5.2162063416396185
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "MARS"
+      ]
+    },
+    {
+      "naif_id": 4,
+      "name": "Mars Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 6.416909011545196e+23,
+      "position_km": [
+        10987487.857531846,
+        -865358643.4062331,
+        -375874800.754776
+      ],
+      "velocity_km_s": [
+        33.16358532846766,
+        -9.372431126095009,
+        -5.2162063416396185
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "MARS_BARYCENTER",
+        "MARS BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 199,
+      "name": "Mercury",
+      "center_naif_id": 1,
+      "center_name": "Mercury Barycenter",
+      "mass_kg": 3.3010006369806576e+23,
+      "position_km": [
+        106059501.00567137,
+        -743333346.4693811,
+        -322525147.65347993
+      ],
+      "velocity_km_s": [
+        39.489514952903214,
+        -23.801846920597526,
+        -15.9785342997783
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "MERCURY"
+      ]
+    },
+    {
+      "naif_id": 1,
+      "name": "Mercury Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 3.3010006369806576e+23,
+      "position_km": [
+        106059501.00567137,
+        -743333346.4693811,
+        -322525147.65347993
+      ],
+      "velocity_km_s": [
+        39.489514952903214,
+        -23.801846920597526,
+        -15.9785342997783
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "MERCURY_BARYCENTER",
+        "MERCURY BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 516,
+      "name": "Metis",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 3.747209445185263e+16,
+      "position_km": [
+        90285.20688605309,
+        81435.03592848778,
+        40259.54043793678
+      ],
+      "velocity_km_s": [
+        -22.362177291262114,
+        20.22660601138401,
+        9.278795398257076
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "METIS"
+      ]
+    },
+    {
+      "naif_id": 705,
+      "name": "Miranda",
+      "center_naif_id": 7,
+      "center_name": "Uranus Barycenter",
+      "mass_kg": 6.471865063350613e+19,
+      "position_km": [
+        151554454.5501647,
+        -696196765.190715,
+        -302242011.6410248
+      ],
+      "velocity_km_s": [
+        6.5862713619578015,
+        3.842811921946467,
+        0.32593824995129916
+      ],
+      "kernel": "ura184.bsp",
+      "aliases": [
+        "MIRANDA"
+      ]
+    },
+    {
+      "naif_id": 301,
+      "name": "MOON",
+      "center_naif_id": 3,
+      "center_name": "Earth Barycenter",
+      "mass_kg": 7.345789248996224e+22,
+      "position_km": [
+        299786568.08005285,
+        -680867858.7718723,
+        -295472989.5647849
+      ],
+      "velocity_km_s": [
+        9.881484590772416,
+        29.086627011978152,
+        12.32217569529286
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "MOON"
+      ]
+    },
+    {
+      "naif_id": 8,
+      "name": "Neptune Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 1.0243062344486162e+26,
+      "position_km": [
+        4620713584.870867,
+        -624761294.3350579,
+        -384131617.56807894
+      ],
+      "velocity_km_s": [
+        12.890789912729996,
+        6.956340176725701,
+        2.5701247494605357
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "NEPTUNE_BARYCENTER",
+        "NEPTUNE BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 902,
+      "name": "NIX",
+      "center_naif_id": 9,
+      "center_name": "Pluto Barycenter",
+      "mass_kg": 4.567034218074944e+16,
+      "position_km": [
+        151573582.39898068,
+        -696199166.6949279,
+        -302144010.10149306
+      ],
+      "velocity_km_s": [
+        12.913822693153541,
+        1.8297530115829512,
+        0.38300659933296344
+      ],
+      "kernel": "plu060.bsp",
+      "aliases": [
+        "NIX"
+      ]
+    },
+    {
+      "naif_id": 704,
+      "name": "Oberon",
+      "center_naif_id": 7,
+      "center_name": "Uranus Barycenter",
+      "mass_kg": 3.0763290570331317e+21,
+      "position_km": [
+        152069919.81942612,
+        -696392032.3939973,
+        -301931459.4323902
+      ],
+      "velocity_km_s": [
+        14.137626093145672,
+        2.4245190205537996,
+        -2.3820341012553774
+      ],
+      "kernel": "ura184.bsp",
+      "aliases": [
+        "OBERON"
+      ]
+    },
+    {
+      "naif_id": 401,
+      "name": "Phobos",
+      "center_naif_id": 4,
+      "center_name": "Mars Barycenter",
+      "mass_kg": 1.0619160161956238e+16,
+      "position_km": [
+        151534622.6162075,
+        -696226684.7089539,
+        -302112191.7701
+      ],
+      "velocity_km_s": [
+        13.231609602913979,
+        0.051268703943834204,
+        -0.6139055231314237
+      ],
+      "kernel": "mar099.bsp",
+      "aliases": [
+        "PHOBOS"
+      ]
+    },
+    {
+      "naif_id": 999,
+      "name": "Pluto",
+      "center_naif_id": 9,
+      "center_name": "Pluto Barycenter",
+      "mass_kg": 1.3029288730816336e+22,
+      "position_km": [
+        151544077.98493996,
+        -696222578.0826253,
+        -302116652.2243296
+      ],
+      "velocity_km_s": [
+        12.957386431516854,
+        1.8845178376076206,
+        0.4777978910619974
+      ],
+      "kernel": "plu060.bsp",
+      "aliases": [
+        "PLUTO"
+      ]
+    },
+    {
+      "naif_id": 9,
+      "name": "Pluto Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 1.4615764949133242e+22,
+      "position_km": [
+        2989652684.2579813,
+        -4642501506.363279,
+        -2388744320.926875
+      ],
+      "velocity_km_s": [
+        17.699155547763116,
+        4.087312899985845,
+        -0.24502870132421956
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "PLUTO_BARYCENTER",
+        "PLUTO BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 6,
+      "name": "Saturn Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 5.684578883448451e+26,
+      "position_km": [
+        1577594055.8009248,
+        -710237997.3131618,
+        -369326549.9469236
+      ],
+      "velocity_km_s": [
+        12.700622648546032,
+        10.798553382135546,
+        4.185654998985937
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "SATURN_BARYCENTER",
+        "SATURN BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 905,
+      "name": "STYX",
+      "center_naif_id": 9,
+      "center_name": "Pluto Barycenter",
+      "mass_kg": 0.0,
+      "position_km": [
+        151515578.72606567,
+        -696251476.3995773,
+        -302132321.08031523
+      ],
+      "velocity_km_s": [
+        12.913014001986257,
+        1.8672521854338733,
+        0.6382446774846287
+      ],
+      "kernel": "plu060.bsp",
+      "aliases": [
+        "STYX"
+      ]
+    },
+    {
+      "naif_id": 10,
+      "name": "SUN",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 1.988409871316534e+30,
+      "position_km": [
+        150982683.86008286,
+        -696988003.0084772,
+        -302423232.1284297
+      ],
+      "velocity_km_s": [
+        12.97944644455807,
+        1.8948991093813299,
+        0.49627140367035827
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "SUN"
+      ]
+    },
+    {
+      "naif_id": 514,
+      "name": "Thebe",
+      "center_naif_id": 5,
+      "center_name": "Jupiter Barycenter",
+      "mass_kg": 4.5170280029366374e+17,
+      "position_km": [
+        -195919.62193450332,
+        89531.7110697031,
+        35086.196510374546
+      ],
+      "velocity_km_s": [
+        -10.830072202877707,
+        -19.622494385332516,
+        -9.436252992487754
+      ],
+      "kernel": "jup365.bsp",
+      "aliases": [
+        "THEBE"
+      ]
+    },
+    {
+      "naif_id": 703,
+      "name": "Titania",
+      "center_naif_id": 7,
+      "center_name": "Uranus Barycenter",
+      "mass_kg": 3.400262205386704e+21,
+      "position_km": [
+        151165123.4601351,
+        -696090427.9824698,
+        -302289163.15688574
+      ],
+      "velocity_km_s": [
+        11.304832294549735,
+        1.3830713461824322,
+        3.6975105679224765
+      ],
+      "kernel": "ura184.bsp",
+      "aliases": [
+        "TITANIA"
+      ]
+    },
+    {
+      "naif_id": 702,
+      "name": "Umbriel",
+      "center_naif_id": 7,
+      "center_name": "Uranus Barycenter",
+      "mass_kg": 1.274940906835082e+21,
+      "position_km": [
+        151448555.50099835,
+        -696137432.9401526,
+        -302349423.2775838
+      ],
+      "velocity_km_s": [
+        8.728201244952817,
+        2.3210331436144838,
+        2.3775013593459984
+      ],
+      "kernel": "ura184.bsp",
+      "aliases": [
+        "UMBRIEL"
+      ]
+    },
+    {
+      "naif_id": 799,
+      "name": "Uranus",
+      "center_naif_id": 7,
+      "center_name": "Uranus Barycenter",
+      "mass_kg": 8.680987154498914e+25,
+      "position_km": [
+        151542733.83802786,
+        -696223635.3635205,
+        -302115368.5533176
+      ],
+      "velocity_km_s": [
+        12.966793476215132,
+        1.896012943974663,
+        0.497046534170809
+      ],
+      "kernel": "ura184.bsp",
+      "aliases": [
+        "URANUS"
+      ]
+    },
+    {
+      "naif_id": 7,
+      "name": "Uranus Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 8.681893831562859e+25,
+      "position_km": [
+        1676397553.7169757,
+        1589587717.8196177,
+        677439537.941376
+      ],
+      "velocity_km_s": [
+        7.110965814751492,
+        4.835879772215376,
+        1.8674083316518688
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "URANUS_BARYCENTER",
+        "URANUS BARYCENTER"
+      ]
+    },
+    {
+      "naif_id": 299,
+      "name": "Venus",
+      "center_naif_id": 2,
+      "center_name": "Venus Barycenter",
+      "mass_kg": 4.867305814842006e+24,
+      "position_km": [
+        85266719.68174376,
+        -621066521.5578592,
+        -264103126.93123218
+      ],
+      "velocity_km_s": [
+        -14.837021807476424,
+        -18.467364744652937,
+        -6.9063244905970835
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "VENUS"
+      ]
+    },
+    {
+      "naif_id": 2,
+      "name": "Venus Barycenter",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass_kg": 4.867305814842006e+24,
+      "position_km": [
+        85266719.68174376,
+        -621066521.5578592,
+        -264103126.93123218
+      ],
+      "velocity_km_s": [
+        -14.837021807476424,
+        -18.467364744652937,
+        -6.9063244905970835
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "VENUS_BARYCENTER",
+        "VENUS BARYCENTER"
+      ]
+    }
+  ]
+}

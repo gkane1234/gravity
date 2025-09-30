@@ -161,8 +161,8 @@ public class OpenGLUI {
      * Initializes the key events.
      */
     public void initKeyEvents() {
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() * 1.1),true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().changeZoom(Settings.getInstance().getZoom() / 1.1),true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_EQUAL, () -> Settings.getInstance().setCameraScale(Settings.getInstance().getCameraScale() * 1.1f),true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_MINUS, () -> Settings.getInstance().setCameraScale(Settings.getInstance().getCameraScale() / 1.1f),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_W, () -> {processWASDQEMovement(GLFW.GLFW_KEY_W);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_A, () -> {processWASDQEMovement(GLFW.GLFW_KEY_A);},true)); 
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_S, () -> {processWASDQEMovement(GLFW.GLFW_KEY_S);},true)); 
@@ -462,7 +462,8 @@ public class OpenGLUI {
 
 
      
-        String statsText = String.format("FPS: %.1f", openGlWindow.getFPS());
+        String statsText = String.format("FPS: %.1f\n", openGlWindow.getFPS());
+        statsText+= String.format("Location: %.2f, %.2f, %.2f", Settings.getInstance().getCameraPos().x, Settings.getInstance().getCameraPos().y, Settings.getInstance().getCameraPos().z);
 
 
         

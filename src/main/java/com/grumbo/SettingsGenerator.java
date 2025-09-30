@@ -550,7 +550,7 @@ public class SettingsGenerator {
                 \tpublic void saveSettings() {
                 \t\ttry {
                 \t\t\tObjectMapper mapper = new ObjectMapper();
-                \t\t\tMap<String, Object> jsonData = new HashMap<>();
+                \t\t\tMap<String, Object> jsonData = new LinkedHashMap<>();
                 \t\t\t
                 \t\t\tfor (Map.Entry<String, Property<?>> entry : properties.entrySet()) {
                 \t\t\t\tString key = entry.getKey();

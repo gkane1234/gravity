@@ -61,6 +61,7 @@ struct UnitSet {
     float density; //body density unit
     float len; //simulation length unit (length is a keyword)
     float time; //simulation time unit
+    float cameraScale; //what one length unit is in camera units
     //Derived unit that is set during the init compute program
     float gravitationalConstant;
     float bodyLengthInSimulationLengthsConstant;
@@ -127,12 +128,13 @@ uniform uint resetValuesOrDecrementDeadBodies; //Used to determine if the update
 uniform float softening; //Used to soften the force calculation (F ∝ (r+softening)^-2)
 uniform float theta; //Used to determine acceptance criterion for force calculation in node traversal
 uniform float dt; // Time step used to update the position and velocity of bodies
-uniform uint collisionMergingOrNeither; // Selects collision, merging, or neither. 0 = neither, 1 = collision, 2 = merging, 3 = both
-
-//Constants for the collisionMergingOrNeither uniform
+uniform uint mergingCollisionOrNeither; // Selects collision, merging, or neither. 0 = neither, 1 = collision, 2 = merging, 3 = both
+uniform float cameraScale;
+//Constants for the mergingCollisionOrNeither uniform
 const uint NEITHER = 0u;
-const uint COLLISION = 1u;
-const uint MERGING = 2u;
+const uint MERGING = 1u;
+const uint COLLISION = 2u;
+
 const uint BOTH = 3u;
 
 uniform float elasticity; //Elasticity of collisions
@@ -211,7 +213,7 @@ float scaledMass(Node node) {
 
 //Calculates the radius of a body
 float radius(Body b) {
-    return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0) * sim.units.len;
+    return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
 }
 
 

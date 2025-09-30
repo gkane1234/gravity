@@ -70,31 +70,28 @@ public class Settings {
 		properties.put("wrapAround", Property.createBooleanProperty("wrapAround", false, false, true));
 
 		// Collision merging or neither
-		properties.put("collisionMergingOrNeither", Property.createSelectorProperty("collisionMergingOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
+		properties.put("mergingCollisionOrNeither", Property.createSelectorProperty("mergingCollisionOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
 
 		// Simulation bounds
 		properties.put("dynamic", Property.createSelectorProperty("dynamic", "static", "static", new String[]{"static", "dynamic"}, true));
 
 		// Time step
-		{ Property<Float> p = Property.createFloatProperty("dt", 6f, 6f); p.setEditable(true); properties.put("dt", p); }
+		{ Property<Float> p = Property.createFloatProperty("dt", 1f, 1f); p.setEditable(true); properties.put("dt", p); }
 
 		// Barnes-Hut acceptance criterion
 		{ Property<Float> p = Property.createFloatProperty("theta", 0.6f, 0.6f); p.setEditable(true); properties.put("theta", p); }
 
-		// Camera zoom level
-		{ Property<Double> p = Property.createDoubleProperty("zoom", 0.01, 0.01); p.setEditable(true); properties.put("zoom", p); }
+		// Camera scale
+		{ Property<Float> p = Property.createFloatProperty("cameraScale", 10.0f, 10.0f); p.setEditable(true); properties.put("cameraScale", p); }
 
 		// Field of view for camera
 		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
-
-		// Camera shift position
-		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("DOUBLE_ARRAY"); p.setEditable(true); properties.put("shift", p); }
 
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 0.001f, 0.001f); p.setEditable(true); properties.put("softening", p); }
 
 		// Collision elasticity
-		properties.put("elasticity", Property.createDoubleProperty("elasticity", 1.0, 1.0, 0.0, 1.0, true));
+		properties.put("elasticity", Property.createFloatProperty("elasticity", 1.0f, 1.0f, 0.0f,  1.0f, true));
 
 		// Number of segments for sphere rendering
 		{ Property<Integer> p = Property.createIntProperty("sphereSegments", 12, 12); p.setEditable(true); properties.put("sphereSegments", p); }
@@ -109,19 +106,22 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
-		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E16f, 1.0E16f); p.setEditable(true); properties.put("farPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E11f, 1.0E11f); p.setEditable(true); properties.put("farPlane", p); }
 
 		// Camera move speed
-		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 5.0f, 5.0f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
+		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 1f, 1f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
 
 		// WASD movement sensitivity
-		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 10000f, 10000f); p.setEditable(true); properties.put("WASDSensitivity", p); }
+		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 1f, 1f); p.setEditable(true); properties.put("WASDSensitivity", p); }
 
 		// Mouse wheel sensitivity
-		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 20.0f, 20.0f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }
+		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 1f, 1f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }
 
 		// Mouse rotation sensitivity
 		{ Property<Float> p = Property.createFloatProperty("mouseRotationSensitivity", 0.2f, 0.2f); p.setEditable(true); properties.put("mouseRotationSensitivity", p); }
+
+		// Camera shift position
+		{ Property<double[]> p = new Property<>("shift", new double[]{0.0, 0.0, 0.0}, new double[]{0.0, 0.0, 0.0}); p.setTypeName("DOUBLE_ARRAY"); p.setEditable(true); properties.put("shift", p); }
 
 		// Camera position
 		properties.put("cameraPos", Property.createVector3fProperty("cameraPos", new Vector3f(0.0f, 0.0f, 1.0f), new Vector3f(0.0f, 0.0f, 1.0f), true));
@@ -264,24 +264,24 @@ public class Settings {
 	 */
 	public void toggleWrapAround() { setWrapAround(!isWrapAround()); }
 	/**
-	 * Gets the value of theselector property collisionMergingOrNeither.
+	 * Gets the value of theselector property mergingCollisionOrNeither.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public String getCollisionMergingOrNeither() { return getValue("collisionMergingOrNeither"); }
+	public String getMergingCollisionOrNeither() { return getValue("mergingCollisionOrNeither"); }
 	/**
-	 * Sets the value of the selector property collisionMergingOrNeither.
+	 * Sets the value of the selector property mergingCollisionOrNeither.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void setCollisionMergingOrNeither(String value) { setValue("collisionMergingOrNeither", value); }
+	public void setMergingCollisionOrNeither(String value) { setValue("mergingCollisionOrNeither", value); }
 
 	/**
-	 * Gets the selected index of the selector property collisionMergingOrNeither.
+	 * Gets the selected index of the selector property mergingCollisionOrNeither.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public int getSelectedIndexCollisionMergingOrNeither() { return getSelectedIndex("collisionMergingOrNeither"); }
+	public int getSelectedIndexMergingCollisionOrNeither() { return getSelectedIndex("mergingCollisionOrNeither"); }
 
 	/**
 	 * Gets the value of theselector property dynamic.
@@ -330,17 +330,17 @@ public class Settings {
 	public void setTheta(float value) { setValue("theta", value); }
 
 	/**
-	 * Gets the value of thedouble property zoom.
+	 * Gets the value of thefloat property cameraScale.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public double getZoom() { return getValue("zoom"); }
+	public float getCameraScale() { return getValue("cameraScale"); }
 	/**
-	 * Sets the value of the double property zoom.
+	 * Sets the value of the float property cameraScale.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void setZoom(double value) { setValue("zoom", value); }
+	public void setCameraScale(float value) { setValue("cameraScale", value); }
 
 	/**
 	 * Gets the value of thefloat property fov.
@@ -356,19 +356,6 @@ public class Settings {
 	public void setFov(float value) { setValue("fov", value); }
 
 	/**
-	 * Gets the value of thedoubleArray property shift.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public double[] getShift() { return getValue("shift"); }
-	/**
-	 * Sets the value of the doubleArray property shift.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setShift(double[] value) { setValue("shift", value); }
-
-	/**
 	 * Gets the value of thefloat property softening.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
@@ -382,17 +369,17 @@ public class Settings {
 	public void setSoftening(float value) { setValue("softening", value); }
 
 	/**
-	 * Gets the value of thedouble property elasticity.
+	 * Gets the value of thefloat property elasticity.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public double getElasticity() { return getValue("elasticity"); }
+	public float getElasticity() { return getValue("elasticity"); }
 	/**
-	 * Sets the value of the double property elasticity.
+	 * Sets the value of the float property elasticity.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void setElasticity(double value) { setValue("elasticity", value); }
+	public void setElasticity(float value) { setValue("elasticity", value); }
 
 	/**
 	 * Gets the value of theint property sphereSegments.
@@ -510,6 +497,19 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setMouseRotationSensitivity(float value) { setValue("mouseRotationSensitivity", value); }
+
+	/**
+	 * Gets the value of thedoubleArray property shift.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public double[] getShift() { return getValue("shift"); }
+	/**
+	 * Sets the value of the doubleArray property shift.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setShift(double[] value) { setValue("shift", value); }
 
 	/**
 	 * Gets the value of thevector3f property cameraPos.
@@ -732,10 +732,6 @@ public class Settings {
 	// ===== PRESERVED METHODS =====
 	// These methods are preserved across regenerations of the file
 
-	public void changeZoom(double newZoom) {
-		setZoom(newZoom);
-		saveSettings();
-	}
 
 
 	public void moveCamera(double[] ds) {

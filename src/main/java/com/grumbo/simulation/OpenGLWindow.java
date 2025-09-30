@@ -156,7 +156,7 @@ public class OpenGLWindow {
         info += "FPS Limiting: Use setMaxFPS(int) method to set GPU-based frame rate limit" + "\n";
         info += "==================" + "\n";
         info += "Initial camera position: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z + "\n";
-        info += "Initial zoom: " + Settings.getInstance().getZoom() + "\n";
+        info += "Initial camera scale: " + Settings.getInstance().getCameraScale() + "\n";
         info += "Initial shift: " + java.util.Arrays.toString(Settings.getInstance().getShift()) + "\n";
         info += "Camera front: " + Settings.getInstance().getCameraFront().x + ", " + Settings.getInstance().getCameraFront().y + ", " + Settings.getInstance().getCameraFront().z + "\n";
         return info;
