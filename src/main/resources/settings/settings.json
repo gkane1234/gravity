@@ -6,7 +6,7 @@
   "wrapAround" : false,
   "mergingCollisionOrNeither" : "none",
   "dynamic" : "static",
-  "dt" : 1.0,
+  "dt" : 0.8264463,
   "theta" : 0.6,
   "relativeTo" : 0,
   "cameraScale" : 10.0,
@@ -26,7 +26,7 @@
   "cameraPos" : {
     "x" : 0.0,
     "y" : 0.0,
-    "z" : 1.0,
+    "z" : 8.0,
     "finite" : true
   },
   "cameraFront" : {

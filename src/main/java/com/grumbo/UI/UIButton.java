@@ -141,8 +141,14 @@ public class UIButton extends UIElement {
 
     @Override
     public void handleMouseRelease() {
-        if (onRelease != null) onRelease.run();
-        else selected = false;
+        if (onRelease != null) {
+            onRelease.run();
+        
+        }
+        else {
+            System.out.println("Button Release");
+            selected = false;
+        } 
     }
 
     @Override

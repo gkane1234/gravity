@@ -101,6 +101,11 @@ public class SettingsPane {
                 }
             }
         } else if (action == GLFW_RELEASE) {
+            for (UIRow row : renderedRows) {
+                for (UIElement element : row.getElements()) {
+                    element.handleMouseRelease();
+                }
+            }
             if (activeSlider != null) {
                 activeSlider.handleMouseRelease();
                 activeSlider = null;
