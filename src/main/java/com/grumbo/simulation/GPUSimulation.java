@@ -71,14 +71,14 @@ public class GPUSimulation {
 
         String json = null;
         try {
-            json = Files.readString(Path.of("src/main/resources/planet_data/planetary_state_vectors.json"));
+            json = Files.readString(Path.of("src/main/resources/planet_data/earth_sun_moon.json"));
         } catch (IOException e) {
             e.printStackTrace();
             return;
         }
 
         PlanetGenerator planetGenerator = PlanetGenerator.fromJson(json);
-        planetGenerator.changeUnitSet(UnitSet.SOLAR_SYSTEM);
+        planetGenerator.changeUnitSet(UnitSet.SOLAR_SYSTEM_HOUR);
         System.out.println("Planet generator num planets: " + planetGenerator.getNumPlanets());
 
 
@@ -251,7 +251,7 @@ public class GPUSimulation {
 
     public static PlanetGenerator collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
-        UnitSet units = UnitSet.SOLAR_SYSTEM;
+        UnitSet units = UnitSet.SOLAR_SYSTEM_SECOND;
         int numAlive = 5_000_000;
         for (int i = 0; i < numAlive; i++) {
             newPlanets.add(new Planet((float)(1*java.lang.Math.random()), (float)(1*java.lang.Math.random()), (float)(1*java.lang.Math.random()), 0, 0, 0, 1f));

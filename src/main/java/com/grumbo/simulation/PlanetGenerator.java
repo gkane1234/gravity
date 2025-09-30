@@ -78,7 +78,7 @@ public class PlanetGenerator {
         this.numPlanets = numPlanets;
         this.planetsGenerated = 0;
         if (unitSet == null) {
-            this.unitSet = UnitSet.SOLAR_SYSTEM;
+            this.unitSet = UnitSet.SOLAR_SYSTEM_SECOND;
         } else {
             this.unitSet = unitSet;
         }

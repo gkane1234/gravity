@@ -7,7 +7,7 @@
 // SSBOs: BodiesIn, BodiesOut, IndexIn, IndexOut
 
 void setScaledGravitationalConstant(UnitSet units) {
-    sim.units.gravitationalConstant = GRAVITATIONAL_CONSTANT* pow(sim.units.len, 3)* pow(sim.units.time, -2)* pow(sim.units.mass, -1);
+    sim.units.gravitationalConstant = GRAVITATIONAL_CONSTANT* pow(sim.units.len, -3)* pow(sim.units.time, 2)* pow(sim.units.mass, 1);
 }
 
 void setScaledBodyLengthInSimulationLengthsConstant(UnitSet units) {

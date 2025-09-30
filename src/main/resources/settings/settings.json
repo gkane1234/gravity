@@ -7,7 +7,7 @@
   "mergingCollisionOrNeither" : "none",
   "dynamic" : "static",
   "dt" : 1.0,
-  "theta" : 0.6,
+  "theta" : 0.0,
   "cameraScale" : 10.0,
   "fov" : 45.0,
   "softening" : 0.001,

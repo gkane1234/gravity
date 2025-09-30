@@ -153,7 +153,7 @@ public class GPU {
 
         initComputeUniforms(barnesHut);
 
-        initComputeSSBOs(planetGenerator, bounds, UnitSet.SOLAR_SYSTEM);
+        initComputeSSBOs(planetGenerator, bounds, units);
         initComputeSwappingBuffers();
         initComputeShaders(barnesHut);
         initRenderUniforms(render);

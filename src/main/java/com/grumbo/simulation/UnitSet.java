@@ -77,6 +77,7 @@ class Unit {
     public static final Unit STELLAR_DENSITY = new Unit(1.408e3, Dimensions.DENSITY); //kg/m^3
     public static final Unit GRAVITATIONAL_CONSTANT = new Unit(6.67430e-11, Dimensions.GRAVITATIONAL_CONSTANT); //m^3 kg^-1 s^-2
     public static final Unit SECOND = new Unit(1, Dimensions.TIME); //s
+    public static final Unit HOUR = new Unit(3600, Dimensions.TIME); //s
     public static final Unit KILOGRAM = new Unit(1, Dimensions.MASS); //kg
     public static final Unit METER = new Unit(1, Dimensions.LENGTH); //m
     public static final Unit KILOGRAM_PER_CUBIC_METER = new Unit(1, Dimensions.DENSITY); //kg/m^3
@@ -108,7 +109,8 @@ public class UnitSet {
     public static final double PI = 3.14159265358979323846;
     public static final double THREE_OVER_FOUR_PI_TO_THE_THIRD = 0.6203504909; 
 
-    public static final UnitSet SOLAR_SYSTEM = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
+    public static final UnitSet SOLAR_SYSTEM_SECOND = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
+    public static final UnitSet SOLAR_SYSTEM_HOUR = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.HOUR);
     public static final UnitSet ASTRONOMICAL = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
     public static final UnitSet METRIC = new UnitSet(Unit.KILOGRAM, Unit.KILOGRAM_PER_CUBIC_METER, Unit.METER, Unit.SECOND);
     

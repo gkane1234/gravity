@@ -98,7 +98,7 @@ public class Planet {
 		this.mass = mass;
 		this.density = density;
 		if (unitSet == null) {
-			this.unitSet = UnitSet.SOLAR_SYSTEM;
+			this.unitSet = UnitSet.SOLAR_SYSTEM_SECOND;
 		} else {
 			this.unitSet = unitSet;
 		}
@@ -177,12 +177,12 @@ public class Planet {
 		this.mass = (float)(oldUnitSet.mass() * this.mass);
 		this.density = (float)(oldUnitSet.density() * this.density);
 		this.position = this.position.mul((float)oldUnitSet.len());
-		this.velocity = this.velocity.mul((float)oldUnitSet.len());
+		this.velocity = this.velocity.mul((float)oldUnitSet.len()).div((float)oldUnitSet.time());
 
 		this.mass = (float)(this.mass/newUnitSet.mass() );
 		this.density = (float)(this.density/newUnitSet.density() );
 		this.position = this.position.div((float)newUnitSet.len());
-		this.velocity = this.velocity.div((float)newUnitSet.len());
+		this.velocity = this.velocity.div((float)newUnitSet.len()).mul((float)newUnitSet.time());
 
 
 
