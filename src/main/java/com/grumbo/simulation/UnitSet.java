@@ -1,5 +1,7 @@
 package com.grumbo.simulation;
 
+import com.grumbo.simulation.Unit.SIPrefix;
+
 /**
  * Dimensions class for the simulation.
  * Used to represent the dimensions of a unit, used in the Unit class.
@@ -124,6 +126,10 @@ class Unit {
     public Unit(double value, Dimensions dimensions) {
         this(value, dimensions, SIPrefix.NONE);
     }
+
+    public Unit(Unit unit, SIPrefix siprefix) {
+        this(unit.getValue(), unit.dimensions, siprefix);
+    }
     /**
      * Gets the value of the unit in its base units (resolving the SI prefix)
      * @return the value of the unit
@@ -151,7 +157,7 @@ public class UnitSet {
     public static final UnitSet SOLAR_SYSTEM_HOUR = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.HOUR);
     public static final UnitSet ASTRONOMICAL = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
     public static final UnitSet METRIC = new UnitSet(Unit.KILOGRAM, Unit.KILOGRAM_PER_CUBIC_METER, Unit.METER, Unit.SECOND);
-    
+    public static final UnitSet GALACTIC_MERGE = new UnitSet(new Unit(Unit.SOLAR_MASS,SIPrefix.GIGA), Unit.STELLAR_DENSITY, new Unit(Unit.ASTRONOMICAL_UNIT,SIPrefix.MEGA), new Unit(Unit.SECOND,SIPrefix.MEGA));
     //The unit of a body's mass (in kg) e.g. solar mass
     private Unit mass;
     //The unit of a body's length (in m) e.g. stellar radius

@@ -31,7 +31,7 @@ public class GPUSimulation {
     private BarnesHut barnesHut;
     private Render render;
     private OpenGLWindow openGlWindow;
-    private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue;
+    private final ConcurrentLinkedQueue<GPUCommands.GPUCommand> commandQueue = new ConcurrentLinkedQueue<>();
     private PlanetGenerator planetGenerator;
     private UnitSet units;
     
@@ -70,19 +70,13 @@ public class GPUSimulation {
      * Constructor for the GPUSimulation class.
      * Used to create a simulation with specific settings.
      */
-    public GPUSimulation() {
-        this.commandQueue = new ConcurrentLinkedQueue<>();
+    public static GPUSimulation createSolarSystemSimulation() {
 
-        String json = null;
-        try {
-            json = Files.readString(Path.of("src/main/resources/planet_data/planetary_state_vectors.json"));
-        } catch (IOException e) {
-            e.printStackTrace();
-            return;
-        }
 
-        PlanetGenerator planetGenerator = PlanetGenerator.fromJson(json);
+        PlanetGenerator planetGenerator = PlanetGenerator.makeSolarSystem();
         planetGenerator.changeUnitSet(UnitSet.SOLAR_SYSTEM_HOUR);
+        float boundSize = 10;
+        float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
         System.out.println("Planet generator num planets: " + planetGenerator.getNumPlanets());
 
 
@@ -109,71 +103,42 @@ public class GPUSimulation {
             //"COMPUTE_DEBUG",
         });
 
-
-
-        this.openGlWindow = new OpenGLWindow(this); 
-        this.planetGenerator = planetGenerator;
-        this.initialbodiesContained = planetGenerator.getNumPlanets();
-        float boundSize = 10;
-        float[][] bounds = new float[][] {{-boundSize, -boundSize, -boundSize}, {boundSize, boundSize, boundSize}};
-
-        this.barnesHut = new BarnesHut(this,debug,bounds);
-        this.render = new Render(this,renderMode,debug);
-        this.debug = debug;
-
+        return new GPUSimulation(planetGenerator, bounds, renderMode, debug);
 
     }
 
-    /**
-     * Constructor for the GPUSimulation class.
-     * Used to create a simulation with specific settings.
-     * @param planets the planets to add to the simulation
-     * @param renderMode the render mode
-     * @param debug whether to debug the simulation
-     */
-    public GPUSimulation(ArrayList<Planet> planets, Render.RenderMode renderMode, boolean debug) {
-        this.openGlWindow = new OpenGLWindow(this);
-        this.planetGenerator = new PlanetGenerator(planets);
-        this.commandQueue = new ConcurrentLinkedQueue<>();
-        float[][] bounds = new float[][] {{-10000, -10000, -10000}, {10000, 10000, 10000}};
-        this.barnesHut = new BarnesHut(this,debug,bounds);
-        this.render = new Render(this,renderMode,debug);
-        this.debug = debug;
-        this.initialbodiesContained = planets.size();
-    }
-
-    public static PlanetGenerator createJumboSimulation() {
+    public static GPUSimulation createJumboSimulation() {
         ArrayList<Planet> planets = new ArrayList<>();
         Planet jumbo = new Planet(0,0,0,0,0,0,100000f,10);
         Planet jumbo2 = new Planet(0,0,-1000,0,0,0,100000f,1);
         planets.add(jumbo);
         planets.add(jumbo2);
-        return new PlanetGenerator(planets);
+        return new GPUSimulation(new PlanetGenerator(planets), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
-    public static PlanetGenerator createSeveralDisksSimulation() {
+    public static GPUSimulation createSeveralDisksSimulation() {
         int numDisks = 10;
         int[] numPlanetsRange = {100000, 500000};
         float[] radiusRangeLow = {100, 100};
         float[] stellarDensityRange = {0.05f, 0.1f};
-        float[] mRange = {100, 1200};
+        float[] mRange = {1, 12};
         float[] densityRange = {1f, 1f};
-        float[] centerX = {0, 100000};
-        float[] centerY = {0, 100000};
-        float[] centerZ = {0, 100000};
-        float[] relativeVelocityX = {-100, 100};
-        float[] relativeVelocityY = {-100, 100};
-        float[] relativeVelocityZ = {-100, 100};
+        float[] centerX = {0, 1};
+        float[] centerY = {0, 1};
+        float[] centerZ = {0, 1};
+        float[] relativeVelocityX = {-1, 1};
+        float[] relativeVelocityY = {-1, 1};
+        float[] relativeVelocityZ = {-1, 1};
         float[] phiRange = {0, (float)Math.PI};
-        float[] centerMassRange = {10000f, 1000000f};
+        float[] centerMassRange = {1, 1};
         float[] centerDensityRange = {10f, 10f};
         float[] adherenceToPlaneRange = {0.8f,1f};
         float orbitalFactor = 1f;
         boolean giveOrbitalVelocity = true;
-        return PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity);
+        return new GPUSimulation(PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
-    public static PlanetGenerator createSeveralDisksAroundAnotherDiskSimulation() {
+    public static GPUSimulation createSeveralDisksAroundAnotherDiskSimulation() {
 
         int numDisks = 2;
         int[] numPlanetsRange = {250_000,250_000};
@@ -188,7 +153,7 @@ public class GPUSimulation {
         float[] relativeVelocityY = {-100, 100};
         float[] relativeVelocityZ = {-100, 100};
         float[] phiRange = {0, (float)Math.PI};
-        float[] centerMassRange = {10000f, 1000000f};
+        float[] centerMassRange = {1000,1000};
         float[] centerDensityRange = {10f, 10f};
         float[] adherenceToPlaneRange = {0.95f,1f};
         float orbitalFactor = 1f;
@@ -196,26 +161,26 @@ public class GPUSimulation {
 
 
         int centerDiskPlanets = 600_000;
-        float[] centerDiskRadius = {100, 50000};
+        float[] centerDiskRadius = {1,1};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
         float centerDiskPhi = (float)(Math.PI/2);
-        float centerDiskCenterMass = 1000000000f;
+        float centerDiskCenterMass = 2000f;
         float centerDiskCenterDensity = 10f;
         float centerDiskAdherenceToPlane = 0.99f;
         float centerDiskOrbitalFactor = 1f;
         boolean centerDiskGiveOrbitalVelocity = true;
 
         PlanetGenerator pg = PlanetGenerator.makeNewRandomDisk(centerDiskPlanets, centerDiskRadius, mRange, densityRange, centerDiskLocation, centerDiskRelativeVelocity, centerDiskPhi, centerDiskCenterMass, centerDiskCenterDensity, centerDiskAdherenceToPlane, centerDiskOrbitalFactor, false,centerDiskGiveOrbitalVelocity);
-        
         pg= new PlanetGenerator(pg, PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity));
-        return pg;
+        
+        return new GPUSimulation(pg, centerX[1]*2, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
     
 
 
 
-    public static PlanetGenerator createDiskSimulation() {
+    public static GPUSimulation createDiskSimulation() {
         PlanetGenerator pg = new PlanetGenerator();
         float[] radius = {100, 100000};
         float[] mRange = {10, 120};
@@ -238,10 +203,10 @@ public class GPUSimulation {
                     new float[] {0,100000,100000}, new float[] {0,0.1f,-0.3f},(float)(java.lang.Math.PI*Math.random()), 
                     100000000f,100f,
                     0.98f,1f,false, true));
-        return pg;
+        return new GPUSimulation(pg, 1_000_000, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
-    public static PlanetGenerator createBoxSimulation() {
+    public static GPUSimulation createBoxSimulation() {
         PlanetGenerator pg = new PlanetGenerator();
         float[] xRange = {-40000, 40000};
         float[] yRange = {-40000, 40000};
@@ -257,10 +222,10 @@ public class GPUSimulation {
         pg.add(center);
         //planets.add(center2);
 
-        return pg;
+        return new GPUSimulation(pg, 80000, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
-    public static PlanetGenerator collisionTest() {
+    public static GPUSimulation collisionTest() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
         UnitSet units = UnitSet.SOLAR_SYSTEM_SECOND;
         int numAlive = 5_000_000;
@@ -269,16 +234,53 @@ public class GPUSimulation {
         }
 
         Collections.shuffle(newPlanets);
-        return new PlanetGenerator(newPlanets, units);
+        return new GPUSimulation(new PlanetGenerator(newPlanets, units), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
-    public static PlanetGenerator twoPlanets() {
+    public static GPUSimulation twoPlanets() {
         ArrayList<Planet> newPlanets = new ArrayList<>();
         newPlanets.add(new Planet(0, 0, 0, 0, 0, 0, 100));
         newPlanets.add(new Planet(20, 0, 0, 0, 0, 0, 100));
         newPlanets.add(new Planet(-20, 0, 0, 0, 0, 0, 100));
-        return new PlanetGenerator(newPlanets);
+        return new GPUSimulation(new PlanetGenerator(newPlanets), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float[][] bounds, Render.RenderMode renderMode, boolean debug) {
+
+        this.planetGenerator = planetGenerator;
+        this.initialbodiesContained = planetGenerator.getNumPlanets();
+        this.openGlWindow = new OpenGLWindow(this);
+        this.barnesHut = new BarnesHut(this,debug,bounds);
+        this.render = new Render(this,renderMode,debug);
+        this.debug = debug;
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode, boolean debug) {
+        this(planetGenerator, new float[][] {{-squareBounds, -squareBounds, -squareBounds}, {squareBounds, squareBounds, squareBounds}}, renderMode, debug);
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, boolean debug) {
+        this(planetGenerator, squareBounds, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, debug);
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator) {
+        this(planetGenerator, 10, true);
+    }
+
+    /**
+     * Constructor for the GPUSimulation class.
+     * Used to create a simulation with specific settings.
+     * @param planets the planets to add to the simulation
+     * @param renderMode the render mode
+     * @param debug whether to debug the simulation
+     */
+    public GPUSimulation(ArrayList<Planet> planets, Render.RenderMode renderMode, boolean debug) {
+        this(new PlanetGenerator(planets), 10, renderMode, debug);
+    }
+
+
+    
+
 
     private void init() {
         openGlWindow.init();

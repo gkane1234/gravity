@@ -190,8 +190,6 @@ public class Planet {
 
 
 
-		System.out.println(this.density);
-
 		this.unitSet = newUnitSet;
 	}
 

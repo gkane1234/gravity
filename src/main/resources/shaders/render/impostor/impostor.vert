@@ -16,7 +16,7 @@ out float vNdcScaleX;
 out float vNdcScaleY;
 
 
-const float GLOW_RADIUS_FACTOR = 2;
+const float GLOW_RADIUS_FACTOR = 10;
 const float BOX_CORRECTION = 1.5;
 
 // Calculates the temperature of a star

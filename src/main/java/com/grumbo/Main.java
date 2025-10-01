@@ -15,7 +15,7 @@ import com.grumbo.simulation.GPUSimulation;
 
 public class Main {
     public static void main(String[] args) {
-        GPUSimulation gpuSimulation = new GPUSimulation();
+        GPUSimulation gpuSimulation = GPUSimulation.createSeveralDisksAroundAnotherDiskSimulation();
         gpuSimulation.run();
         
     }

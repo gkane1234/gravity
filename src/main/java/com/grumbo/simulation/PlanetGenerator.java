@@ -3,6 +3,8 @@ package com.grumbo.simulation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.joml.Vector3f;
 
@@ -279,7 +281,7 @@ public class PlanetGenerator {
         planetsGenerated++;
         Planet planet = planetGeneratorFunction.generateNextPlanet();
         if (unitSet != planet.getUnitSet()) {
-            System.out.println("Changing unit set of planet " + planet.position.x+ " from " + planet.getUnitSet() + " to " + unitSet);
+ 
             planet.changeUnitSet(unitSet);
         }
         return planet;
@@ -416,7 +418,7 @@ public class PlanetGenerator {
      * @return the new random disk
      */
 	public static PlanetGenerator makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
-
+        UnitSet unitSet = UnitSet.SOLAR_SYSTEM_SECOND;
 		// Disk normal tilted from +z by phi around the x-axis
 		final Vector3f normal = new Vector3f(0f, (float)(Math.sin(phi)), (float)Math.cos(phi));
 
@@ -474,13 +476,14 @@ public class PlanetGenerator {
                 position = position.add(new Vector3f(center));
                 velocity = velocity.add(new Vector3f(relativeVelocity));
 
-                return new Planet(position, velocity, randomInRange(mass), randomInRange(density));
+                return new Planet(position, velocity, randomInRange(mass), randomInRange(density), unitSet);
             }
         }, num);
 
 		Planet centerPlanet = new Planet(new Vector3f(center), new Vector3f(relativeVelocity), centerMass, centerDensity);
 		PlanetGenerator pg2 = new PlanetGenerator(centerPlanet);
         PlanetGenerator ret = new PlanetGenerator(pg, pg2);
+        ret.changeUnitSet(UnitSet.GALACTIC_MERGE);
 		return ret;
 	}
 
@@ -523,6 +526,18 @@ public class PlanetGenerator {
 		}
 		return ret;
 	}
+
+
+    public static PlanetGenerator makeSolarSystem() {
+        String json = null;
+        try {
+            json = Files.readString(Path.of("src/main/resources/planet_data/solar_system.json"));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+        return fromJson(json);
+    }
 
     /**
      * Loads a planet generator from a json string.
