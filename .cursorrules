@@ -1,10 +1,5 @@
-This is an implementation of the barnes hut approximation for a n body simulation written in java and globalBase
-the framework of the project is inside the java side, there are three packages: gpu, simulation, and uint
-The gpu package are classes that help java interact with the shader code
-The simulation package are classes that run the simulation and import the shader code
-The UI package is stuff that is only related to the UI in the window
-
-Settings generator is a function that generates the settings class based on what is put in the resources/settings/defaultproperties.json file
+This is an implementation of the barnes hut approximation for a n body simulation written in java and glsl
+read the readme to see how to program works.
 
 When you answer questions, be concise and dont add fluffy language like "perfect" or "i know just what the problem is!"
 Be direct and try not to fall into needing to produce an answer, if you dont know say that. 
