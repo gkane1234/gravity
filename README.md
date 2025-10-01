@@ -15,13 +15,12 @@ All calculations during the simulation are done using compute shaders in GLSL. T
 
 
 
-
 # Compute Shader Algorithms Breakdown
 Our implementation of the Barnes-Hut N-Body Algorithm works broadly in 5 steps:
 
 1. Morton encoding of the objects
 2. Radix sort based on Morton code
-3. Binary tree of spacial heierarchy
+3. Binary tree of spatial hierarchy
 4. Force integration
 5. Merging, Collisions, and OOB handling
 
@@ -33,7 +32,7 @@ Bodies are stored in a list of nodes
 
 All objects that are empty are sorted to the end of the list.
 
-This can happen if the object was found to be out of bounds on intialization or on the last frame. It also occurs for half of the bodies involved in a merge.
+This can happen if the object was found to be out of bounds on initialization or on the last frame. It also occurs for half of the bodies involved in a merge.
 
 This is done identically to one pass of the radix sort below with objects either being in a dead or an alive bucket. 
 
@@ -41,13 +40,13 @@ This is done identically to one pass of the radix sort below with objects either
 
 Morton encoding is a method of creating a space filling curve in N-dimensional space by interweaving each coordinate's binary bits in descending order of significance:
 
-$$x_1y_1z_1x_2y_2z_2x_3y_3z_3\ldots$$ for the binary digits of the x,y, and z coordiantes
+$$x_1y_1z_1x_2y_2z_2x_3y_3z_3\ldots$$ for the binary digits of the x,y, and z coordinates 
 
-Nearby codes are generally near each other in space with regular jumps in their location. The tree building algorithm is able to fully realize this complexity and give an accurate spacial partition.
+Nearby codes are generally near each other in space with regular jumps in their location. The tree building algorithm is able to fully realize this complexity and give an accurate spatial partition.
 
-We find morton codes using the Axis Aligned Bounding Box (AABB) of the simulation. In an unbounded simulaiton, we calculate a new AABB on each step.
+We find morton codes using the Axis Aligned Bounding Box (AABB) of the simulation. In an unbounded simulation, we calculate a new AABB on each step.
 
-We quantize space into 2^21 units along each axis of the AABB. The coordinates of each body in these units creates their 63 bit morton code that fits neatly into a Long data type.
+We quantize space into 2^21 units along each axis of the AABB. The coordinates of each body in these units creates their 63 bit Morton code that fits neatly into a Long data type.
 
 
 ## Radix Sort:
@@ -67,18 +66,18 @@ This is a direct copy of the Karras Algorithm from https://research.nvidia.com/s
 
 Second, we fill the nodes with data of the Center of Mass and Mass of the bodies contained within it:
 
-This is done by first initalizing all of the leaf nodes and then adding all nodes with two initialized children to a queue.
+This is done by first initializing all of the leaf nodes and then adding all nodes with two initialized children to a queue.
 
-Next we repeat this process with the enqueued nodes creating a new queue until we are confident that the root node has been initialized (since this broadly separates bodies into two groups for an evenly distributed cloud of objects and can have deeper trees for outliers, 128 repetitions is done (to reduce the amount of workgroups dispached, we assume that the amount of workgroups required for this process decreases exponentially after each repetition, meaning generally the last ~80 are done with less than 10 workgroups)
+Next we repeat this process with the enqueued nodes creating a new queue until we are confident that the root node has been initialized (since this broadly separates bodies into two groups for an evenly distributed cloud of objects and can have deeper trees for outliers, 128 repetitions is done (to reduce the amount of workgroups dispatched, we assume that the amount of workgroups required for this process decreases exponentially after each repetition, meaning generally the last ~80 are done with less than 10 workgroups)
 
 ## Force Calculation:
 
-Force is calculated for an object based on its distance to nodes in the tree, starting at the root. At a specific node, we use the COM and Mass to apply force or we enqueue the two children. This is decided by the Acceptance Criterion, $\theta$, which is proportional to the longest side of the AABB (\theta > longest side / distance to COM). This differs from the traditional Barnes Hut implementation which generally uses an Octree, but we have found is still effective on deciding if a locality is close enough to warrant a more accurate force calculation. During this calculation, if we are at a leaf node, we also check for intersections. Collisions are calculated here, otherwise mergers are added to a task list. This is done using the particular gravitation constant calculated by the set of units provided.
+Force is calculated for an object based on its distance to nodes in the tree, starting at the root. At a specific node, we use the COM and Mass to apply force or we enqueue the two children. This is decided by the Acceptance Criterion, $\theta$, which is proportional to the longest side of the AABB (\theta > longest side / distance to COM). This differs from the traditional Barnes Hut implementation which generally uses an Octree, but we have found it is still effective in deciding if a locality is close enough to warrant a more accurate force calculation. During this calculation, if we are at a leaf node, we also check for intersections. Collisions are calculated here, otherwise mergers are added to a task list. This is done using the particular gravitation constant calculated by the set of units provided.
 
 
 ## Merge
 
-Merge items are parallelized and all merges are done. Note, this part of the simulation can be non-deterministic over large time steps because of races between elements in the merge tast list and we do not recursively discover merges. On sufficiently small time step the simulation is deterministic.
+Merge items are parallelized and all merges are done. Note, this part of the simulation can be non-deterministic over large time steps because of races between elements in the merge task list and we do not recursively discover merges. On sufficiently small time step the simulation is deterministic.
 
 
 ## Complete Structure:
@@ -131,7 +130,7 @@ The Java side is separated into 5 packages:
 
 ## Simulation
 
-Logic of the simulation. Dispaches all compute shaders, and runs rendering, and UI. Also contains planet generation, and unit specification for creating the initial conditions of the simulation
+Logic of the simulation. Dispatches all compute shaders, and runs rendering, and UI. Also contains planet generation, and unit specification for creating the initial conditions of the simulation
 
 ## GPU
 
@@ -164,9 +163,9 @@ Allows for the recording of the simulation by saving each individual frame as a 
  8. --Combine bodies and nodes into one struct
  9.  During radix sort, and AABB reduction, have the first kernel be called twice to reduce by a factor of wg_size^2 before the second kernel is called
  10. We calculate the AABB for the simulation at the beginning and then recalculate it during tree propagation. We don't know if it is possible to avoid this but as an observation.
- 11. Futher integrate rendering into the GPU class
+ 11. Further integrate rendering into the GPU class
      1.  Put render program creation into the GPU class
-     2.  Possibly add a new pipline for the actual rendering call
+     2.  Possibly add a new pipeline for the actual rendering call
      3.  Create the meshes in the GPU class
  12. Make a units object that handles units and uploads that to the GPU
  13. A way to import meshes
@@ -193,4 +192,6 @@ Allows for the recording of the simulation by saving each individual frame as a 
 
 
  
+
+
 
