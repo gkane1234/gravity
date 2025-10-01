@@ -35,6 +35,7 @@ public class Render {
     // Impostor config
     public float impostorPointScale = 1f; // mass to pixel size scale
     public float sphereRadiusScale = 1f;
+    public float minImpostorSize = Settings.getInstance().getMinImpostorSize();
     public boolean glowPass = false;
     private GPUSimulation gpuSimulation;
     private RenderMode renderMode;

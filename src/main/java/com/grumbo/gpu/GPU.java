@@ -142,6 +142,7 @@ public class GPU {
     public static Uniform<Matrix4f> UNIFORM_MODEL_VIEW;
     public static Uniform<Float> UNIFORM_RADIUS_SCALE;
     public static Uniform<Vector2i> UNIFORM_MIN_MAX_DEPTH;
+    public static Uniform<Float> UNIFORM_MIN_IMPOSTOR_SIZE;
     public static Uniform<Integer> UNIFORM_RELATIVE_TO;
 
 
@@ -866,6 +867,11 @@ public class GPU {
             return new Vector2i(Settings.getInstance().getMinDepth(), Settings.getInstance().getMaxDepth());
         }, VariableType.VEC2I);
         GPU.UNIFORMS.put(UNIFORM_MIN_MAX_DEPTH.getName(), UNIFORM_MIN_MAX_DEPTH);
+
+        GPU.UNIFORM_MIN_IMPOSTOR_SIZE = new Uniform<Float>("uMinImpostorSize", () -> {
+            return Settings.getInstance().getMinImpostorSize();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_MIN_IMPOSTOR_SIZE.getName(), UNIFORM_MIN_IMPOSTOR_SIZE);
     }
 
     private static void initRenderPrograms(Render render) {
@@ -901,6 +907,7 @@ public class GPU {
             GPU.UNIFORM_MODEL_VIEW,
             GPU.UNIFORM_CAMERA_SCALE,
             GPU.UNIFORM_RELATIVE_TO,
+            GPU.UNIFORM_MIN_IMPOSTOR_SIZE,
         });
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,

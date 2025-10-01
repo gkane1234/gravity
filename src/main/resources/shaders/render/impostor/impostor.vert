@@ -12,6 +12,8 @@ out vec3 vCenterView;
 out float vCenterClipW;
 out float ndcDepth;
 out float worldRadius;
+out float vNdcScaleX;
+out float vNdcScaleY;
 
 
 const float GLOW_RADIUS_FACTOR = 2;
@@ -87,8 +89,7 @@ void main() {
   vec3 center = relativeLocation(b, uRelativeTo)*cameraScale;
   color = getStarColor(scaledMass(b), scaledDensity(b));
   float trueRadius = max (0.000001, radius(b))*cameraScale;
-  worldRadius = trueRadius*GLOW_RADIUS_FACTOR;
-  bodyToGlowRatio= 1/GLOW_RADIUS_FACTOR;
+  bodyToGlowRatio = 1.0 / GLOW_RADIUS_FACTOR;
 
   // Transform center to view space
   vec4 centerView4 = uModelView * vec4(center, 1.0);
@@ -107,11 +108,26 @@ void main() {
 
   // Compute projected quad size
   float camDist = length(vCenterView);
-  float ndcScaleY = worldRadius / (camDist * tan(0.5 * uFovY));
+  float tanHalfFov = tan(0.5 * uFovY);
+  float minBodyRadius = uMinImpostorSize * camDist * tanHalfFov;
+  float effectiveBodyRadius = max(trueRadius, minBodyRadius);
+
+  worldRadius = effectiveBodyRadius * GLOW_RADIUS_FACTOR;
+  bodyToGlowRatio = effectiveBodyRadius / worldRadius;
+
+  float ndcScaleY = worldRadius / (camDist * tanHalfFov);
   float ndcScaleX = ndcScaleY / max(uAspect, 1e-6);
 
+  vNdcScaleX = ndcScaleX;
+  vNdcScaleY = ndcScaleY;
+
   vec2 ndcOffset = vMapping * vec2(ndcScaleX, ndcScaleY);
+
+
+
   vec2 clipOffset = ndcOffset * centerClip.w;
+
+  clipOffset = clipOffset;
 
   gl_Position = vec4(centerClip.xy + clipOffset, centerClip.z, centerClip.w);
 

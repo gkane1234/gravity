@@ -69,6 +69,12 @@
       "description": "Camera scale",
       "editable": true
     },
+    "minImpostorSize": {
+      "type": "float",
+      "default": 0.002,
+      "description": "Minimum impostor radius in NDC",
+      "editable": true
+    },
     "fov": {
       "type": "float",
       "default": 45.0,
@@ -109,7 +115,7 @@
     },
     "nearPlane": {
       "type": "float",
-      "default": 1e-7,
+      "default": 1e-4,
       "description": "Near plane for camera",
       "editable": true
     },
@@ -127,19 +133,19 @@
     },
     "WASDSensitivity": { 
       "type": "float",
-      "default": 1,
+      "default": 0.01,
       "description": "WASD movement sensitivity",
       "editable": true
     },
     "mouseWheelSensitivity": {
       "type": "float",
-      "default": 1,
+      "default": 0.1,
       "description": "Mouse wheel sensitivity",
       "editable": true
     },
     "mouseRotationSensitivity": {
       "type": "float",
-      "default": 0.2,
+      "default": 0.04,
       "description": "Mouse rotation sensitivity",
       "editable": true
     },

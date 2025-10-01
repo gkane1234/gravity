@@ -7,32 +7,33 @@
   "mergingCollisionOrNeither" : "none",
   "dynamic" : "static",
   "dt" : 1.0,
-  "theta" : 0.6,
-  "relativeTo" : 0,
-  "cameraScale" : 10.0,
+  "theta" : 0.0,
+  "relativeTo" : 3,
+  "cameraScale" : 0.4736245,
+  "minImpostorSize" : 0.0022000005,
   "fov" : 45.0,
   "softening" : 1.0E-12,
   "elasticity" : 1.0,
   "sphereSegments" : 12,
   "minDepth" : 0,
   "maxDepth" : 100,
-  "nearPlane" : 1.0E-7,
+  "nearPlane" : 1.0E-4,
   "farPlane" : 1.0E8,
   "cameraMoveSpeed" : 1.0,
-  "WASDSensitivity" : 1.0,
-  "mouseWheelSensitivity" : 1.0,
-  "mouseRotationSensitivity" : 0.2,
+  "WASDSensitivity" : 0.01,
+  "mouseWheelSensitivity" : 0.1,
+  "mouseRotationSensitivity" : 0.04,
   "shift" : [ 0.0, 0.0, 0.0 ],
   "cameraPos" : {
-    "x" : 0.0,
-    "y" : 0.0,
-    "z" : 1.0,
+    "x" : 2.0815392,
+    "y" : -0.049493615,
+    "z" : 1.0708011,
     "finite" : true
   },
   "cameraFront" : {
-    "x" : 0.0,
-    "y" : 0.0,
-    "z" : -1.0,
+    "x" : -0.8870452,
+    "y" : 0.032108553,
+    "z" : -0.46056497,
     "finite" : true
   },
   "cameraUp" : {
@@ -41,6 +42,6 @@
     "z" : 0.0,
     "finite" : true
   },
-  "yaw" : -90.0,
-  "pitch" : 0.0
+  "yaw" : -152.5611,
+  "pitch" : 1.8400005
 }

@@ -169,6 +169,7 @@ uniform mat4 uModelView; //Model view matrix
 uniform float uRadiusScale; //Radius scale
 uniform ivec2 uMinMaxDepth; //Min and max depth for regions
 uniform uint uRelativeTo; //Relative to
+uniform float uMinImpostorSize; //Minimum impostor radius in NDC
 
 
 

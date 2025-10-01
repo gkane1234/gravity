@@ -37,7 +37,7 @@ DEFAULT_KERNEL_NAMES = [
 
 ]
 
-Bodies_to_include = ["MOON", "EARTH", "SUN"]
+Bodies_to_include = []
 SUN_NAIF_ID = 10
 
 

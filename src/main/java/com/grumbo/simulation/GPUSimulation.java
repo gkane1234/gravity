@@ -75,7 +75,7 @@ public class GPUSimulation {
 
         String json = null;
         try {
-            json = Files.readString(Path.of("src/main/resources/planet_data/earth_sun_moon.json"));
+            json = Files.readString(Path.of("src/main/resources/planet_data/planetary_state_vectors.json"));
         } catch (IOException e) {
             e.printStackTrace();
             return;

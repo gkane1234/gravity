@@ -8,6 +8,8 @@ in float worldRadius;
 in vec3 color;
 in vec3 vCenterView;
 in float vCenterClipW;
+in float vNdcScaleX;
+in float vNdcScaleY;
 
 
 out vec4 fragColor;
@@ -51,8 +53,8 @@ void main() {
     float tanHalfFovX = 1.0 / uProj[0][0];
 
     float camDist = length(vCenterView);
-    float ndcScaleY = worldRadius / (camDist * tanHalfFovY);
-    float ndcScaleX = worldRadius / (camDist * tanHalfFovX);
+    float ndcScaleY = vNdcScaleY;
+    float ndcScaleX = vNdcScaleX;
 
     vec4 centerClip = uProj * vec4(vCenterView, 1.0);
     vec2 centerNdc = centerClip.xy / centerClip.w;
