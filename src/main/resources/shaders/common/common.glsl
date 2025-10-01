@@ -112,7 +112,7 @@ layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
 layout(std430, binding = 13) buffer RadixBucketTotalsAndAABB  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
 //Merge queue for merging bodies identified in the force kernel
 //  -Initialized with numBodies pairs of indices (uint[2]'s) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
 //Merge body locks to avoid races when merging bodies
 //  -Initialized with numBodies locks (uints) (In Java: numBodies * Integer.BYTES)
 layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };

@@ -107,8 +107,8 @@ void forceComputeKernel()
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel
             if ((mergingCollisionOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
-                uint slot = atomicAdd(mergeQueueTail, 1u);
-                mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
+                uint slot = atomicAdd(mergeTasksTail, 1u);
+                mergeTasks[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
             }
         }
         

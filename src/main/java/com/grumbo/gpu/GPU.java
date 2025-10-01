@@ -56,7 +56,7 @@ public class GPU {
     // layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
     // layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
     // layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
-    // layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+    // layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
     // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
 
     public static SSBO SSBO_LEAF_NODES;
@@ -120,11 +120,6 @@ public class GPU {
     public static Uniform<Integer> UNIFORM_STATIC_OR_DYNAMIC;
 
 
-    // Render Programs
-    public static RenderProgram RENDER_POINTS; // points program
-    public static RenderProgram RENDER_IMPOSTOR; // point-sprite impostor spheres
-    public static RenderProgram RENDER_SPHERE;   // instanced mesh spheres
-    public static RenderProgram RENDER_REGIONS; // regions
 
 
     // Render Uniforms
@@ -309,9 +304,9 @@ public class GPU {
         SSBO_MERGE_QUEUE = new SSBO(SSBO.MERGE_QUEUE_BINDING, () -> {
             return Math.max(2*Integer.BYTES, 2*Integer.BYTES+numBodies() * 2 * Integer.BYTES);
         }, "SSBO_MERGE_QUEUE", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"MergeQueueHead", 1), 
-            new GLSLVariable(VariableType.UINT,"MergeQueueTail", 1), 
-            new GLSLVariable(VariableType.UINT,"MergeQueue", numBodies() * 2)}));
+            new GLSLVariable(VariableType.UINT,"MergeTasksHead", 1), 
+            new GLSLVariable(VariableType.UINT,"MergeTasksTail", 1), 
+            new GLSLVariable(VariableType.UINT,"MergeTasks", numBodies() * 2)}));
         GPU.SSBOS.put(SSBO_MERGE_QUEUE.getName(), SSBO_MERGE_QUEUE);
 
         SSBO_MERGE_BODY_LOCKS = new SSBO(SSBO.MERGE_BODY_LOCKS_BINDING, () -> {
@@ -869,13 +864,11 @@ public class GPU {
         });
         GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
-        // Create points render program
-        GPU.RENDER_POINTS = new RenderProgram("points", GLSLMesh.MeshType.POINTS, render.initialNumBodies());
-        GPU.RENDER_POINTS.setUniforms(new Uniform[] {
-            GPU.UNIFORM_MVP
+            GPU.SSBO_SIMULATION_VALUES
         });
-        GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
-            GPU.SSBO_SWAPPING_BODIES_OUT,
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_POINTS.getProgramName(), GPU.RENDER_POINTS);
+        GPUSimulation.checkGLError("GPU.RENDER_POINTS");
+
         // Create impostor render program
         GPU.RENDER_IMPOSTOR = new RenderProgram("impostor", GLSLMesh.MeshType.IMPOSTOR, GPU.initialNumBodies);
         RenderProgram.checkProgram(GPU.RENDER_IMPOSTOR.getProgram());

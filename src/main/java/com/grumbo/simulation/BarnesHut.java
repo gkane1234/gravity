@@ -574,7 +574,7 @@ public class BarnesHut {
         if (debug) {
             mergeBodiesTime = System.nanoTime();
             if (GPU.COMPUTE_MERGE_BODIES.isPreDebugSelected()) {
-                GPU.COMPUTE_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeTasks",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
         GPU.COMPUTE_MERGE_BODIES.run();
@@ -583,7 +583,7 @@ public class BarnesHut {
             glFinish();
             mergeBodiesTime = System.nanoTime() - mergeBodiesTime;
             if (GPU.COMPUTE_MERGE_BODIES.isPostDebugSelected()) {
-                GPU.COMPUTE_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeQueue",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeTasks",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
