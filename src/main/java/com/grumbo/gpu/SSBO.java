@@ -34,7 +34,7 @@ public class SSBO {
     // layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
     // layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
     // layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
-    // layout(std430, binding = 14) buffer MergeQueue         { uint mergeQueueHead; uint mergeQueueTail; uvec2 mergeQueue[];};
+    // layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
     // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
 
     public static final int LEAF_NODES_BINDING = 0;

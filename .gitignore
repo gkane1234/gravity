@@ -2,7 +2,7 @@
 target/
 captures/
 src/main/java/com/grumbo/debug/debug_output/
-planet_data/
+src/main/resources/planet_data/planet_data_bsp/
 # IDE files
 .idea/
 *.iml

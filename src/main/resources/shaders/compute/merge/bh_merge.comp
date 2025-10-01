@@ -26,14 +26,14 @@ Body mergeBodies(Body body1, Body body2) {
 // This is not a deterministic kernel, and will simply skip over pairs if there is a race condition.
 // Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
 // Uniforms: None
-// SSBOs: BodiesIn, BodiesOut, MergeQueue, MergeBodyLocks
+// SSBOs: BodiesIn, BodiesOut, MergeTasks, MergeBodyLocks
 void mergeBodiesKernel() {
     for (;;) {
         // Atomically claim a queue slot
-        uint workIdx = atomicAdd(mergeQueueHead, 1u);
-        if (workIdx >= mergeQueueTail) break;
+        uint workIdx = atomicAdd(mergeTasksHead, 1u);
+        if (workIdx >= mergeTasksTail) break;
 
-        uvec2 pair = mergeQueue[workIdx];
+        uvec2 pair = mergeTasks[workIdx];
         uint iA = pair.x;
         uint iB = pair.y;
 

@@ -1,4 +1,6 @@
-package com.grumbo.simulation;
+package com.grumbo.gpu;
+
+import com.grumbo.simulation.*;
 
 /**
  * GPUCommands class for creating GPU commands to be executed on the GPU with command queue structure.

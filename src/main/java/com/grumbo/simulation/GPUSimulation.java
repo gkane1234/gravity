@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import com.grumbo.debug.Debug;
 import com.grumbo.record.Recording;
 import com.grumbo.gpu.SSBO;
+import com.grumbo.gpu.GPUCommands;
 import static org.lwjgl.opengl.GL43.*;
 import com.grumbo.gpu.GPU;
 /**

@@ -1,0 +1,81 @@
+{
+  "relative_to": {
+    "name": "SUN",
+    "naif_id": 10
+  },
+  "epoch": "2025-09-30T20:41:00Z",
+  "units": {
+    "position": "meters",
+    "velocity": "meters per second",
+    "mass": "kilograms"
+  },
+  "source_kernels": [
+    "de421.bsp"
+  ],
+  "body_count": 3,
+  "bodies": [
+    {
+      "naif_id": 399,
+      "name": "Earth",
+      "center_naif_id": 3,
+      "center_name": "Earth Barycenter",
+      "mass": 5.972168399787583e+24,
+      "position": [
+        147362201923.98602,
+        16620519116.96262,
+        7251178544.195553
+      ],
+      "velocity": [
+        -4401.948476364244,
+        26983.388333234638,
+        11695.670554595355
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "EARTH"
+      ]
+    },
+    {
+      "naif_id": 301,
+      "name": "MOON",
+      "center_naif_id": 3,
+      "center_name": "Earth Barycenter",
+      "mass": 7.345789248996224e+22,
+      "position": [
+        147479890223.61472,
+        16289150803.18286,
+        7073304230.150872
+      ],
+      "velocity": [
+        -3473.419950712488,
+        27283.6775543679,
+        11879.654367170657
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "MOON"
+      ]
+    },
+    {
+      "naif_id": 10,
+      "name": "SUN",
+      "center_naif_id": 0,
+      "center_name": "Solar System Barycenter",
+      "mass": 1.988409871316534e+30,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "kernel": "de421.bsp",
+      "aliases": [
+        "SUN"
+      ]
+    }
+  ]
+}

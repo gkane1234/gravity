@@ -34,7 +34,7 @@ float invDistWithSoftening(vec3 r, float soft)
 // Also checks for collisions and merges
 // Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
 // Uniforms: softening, theta, dt, elasticity, wrapAround, mergingCollisionOrNeither
-// SSBOs: BodiesIn, BodiesOut, IndexIn, Nodes, LeafNodes, InternalNodes, MergeQueue
+// SSBOs: BodiesIn, BodiesOut, IndexIn, Nodes, LeafNodes, InternalNodes, MergeTasks
 const uint STACK_SIZE = 64u;
 
 void forceComputeKernel() 
@@ -109,7 +109,6 @@ void forceComputeKernel()
             if ((mergingCollisionOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
                 uint slot = atomicAdd(mergeQueueTail, 1u);
                 mergeQueue[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
-                atomicAdd(sim.merged, 1u);
             }
         }
         
