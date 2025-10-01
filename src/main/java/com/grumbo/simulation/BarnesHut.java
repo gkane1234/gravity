@@ -93,14 +93,6 @@ public class BarnesHut {
         this.steps = 0;
     }
 
-    private int initialNumBodies() {
-        return gpuSimulation.initialNumBodies();
-    }
-
-    public int getSteps() {
-        return steps;
-    }
-
     /**
      * Step the simulation.
      */
@@ -597,6 +589,22 @@ public class BarnesHut {
      */
     public float[][] getBounds() {
         return bounds;
+    }
+
+    /**
+     * Gets the initial number of bodies.
+     * @return the initial number of bodies
+     */
+    private int initialNumBodies() {
+        return gpuSimulation.initialNumBodies();
+    }
+    
+    /**
+     * Gets the number of steps in the simulation.
+     * @return the number of steps in the simulation
+     */
+    public int getSteps() {
+        return steps;
     }
 
 

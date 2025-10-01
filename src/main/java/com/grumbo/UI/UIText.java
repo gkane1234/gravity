@@ -1,19 +1,32 @@
 package com.grumbo.ui;
 
 
-
+/**
+ * UIText class is a text UI element.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class UIText extends UIElement {
     public String text;
 
-
+    /**
+     * Constructor for the UIText class.
+     * @param text the text to set
+     */
     public UIText(String text) {
         super();
         this.text = text;
     }
 
+    /**
+     * Sets the text of the UIText.
+     * @param text the text to set
+     */
     public void setText(String text) {
         this.text = text;
     }
+
 
     @Override
     public void calculateSize(BitmapFont font) {

@@ -19,6 +19,14 @@ import com.grumbo.simulation.Settings;
 import com.grumbo.simulation.BarnesHut;
 import com.grumbo.simulation.UnitSet;
 
+/**
+ * GPU is a class that represents the data and programs on the GPU.
+ * It is used to initialize the GPU and the compute and render programs. 
+ * As well as initializing the uniforms and SSBOs, and uploading data to the GPU.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class GPU {
 
     // Simulation params
@@ -145,7 +153,10 @@ public class GPU {
 
 
     
-
+    /**
+     * Initializes the GPU data and programs for the given GPU simulation.
+     * @param gpuSimulation the GPU simulation
+     */
     public static void initGPU(GPUSimulation gpuSimulation) {
 
         BarnesHut barnesHut = gpuSimulation.getBarnesHut();
@@ -169,6 +180,9 @@ public class GPU {
      * Initialize the SSBOs.
      * Gives the SSBOs their correct sizes or data functions, and 
      * the general layout of the SSBOs.
+     * @param planetGenerator the planet generator
+     * @param bounds the bounds of the simulation
+     * @param units the units of the simulation
      */
     private static void initComputeSSBOs(PlanetGenerator planetGenerator, float[][] bounds, UnitSet units) {
         // Compute sizes (use long to avoid overflow)
@@ -334,6 +348,7 @@ public class GPU {
 
         /**
      * Initialize the compute swapping buffers.
+     * Used to swap the bodies, morton, and index buffers.
      */
     private static void initComputeSwappingBuffers() {
         // Create Swapping SSBOs.
@@ -369,10 +384,12 @@ public class GPU {
         GPU.SSBOS.put(SSBO_SWAPPING_TREE_WORK_QUEUE_OUT.getName(), SSBO_SWAPPING_TREE_WORK_QUEUE_OUT);
     }
 
-        /**
-     * Initialize the uniforms. These are defined in bh_common.comp for the most part.
+    /**
+     * Initialize the compute uniforms. These are defined in bh_common.comp for the most part.
+     * @param barnesHut the Barnes-Hut object
      */
     private static void initComputeUniforms(BarnesHut barnesHut) {
+        //Initialize the uniforms.
         GPU.UNIFORMS = new HashMap<>();
 
         UNIFORM_CAMERA_SCALE = new Uniform<Float>("cameraScale", () -> {
@@ -451,6 +468,7 @@ public class GPU {
 
     /**
      * Initialize the compute shaders. The names are defined in bh_main.comp. For more information on the shaders, see the glsl code in the shaders folder.
+     * @param barnesHut the Barnes-Hut object
      */
     private static void initComputePrograms(BarnesHut barnesHut) {
 
@@ -939,9 +957,8 @@ public class GPU {
         SSBO_SWAPPING_BODIES_IN.setBufferLocation(SSBO_SWAPPING_BODIES_OUT.getBufferLocation());
         SSBO_SWAPPING_BODIES_OUT.setBufferLocation(tmpIn);
     }
-
     /**
-     * Swap the morton and index buffers.
+     * Swaps the morton and index buffers.
      */
     public static void swapMortonAndIndexBuffers() {
         // Swap input/output buffers for next pass of radix sort and the one pass of dead body paritioning.
@@ -954,7 +971,7 @@ public class GPU {
     }
 
     /**
-     * Swap the propagate work queue buffers.
+     * Swaps the propagate work queue buffers.
      */
     public static void swapPropagateWorkQueueBuffers() {
         int tmpIn = SSBO_SWAPPING_TREE_WORK_QUEUE_IN.getBufferLocation();
@@ -964,7 +981,11 @@ public class GPU {
 
 
     /**
-     * Pack the values to a float buffer.
+     * Packs the values to a float buffer.
+     * @param numBodies the number of bodies
+     * @param bounds the bounds of the simulation
+     * @param units the units of the simulation
+     * @return the packed values
      */
     public static ByteBuffer packValues(int numBodies, float[][] bounds, UnitSet units) {
 
@@ -1017,6 +1038,7 @@ public class GPU {
 
     /**
      * Get the number of work groups required for the given number of bodies.
+     * @return the number of work groups
      */
     private static int numGroups() {
         return (numBodies() + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
@@ -1024,6 +1046,7 @@ public class GPU {
 
     /**
      * Get the number of bodies.
+     * @return the number of bodies
      */
     public static int numBodies() {
         return initialNumBodies;
@@ -1031,6 +1054,8 @@ public class GPU {
 
     /**
      * Upload the planet data to the GPU.
+     * @param planetGenerator the planet generator
+     * @param bodiesSSBO the SSBO to upload the data to
      */
     public static void uploadPlanetsData(PlanetGenerator planetGenerator, SSBO bodiesSSBO) {
 
@@ -1084,8 +1109,4 @@ public class GPU {
             ssbo.delete();
         }
     }
-
-
-
-    
 }

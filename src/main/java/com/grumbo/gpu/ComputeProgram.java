@@ -21,10 +21,6 @@ public class ComputeProgram extends GLSLProgram {
         int getXWorkGroups();
     }
 
-;
-
-
-
     /**
      * Constructor for the ComputeShader class.
      * @param program the int id of the program given by glCreateProgram()
@@ -65,7 +61,5 @@ public class ComputeProgram extends GLSLProgram {
     public void setXWorkGroupsFunction(xWorkGroupsFunction xWorkGroupsFunction) {
         this.xWorkGroupsFunction = xWorkGroupsFunction;
     }
-
-
 
 }

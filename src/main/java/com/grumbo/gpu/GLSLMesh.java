@@ -7,13 +7,25 @@ import org.lwjgl.BufferUtils;
 import java.util.Map;
 import java.util.HashMap;
 
-
+/**
+ * GLSLMesh is a class that represents a mesh.
+ * It is used to load and compile a mesh in a RenderProgram.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class GLSLMesh {
 
 
     public static Map<String, GLSLMesh> meshes = new HashMap<>();
 
-
+    /**
+     * MeshType is an enum that represents the type of mesh.
+     * It is used to load and compile each mesh for the specific render programs.
+     * @author Grumbo
+     * @version 1.0
+     * @since 1.0
+     */
     public enum MeshType {
         SPHERE("sphere", false, GL_TRIANGLES),
         REGIONS("regions", false, GL_TRIANGLES),
@@ -24,22 +36,44 @@ public class GLSLMesh {
         private boolean simple;
         private int GLSLBeginMode;
 
+        /**
+         * Gets the name of the mesh.
+         * @return the name of the mesh
+         */
         public String getName() {
             return name;
         }
 
+        /**
+         * Checks if the mesh is simple.
+         * @return true if the mesh is simple, false otherwise
+         */
         public boolean isSimple() {
             return simple;
         }
 
+        /**
+         * Gets the GLSL begin mode of the mesh.
+         * @return the GLSL begin mode of the mesh
+         */
         public int getGLSLBeginMode() {
             return GLSLBeginMode;
         }
 
+        /**
+         * Gets the mesh.
+         * @return the mesh
+         */
         public GLSLMesh getMesh() {
             return meshes.get(getName());
         }
 
+        /**
+         * Constructor for the MeshType class.
+         * @param name the name of the mesh
+         * @param simple true if the mesh is simple, false otherwise
+         * @param GLSLBeginMode the GLSL begin mode of the mesh
+         */
         private MeshType(String name, boolean simple, int GLSLBeginMode) {
             this.name = name;
             meshes.put(getName(), new GLSLMesh(getName()));
@@ -53,7 +87,14 @@ public class GLSLMesh {
     public int ibo;
     public String name;
     public int indexCount;
-
+    /**
+     * Constructor for the GLSLMesh class.
+     * @param vao the VAO of the mesh
+     * @param vbo the VBO of the mesh
+     * @param ibo the IBO of the mesh
+     * @param name the name of the mesh
+     * @param indexCount the index count of the mesh
+     */
     private GLSLMesh(int vao, int vbo, int ibo, String name, int indexCount) {
         this.vao = vao;
         this.vbo = vbo;
@@ -62,16 +103,31 @@ public class GLSLMesh {
         this.indexCount = indexCount;
     }
 
+    /**
+     * Constructor for the GLSLMesh class.
+     * @param name the name of the mesh
+     */
     private GLSLMesh(String name) {
         this(0, 0, 0, name, 0);
     }
 
-
+    /**
+     * Constructor for the GLSLMesh class.
+     * @param vao the VAO of the mesh
+     * @param vbo the VBO of the mesh
+     * @param ibo the IBO of the mesh
+     * @param name the name of the mesh
+     */
     private GLSLMesh(int vao, int vbo, int ibo, String name) {
         this(vao, vbo, ibo, name, 0);
     }
 
 
+    /**
+     * Reinitializes the mesh.
+     * @param meshType the type of mesh
+     * @return the mesh
+     */
     public static GLSLMesh reInitializeMesh(MeshType meshType) {
 
         if (meshType.getMesh().vao == 0) {
@@ -113,6 +169,10 @@ public class GLSLMesh {
         return meshType.getMesh();
     }
 
+    /**
+     * Gets the name of the mesh.
+     * @return the name of the mesh
+     */
     public String getName() {
         return name;
     }
@@ -147,7 +207,7 @@ public class GLSLMesh {
     }
 
     /**
-     * Generates the sphere positions.
+     * Generates the sphere positions for the sphere mesh.
      * @param stacks the stacks
      * @param slices the slices
      * @return the sphere positions
@@ -176,7 +236,7 @@ public class GLSLMesh {
     }
 
     /**
-     * Generates the sphere indices.
+     * Generates the sphere indices for the sphere mesh.
      * @param stacks the stacks
      * @param slices the slices
      * @return the sphere indices
@@ -266,11 +326,17 @@ public class GLSLMesh {
 
     }
 
+    /**
+     * Builds the points mesh.
+     */
     private static void buildPointsMesh() {
         GLSLMesh mesh = meshes.get("points");
         mesh.indexCount = 1;
     }
 
+    /**
+     * Builds the impostor mesh.
+     */
     private static void buildImpostorMesh() {
         GLSLMesh mesh = meshes.get("impostor");
         mesh.indexCount = 4;

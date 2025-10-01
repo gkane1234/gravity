@@ -7,7 +7,9 @@ from typing import Dict, Iterable, List, Tuple
 
 from skyfield.api import load, load_file, Loader
 
-
+#This code is used to generate planetary data for the simulation.
+#It uses the Skyfield library to load planetary data from online kernels.
+#It then saves the data to a JSON file.
 GravitationalConstant = 6.6743e-20 #km^3/s^2/kg
 
 

@@ -133,7 +133,11 @@ public class Planet {
 	public Planet(Vector3f position, Vector3f velocity, float mass) {
 		this(position, velocity, mass, 1, null);
 	}
-
+    /**
+     * Loads a planet from a json string.
+     * @param json the json string to parse
+     * @return the planet
+     */
 	public static Planet fromJson(String json) {
 		ObjectMapper objectMapper = new ObjectMapper();
 		JsonNode jsonNode = null;

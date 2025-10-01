@@ -21,6 +21,8 @@ public class Debug {
 
     public static List<Debug> debugs = new ArrayList<>();
 
+
+    //sets the name to be the current time
     private static long code  = System.currentTimeMillis();
 
     private static String fileName = "debug_" + code + ".txt";

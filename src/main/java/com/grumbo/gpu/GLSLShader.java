@@ -7,6 +7,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 
+/**
+ * GLSLShader is a class that represents a GLSL shader.
+ * It is used to load and compile a compute, fragment, or vertex shader.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 
 public abstract class GLSLShader {
     private int shader;
@@ -16,11 +23,21 @@ public abstract class GLSLShader {
     
 
 
+    /**
+     * ShaderType is an enum that represents the type of shader.
+     * @author Grumbo
+     * @version 1.0
+     * @since 1.0
+     */
     public enum ShaderType {
         VERTEX_SHADER,
         FRAGMENT_SHADER,
         COMPUTE_SHADER;
 
+        /**
+         * Gets the shader type.
+         * @return the shader type
+         */
         public int getShaderType() {
             switch (this) {
                 case VERTEX_SHADER: return GL_VERTEX_SHADER;
@@ -37,11 +54,14 @@ public abstract class GLSLShader {
      * @param shaderType the type of the shader
      */
     public GLSLShader(String shaderName, ShaderType shaderType) {
+        //creates the shader
         this.shader = glCreateShader(shaderType.getShaderType());
         String source = getSource(shaderName);
         glShaderSource(shader, source);
+        //compiles the shader
         glCompileShader(shader);
         checkShader(shader);
+        //sets the shader name
         this.shaderName = shaderName;
         
     }
@@ -55,13 +75,8 @@ public abstract class GLSLShader {
         return shader;
     }
 
-
-
-
-
-
     /**
-     * Gets the shader source.
+     * Gets the shader source. Implemented by subclasses.
      * @param kernelName the name of the kernel to get the source for
      * @return the shader source
      */
@@ -78,7 +93,7 @@ public abstract class GLSLShader {
 
     /**
      * Checks if the shader compiled successfully.
-     * @param shader the shader to check
+     * @param shader the shader to check if it compiled successfully
      */
     public static  void checkShader(int shader) {
         if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
@@ -117,6 +132,11 @@ public abstract class GLSLShader {
     }
 
 
+    /**
+     * Gets the shader folder.
+     * @param filePath the path to the shader
+     * @return the shader folder
+     */
     private static Path getShaderFolder(Path filePath) {
         return filePath.endsWith("shaders") ? filePath : getShaderFolder(filePath.getParent());
     }

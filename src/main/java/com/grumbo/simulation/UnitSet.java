@@ -1,4 +1,12 @@
 package com.grumbo.simulation;
+
+/**
+ * Dimensions class for the simulation.
+ * Used to represent the dimensions of a unit, used in the Unit class.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 class Dimensions{
     /**
      * Constructor for the Dimensions class.
@@ -12,7 +20,12 @@ class Dimensions{
     public static final Dimensions TIME = new Dimensions(0, 0, 1);
     public static final Dimensions DENSITY = new Dimensions(-3, 1, 0);
     public static final Dimensions GRAVITATIONAL_CONSTANT = new Dimensions(3, -1, -2);
-
+    /**
+     * Constructor for the Dimensions class.
+     * @param length the length dimension
+     * @param mass the mass dimension
+     * @param time the time dimension
+     */
     public Dimensions(int length, int mass, int time) {
         this.length = length;
         this.mass = mass;
@@ -38,7 +51,13 @@ class Dimensions{
 
 
 
-
+/**
+ * Unit class for the simulation.
+ * Used to represent a unit of a quantity. Used in the UnitSet class.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 class Unit {
 
     public enum SIPrefix {
@@ -85,13 +104,23 @@ class Unit {
     public Dimensions dimensions;
     public double value;
     public SIPrefix siprefix;
-
+    /**
+     * Constructor for the Unit class.
+     * @param value the value of the unit
+     * @param dimensions the dimensions of the unit
+     * @param siprefix the SI prefix of the unit
+     */
     public Unit(double value, Dimensions dimensions, SIPrefix siprefix) {
         this.dimensions = dimensions;
         this.value = value;
         this.siprefix = siprefix;
     }
 
+    /**
+     * Constructor for the Unit class.
+     * @param value the value of the unit
+     * @param dimensions the dimensions of the unit
+     */
     public Unit(double value, Dimensions dimensions) {
         this(value, dimensions, SIPrefix.NONE);
     }
@@ -104,6 +133,15 @@ class Unit {
     }
 
 }
+
+/**
+ * UnitSet class for the simulation.
+ * Used to represent a set of units for the simulation.
+ * The units used are mass, density, length, and time.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class UnitSet {
 
     public static final double PI = 3.14159265358979323846;
@@ -123,6 +161,13 @@ public class UnitSet {
     //The unit of time (in s) e.g. year, day, hour, minute, second
     private Unit time;
     
+    /**
+     * Constructor for the UnitSet class.
+     * @param mass the unit of mass
+     * @param density the unit of density
+     * @param len the unit of length
+     * @param time the unit of time
+     */
     public UnitSet(Unit mass, Unit density, Unit len, Unit time) {
 
         if (mass.dimensions != Dimensions.MASS) {
@@ -144,32 +189,42 @@ public class UnitSet {
         this.time = time;
     }
 
+    /**
+     * Gets the value of the mass unit.
+     * @return the value of the mass unit
+     */
     public double mass() {
         return mass.getValue();
     }
+    /**
+     * Gets the value of the density unit.
+     * @return the value of the density unit
+     */
     public double density() {
         return density.getValue();
     }
+    /**
+     * Gets the value of the length unit.
+     * @return the value of the length unit
+     */
     public double len() {
         return len.getValue();
     }
+    /**
+     * Gets the value of the time unit.
+     * @return the value of the time unit
+     */
     public double time() {
         return time.getValue();
     }
 
 
-
-
-
     /**
-     * Gets the gravitational constant for a body.
-     * @return the gravitational constant for a body
+     * Gets the value of the gravitational constant for a unit set.
+     * @return the value of the gravitational constant
      */
-
     public double gravitationalConstant() {
         double G = Unit.GRAVITATIONAL_CONSTANT.getValue()* Math.pow(len.getValue(), 3)* Math.pow(time.getValue(), -2) * Math.pow(mass.getValue(), -1); //m^3 kg^-1 s^-2
         return G;
     }
-
-
 }

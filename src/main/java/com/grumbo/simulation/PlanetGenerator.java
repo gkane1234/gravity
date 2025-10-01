@@ -206,6 +206,10 @@ public class PlanetGenerator {
     }
 
 
+    /**
+     * Adds a planet generator to the current planet generator.
+     * @param pg the planet generator to add
+     */
     public void add(PlanetGenerator pg) {
         final int prevNumPlanets = this.numPlanets;
 
@@ -232,9 +236,19 @@ public class PlanetGenerator {
             }
         };
     }
+
+    /**
+     * Adds a planet to the current planet generator.
+     * @param planet the planet to add
+     */
     public void add(Planet planet) {
         add(new PlanetGenerator(planet));
     }
+
+    /**
+     * Adds a list of planets to the current planet generator.
+     * @param planets the list of planets to add
+     */
     public void add(List<Planet> planets) {
         add(new PlanetGenerator(planets));
     }
@@ -510,6 +524,11 @@ public class PlanetGenerator {
 		return ret;
 	}
 
+    /**
+     * Loads a planet generator from a json string.
+     * @param json the json string to parse
+     * @return the planet generator
+     */
     public static PlanetGenerator fromJson(String json) {
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode jsonNode = null;

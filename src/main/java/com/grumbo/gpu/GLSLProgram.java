@@ -7,7 +7,13 @@ import java.util.ArrayList;
 
 import com.grumbo.debug.Debug;
 
-
+/**
+ * GLSLProgram is a class that represents a GLSL program.
+ * It is used to load and compile a program in a RenderProgram or ComputeProgram.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public abstract class GLSLProgram {
     int program;
     List<GLSLShader> shaders;
@@ -70,6 +76,9 @@ public abstract class GLSLProgram {
         runProgram();
     }
 
+    /**
+     * Uploads the uniforms and gets the SSBOs.
+     */
     public void uploadUnformsAndGetSSBOs() {
         if (uniforms != null) {
             for (Uniform<?> uniform : uniforms) {
@@ -91,6 +100,10 @@ public abstract class GLSLProgram {
     }
 
 
+    /**
+     * Gets the program.
+     * @return the program
+     */
     public int getProgram() {
         return program;
     }
@@ -134,6 +147,12 @@ public abstract class GLSLProgram {
         this.ssbos = ssbos;
     }
 
+    /**
+     * Sets the SSBO binding range, if an SSBO is to be used with an offset
+     * @param ssbo the SSBO to set the binding range of
+     * @param startIndex the start index of the binding range
+     * @param endIndex the end index of the binding range
+     */
     public void setSSBOBindinRange(SSBO ssbo, int startIndex, int endIndex) {
         ssbo.setProgramBindingRange(program, startIndex, endIndex);
     }
@@ -164,7 +183,7 @@ public abstract class GLSLProgram {
         }
     }
 
-        /**
+    /**
      * Checks if the pre debug is selected.
      * @return true if the pre debug is selected, false otherwise
      */

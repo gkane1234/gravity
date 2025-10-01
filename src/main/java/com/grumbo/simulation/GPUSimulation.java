@@ -66,7 +66,10 @@ public class GPUSimulation {
     private int currentBodies = 0;
     private int merged = 0;
     private int outOfBounds = 0;
-
+    /**
+     * Constructor for the GPUSimulation class.
+     * Used to create a simulation with specific settings.
+     */
     public GPUSimulation() {
         this.commandQueue = new ConcurrentLinkedQueue<>();
 
@@ -121,6 +124,13 @@ public class GPUSimulation {
 
     }
 
+    /**
+     * Constructor for the GPUSimulation class.
+     * Used to create a simulation with specific settings.
+     * @param planets the planets to add to the simulation
+     * @param renderMode the render mode
+     * @param debug whether to debug the simulation
+     */
     public GPUSimulation(ArrayList<Planet> planets, Render.RenderMode renderMode, boolean debug) {
         this.openGlWindow = new OpenGLWindow(this);
         this.planetGenerator = new PlanetGenerator(planets);

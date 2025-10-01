@@ -2,7 +2,12 @@ package com.grumbo.ui;
 
 
 import com.grumbo.simulation.Settings;
-
+/**
+ * UISelector class is a selector UI element.
+ * @author Grumbo
+ * @version 1.0
+ * @since 1.0
+ */
 public class UISelector extends UIRow {
 
     private UIButton[] buttons;

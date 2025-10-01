@@ -8,12 +8,14 @@ public class ComputeShader extends GLSLShader {
     
     private static Debug debug = new Debug("ComputeShader");
 
+    /**
+     * Constructor for the ComputeShader class.
+     * @param kernelName the name of the kernel to run (defined in the compute shader)
+     */
     public ComputeShader(String kernelName) {
         super(kernelName, GLSLShader.ShaderType.COMPUTE_SHADER);
     }
 
-
-    
     /**
      * Gets the compute shader source.
      * @param programName the name of the program to get the source for
@@ -26,8 +28,6 @@ public class ComputeShader extends GLSLShader {
         return source;
     }
 
-
-    
     /**
      * Gets the compute shader source.
      * @return the compute shader source
@@ -43,8 +43,6 @@ public class ComputeShader extends GLSLShader {
             throw new RuntimeException("Failed to read Barnes-Hut compute shader: " + e.getMessage());
         }
     }
-
-
 
     /**
      * Inserts the define after the version and extension lines in order to load the appropriate compute shader.

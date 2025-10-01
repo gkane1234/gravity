@@ -116,7 +116,11 @@ public class SSBO {
         this.ProgramBindingRanges = new HashMap<>();
         addToSSBOLayoutMap(SSBOLayout, 0);
     }
-
+    /**
+     * Adds the variable to the SSBOLayoutMap.
+     * @param variable the variable to add
+     * @param baseOffset the base offset of the variable
+     */
     private void addToSSBOLayoutMap(GLSLVariable variable, int baseOffset) {
         SSBOLayoutMap.put(variable.name, variable);
         SSBOByteOffsets.put(variable.name, baseOffset);
@@ -170,6 +174,10 @@ public class SSBO {
     }
 
 
+    /**
+     * Sets the SSBOLayout.
+     * @param SSBOLayout the SSBOLayout
+     */
     public void setSSBOLayout(GLSLVariable SSBOLayout) {
         this.SSBOLayout = SSBOLayout;
     }
@@ -190,10 +198,17 @@ public class SSBO {
         glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation, startIndex, endIndex);
     }
 
+    /**
+     * Binds the SSBO.
+     */
     public void bind() {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation);
     }
 
+    /**
+     * Binds the SSBO to a program.
+     * @param program the program to bind the SSBO to
+     */
     public void bind(int program) {
         if (ProgramBindingRanges.containsKey(program)) {
             bind(ProgramBindingRanges.get(program)[0], ProgramBindingRanges.get(program)[1]);
@@ -203,6 +218,12 @@ public class SSBO {
     }
 
 
+    /**
+     * Sets the program binding range.
+     * @param program the program to set the binding range for
+     * @param startIndex the start index of the binding range
+     * @param endIndex the end index of the binding range
+     */
     public void setProgramBindingRange(int program, int startIndex, int endIndex) {
         ProgramBindingRanges.put(program, new Integer[] {startIndex, endIndex});
     }
@@ -247,6 +268,9 @@ public class SSBO {
         return size;
     }
 
+    /**
+     * Refreshes the cache.
+     */
     public void refreshCache() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         ByteBuffer mapped = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
@@ -277,10 +301,24 @@ public class SSBO {
         ByteBuffer buf = getBuffer();
         return variable.getDataAsStringAt(buf, baseOffset, startIndex, endIndex);
     }
+    /**
+     * Gets the data as a string.
+     * @param variableName the name of the variable
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @return the data as a string
+     */
     public String getDataAsString(String variableName, int startIndex, int endIndex) {
         return getDataAsString(variableName, startIndex, endIndex, true);
     }
 
+    /**
+     * Gets the data as a string.
+     * @param variableNames the names of the variables
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @return the data as a string
+     */
     public String getDataAsString(String[] variableNames, int startIndex, int endIndex, boolean updateCache) {
         StringBuilder sb = new StringBuilder();
         for (String variableName : variableNames) {
@@ -288,19 +326,45 @@ public class SSBO {
         }
         return sb.toString();
     }
+    /**
+     * Gets the data as a string.
+     * @param variableNames the names of the variables
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @return the data as a string
+     */
     public String getDataAsString(String[] variableNames, int startIndex, int endIndex) {
         return getDataAsString(variableNames, startIndex, endIndex, true);
     }
 
+    /**
+     * Gets the data as a string.
+     * @param variableName the name of the variable
+     * @param updateCache whether to update the cache
+     * @return the data as a string
+     */
     public String getDataAsString(String variableName, boolean updateCache) {
         return getDataAsString(variableName, 0, SSBOLayoutMap.get(variableName).size, updateCache);
     }
 
+    /**
+     * Gets the data as a string.
+     * @param variableName the name of the variable
+     * @return the data as a string
+     */
     public String getDataAsString(String variableName) {
         return getDataAsString(variableName, true);
     }
 
 
+    /**
+     * Gets the data as an object.
+     * @param variableName the name of the variable
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @param updateCache whether to update the cache
+     * @return the data as an object
+     */
     public Object[] getData(String variableName, int startIndex, int endIndex, boolean updateCache) {
         GLSLVariable variable = SSBOLayoutMap.get(variableName);
         if (updateCache) {
@@ -321,41 +385,99 @@ public class SSBO {
         return out;
     }
 
+    /**
+     * Gets the data as an object.
+     * @param variableName the name of the variable
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @return the data as an object
+     */
     public Object[] getData(String variableName, int startIndex, int endIndex) {
         return getData(variableName, startIndex, endIndex, true);
     }
 
 
+    /**
+     * Gets the data as an object.
+     * @param variableName the name of the variable
+     * @param updateCache whether to update the cache
+     * @return the data as an object
+     */
     public Object[] getData(String variableName, boolean updateCache) {
         int size = SSBOLayoutMap.get(variableName).size;
         return getData(variableName, 0, size, updateCache);
     }
 
+    /**
+     * Gets the data as an object.
+     * @param variableName the name of the variable
+     * @return the data as an object
+     */
     public Object[] getData(String variableName) {
         return getData(variableName, true);
     } 
-
+    /**
+     * Gets the data as an integer.
+     * @param variableName the name of the variable
+     * @param updateCache whether to update the cache
+     * @return the data as an integer
+     */
     public Integer getIntegerData(String variableName, boolean updateCache) {
         return (Integer)getData(variableName, 0, 1, updateCache)[0];
     }
+    /**
+     * Gets the data as an integer.
+     * @param variableName the name of the variable
+     * @return the data as an integer
+     */
     public Integer getIntegerData(String variableName) {
         return getIntegerData(variableName, true);
     }
 
+    /**
+     * Gets the data as a long.
+     * @param variableName the name of the variable
+     * @param updateCache whether to update the cache
+     * @return the data as a long
+     */
     public Long getLongData(String variableName, boolean updateCache) {
         return (Long)getData(variableName, 0, 1, updateCache)[0];
     }
+    /**
+     * Gets the data as a long.
+     * @param variableName the name of the variable
+     * @return the data as a long
+     */
     public Long getLongData(String variableName) {
         return getLongData(variableName, true);
     }
 
+    /**
+     * Gets the data as a float.
+     * @param variableName the name of the variable
+     * @param updateCache whether to update the cache
+     * @return the data as a float
+     */
     public Float getFloatData(String variableName, boolean updateCache) {
         return (Float)getData(variableName, 0, 1, updateCache)[0];
     }
+    /**
+     * Gets the data as a float.
+     * @param variableName the name of the variable
+     * @return the data as a float
+     */
     public Float getFloatData(String variableName) {
         return getFloatData(variableName, true);
     }
 
+    /**
+     * Gets the data as an object.
+     * @param variableNames the names of the variables
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @param updateCache whether to update the cache
+     * @return the data as an object
+     */
     public Object[][] getData(String[] variableNames, int startIndex, int endIndex, boolean updateCache) {
         List<Object[]> data = new ArrayList<>();
         for (int i = 0; i < variableNames.length; i++) {
@@ -366,11 +488,21 @@ public class SSBO {
         return data.toArray(new Object[0][]);
     }
 
+    /**
+     * Gets the data as an object.
+     * @param variableNames the names of the variables
+     * @param updateCache whether to update the cache
+     * @return the data as an object
+     */
     public Object[][] getData(String[] variableNames, boolean updateCache) {
         return getData(variableNames, 0, SSBOLayoutMap.get(variableNames[0]).size, updateCache);
     }
 
-
+    /**
+     * Gets the data as an object.
+     * @param variableNames the names of the variables
+     * @return the data as an object
+     */
     public Object[][] getData(String[] variableNames) {
         return getData(variableNames, true);
     }
@@ -378,6 +510,13 @@ public class SSBO {
 
 
 
+    /**
+     * Gets the data as an object.
+     * @param variableNames the names of the variables
+     * @param startIndex the start index of the data
+     * @param endIndex the end index of the data
+     * @return the data as an object
+     */
     public Object[][] getData(String[] variableNames, int startIndex, int endIndex) {
         return getData(variableNames, startIndex, endIndex, true);
     }
