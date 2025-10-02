@@ -374,7 +374,7 @@ public class PlanetGenerator {
 	public static PlanetGenerator createSeveralDisks(int numDisks, int[] numPlanetsRange, float[] radiusRangeLow, float[] stellarDensityRange, float[] mRange, 
 			float[] densityRange, float[] centerXRange, float[] centerYRange, float[] centerZRange, float[] relativeVelocityX, float[] relativeVelocityY, float[] relativeVelocityZ, 
 			float[] phiRange, float[] centerMassRange, float[] centerDensityRange, 
-			float[] adherenceToPlaneRange, float orbitalFactor, boolean giveOrbitalVelocity) {
+			float[] adherenceToPlaneRange, float orbitalFactor, boolean giveOrbitalVelocity, UnitSet unitSet) {
 
 		PlanetGenerator pg = new PlanetGenerator();
 
@@ -394,7 +394,7 @@ public class PlanetGenerator {
 			giveOrbitalVelocity = giveOrbitalVelocity;
 
 			PlanetGenerator pg2 = (PlanetGenerator.makeNewRandomDisk(num, radius, mass, density, 
-			center, relativeVelocity, phi, centerMass, centerDensity, adherenceToPlane, orbitalFactor, ccw, giveOrbitalVelocity));
+			center, relativeVelocity, phi, centerMass, centerDensity, adherenceToPlane, orbitalFactor, ccw, giveOrbitalVelocity, unitSet));
 			pg= new PlanetGenerator(pg, pg2);
 		}
 		return pg;
@@ -417,8 +417,7 @@ public class PlanetGenerator {
      * @param giveOrbitalVelocity the give orbital velocity for the disk
      * @return the new random disk
      */
-	public static PlanetGenerator makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity) {
-        UnitSet unitSet = UnitSet.SOLAR_SYSTEM_SECOND;
+	public static PlanetGenerator makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity, UnitSet unitSet) {
 		// Disk normal tilted from +z by phi around the x-axis
 		final Vector3f normal = new Vector3f(0f, (float)(Math.sin(phi)), (float)Math.cos(phi));
 
@@ -463,7 +462,7 @@ public class PlanetGenerator {
                 Vector3f velocity = new Vector3f(0f, 0f, 0f);
                 if (giveOrbitalVelocity) {
                     int dir = ccw ? 1 : -1;
-                    float orbitalSpeed = (float)(Math.sqrt((centerMass+approxMassWithinRadius)/r))*orbitalFactor;
+                    float orbitalSpeed = (float)(Math.sqrt((centerMass+approxMassWithinRadius)*unitSet.gravitationalConstant()/r))*orbitalFactor;
                 
 
                     // Tangent direction: t̂ = normalize(n × r̂)
@@ -483,7 +482,6 @@ public class PlanetGenerator {
 		Planet centerPlanet = new Planet(new Vector3f(center), new Vector3f(relativeVelocity), centerMass, centerDensity);
 		PlanetGenerator pg2 = new PlanetGenerator(centerPlanet);
         PlanetGenerator ret = new PlanetGenerator(pg, pg2);
-        ret.changeUnitSet(UnitSet.GALACTIC_MERGE);
 		return ret;
 	}
 

@@ -40,7 +40,7 @@
     },
     "dynamic": {
       "type": "selector",
-      "default": "static",
+      "default": "dynamic",
       "options": ["static", "dynamic"],
       "description": "Simulation bounds",
       "editable": true

@@ -81,29 +81,9 @@ public class GPUSimulation {
 
 
         Render.RenderMode renderMode = Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW;
-        boolean debug = true;
 
-        Debug.setDebugsSelected(new String[] {
-            "ComputeShaderCode",
-            //"COMPUTE_INIT",
-            // "COMPUTE_MORTON_ENCODE",
-            //"COMPUTE_DEAD_COUNT",
-            //"COMPUTE_DEAD_EXCLUSIVE_SCAN",
-            // "COMPUTE_DEAD_SCATTER",
-            //"COMPUTE_RADIX_HIST",
-            //"COMPUTE_RADIX_PARALLEL_SCAN",
-            //"COMPUTE_RADIX_EXCLUSIVE_SCAN",
-            //"COMPUTE_RADIX_SCATTER",
-            //"COMPUTE_BUILD_BINARY_RADIX_TREE",
-            //"COMPUTE_INIT_LEAVES",
-            //"COMPUTE_RESET",
-            //"COMPUTE_PROPAGATE_NODES",
-            // "COMPUTE_FORCE_COMPUTE",
-            //"COMPUTE_MERGE",
-            //"COMPUTE_DEBUG",
-        });
 
-        return new GPUSimulation(planetGenerator, bounds, renderMode, debug);
+        return new GPUSimulation(planetGenerator, bounds, renderMode, true);
 
     }
 
@@ -135,12 +115,12 @@ public class GPUSimulation {
         float[] adherenceToPlaneRange = {0.8f,1f};
         float orbitalFactor = 1f;
         boolean giveOrbitalVelocity = true;
-        return new GPUSimulation(PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
+        return new GPUSimulation(PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
     public static GPUSimulation createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 12;
+        int numDisks = 1;
         float velocityFactor = 1;
         float squareCenter = 30000;
         int[] numPlanetsRange = {250_000,250_000};
@@ -155,7 +135,7 @@ public class GPUSimulation {
         float[] relativeVelocityY = {-velocityFactor, velocityFactor};
         float[] relativeVelocityZ = {-velocityFactor, velocityFactor};
         float[] phiRange = {0, (float)Math.PI};
-        float[] centerMassRange = {10000,10000};
+        float[] centerMassRange = {1000000,1000000};
         float[] centerDensityRange = {0.9f,1f};
         float[] adherenceToPlaneRange = {0.95f,1f};
         float orbitalFactor = 1f;
@@ -167,16 +147,16 @@ public class GPUSimulation {
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
         float centerDiskPhi = (float)(Math.PI/2);
-        float centerDiskCenterMass = 2000f;
+        float centerDiskCenterMass = 200000f;
         float centerDiskCenterDensity = 0.9f;
         float centerDiskAdherenceToPlane = 0.99f;
         float centerDiskOrbitalFactor = 1f;
         boolean centerDiskGiveOrbitalVelocity = true;
 
-        PlanetGenerator pg = PlanetGenerator.makeNewRandomDisk(centerDiskPlanets, centerDiskRadius, mRange, densityRange, centerDiskLocation, centerDiskRelativeVelocity, centerDiskPhi, centerDiskCenterMass, centerDiskCenterDensity, centerDiskAdherenceToPlane, centerDiskOrbitalFactor, false,centerDiskGiveOrbitalVelocity);
-        pg= new PlanetGenerator(pg, PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity));
+        PlanetGenerator pg = PlanetGenerator.makeNewRandomDisk(centerDiskPlanets, centerDiskRadius, mRange, densityRange, centerDiskLocation, centerDiskRelativeVelocity, centerDiskPhi, centerDiskCenterMass, centerDiskCenterDensity, centerDiskAdherenceToPlane, centerDiskOrbitalFactor, false,centerDiskGiveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND);
+        pg= new PlanetGenerator(pg, PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND));
         
-        return new GPUSimulation(pg, centerX[1]*2, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
+        return new GPUSimulation(pg, centerX[1]*2/1000, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
     
 
@@ -192,19 +172,19 @@ public class GPUSimulation {
         pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
                     new float[] {0,0,0}, new float[] {0.1f,0,0},(float)(-java.lang.Math.PI*Math.random()),
                      100000000f,100f,
-                     0.98f,1f,false, true));
+                     0.98f,1f,false, true, UnitSet.SOLAR_SYSTEM_SECOND));
         pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
                     new float[] {0,100000,0}, new float[] {0,0.1f,0},(float)(java.lang.Math.PI*Math.random()), 
                     100000000f,100f,
-                    0.98f,1f,false, true));
+                    0.98f,1f,false, true, UnitSet.SOLAR_SYSTEM_SECOND));
         pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
         new float[] {0,-100000,0}, new float[] {0.1f,-1f,0},(float)(-java.lang.Math.PI*Math.random()),
             100000000f,100f,
-            0.98f,1f,false, true));
+            0.98f,1f,false, true, UnitSet.SOLAR_SYSTEM_SECOND));
         pg.add(PlanetGenerator.makeNewRandomDisk(1_000_00, radius, mRange, densityRange, 
                     new float[] {0,100000,100000}, new float[] {0,0.1f,-0.3f},(float)(java.lang.Math.PI*Math.random()), 
                     100000000f,100f,
-                    0.98f,1f,false, true));
+                    0.98f,1f,false, true, UnitSet.SOLAR_SYSTEM_SECOND));
         return new GPUSimulation(pg, 1_000_000, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
@@ -255,6 +235,26 @@ public class GPUSimulation {
         this.barnesHut = new BarnesHut(this,debug,bounds);
         this.render = new Render(this,renderMode,debug);
         this.debug = debug;
+
+        Debug.setDebugsSelected(new String[] {
+            "ComputeShaderCode",
+            //"COMPUTE_INIT",
+             "COMPUTE_MORTON_ENCODE",
+            //"COMPUTE_DEAD_COUNT",
+            //"COMPUTE_DEAD_EXCLUSIVE_SCAN",
+            // "COMPUTE_DEAD_SCATTER",
+            //"COMPUTE_RADIX_HIST",
+            //"COMPUTE_RADIX_PARALLEL_SCAN",
+            //"COMPUTE_RADIX_EXCLUSIVE_SCAN",
+            //"COMPUTE_RADIX_SCATTER",
+            //"COMPUTE_BUILD_BINARY_RADIX_TREE",
+            //"COMPUTE_INIT_LEAVES",
+            //"COMPUTE_RESET",
+            //"COMPUTE_PROPAGATE_NODES",
+             "COMPUTE_FORCE_COMPUTE",
+            //"COMPUTE_MERGE",
+            //"COMPUTE_DEBUG",
+        });
     }
 
     public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode, boolean debug) {

@@ -230,7 +230,7 @@ public class UnitSet {
      * @return the value of the gravitational constant
      */
     public double gravitationalConstant() {
-        double G = Unit.GRAVITATIONAL_CONSTANT.getValue()* Math.pow(len.getValue(), 3)* Math.pow(time.getValue(), -2) * Math.pow(mass.getValue(), -1); //m^3 kg^-1 s^-2
+        double G = Unit.GRAVITATIONAL_CONSTANT.getValue()* Math.pow(len.getValue(), -3)* Math.pow(time.getValue(), 2) * Math.pow(mass.getValue(), 1); //m^3 kg^-1 s^-2
         return G;
     }
 }

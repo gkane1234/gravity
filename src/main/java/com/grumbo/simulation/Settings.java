@@ -73,7 +73,7 @@ public class Settings {
 		properties.put("mergingCollisionOrNeither", Property.createSelectorProperty("mergingCollisionOrNeither", "none", "none", new String[]{"none", "merge", "collision"}, true));
 
 		// Simulation bounds
-		properties.put("dynamic", Property.createSelectorProperty("dynamic", "static", "static", new String[]{"static", "dynamic"}, true));
+		properties.put("dynamic", Property.createSelectorProperty("dynamic", "dynamic", "dynamic", new String[]{"static", "dynamic"}, true));
 
 		// Time step
 		{ Property<Float> p = Property.createFloatProperty("dt", 1f, 1f); p.setEditable(true); properties.put("dt", p); }
