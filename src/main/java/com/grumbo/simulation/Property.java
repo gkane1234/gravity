@@ -832,6 +832,7 @@ public class Property<T> {
         UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setNumericalRounding(numericalRounding);
         tf.setMinWidth(10);
+        tf.setTextFromValue(value);
         tf.setOnCommit(() -> {
             try {
                 double parsed = Double.parseDouble(tf.getText().trim());

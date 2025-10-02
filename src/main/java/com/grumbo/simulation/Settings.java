@@ -88,7 +88,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("cameraScale", 10.0f, 10.0f); p.setEditable(true); properties.put("cameraScale", p); }
 
 		// Minimum impostor radius in NDC
-		{ Property<Float> p = Property.createFloatProperty("minImpostorSize", 0.002f, 0.002f); p.setEditable(true); properties.put("minImpostorSize", p); }
+		{ Property<Float> p = Property.createFloatProperty("minImpostorSize", 1.0E-5f, 1.0E-5f); p.setEditable(true); properties.put("minImpostorSize", p); }
 
 		// Field of view for camera
 		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
@@ -118,7 +118,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 1f, 1f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
 
 		// WASD movement sensitivity
-		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 0.01f, 0.01f); p.setEditable(true); properties.put("WASDSensitivity", p); }
+		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 1f, 1f); p.setEditable(true); properties.put("WASDSensitivity", p); }
 
 		// Mouse wheel sensitivity
 		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 0.1f, 0.1f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }

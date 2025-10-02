@@ -157,7 +157,7 @@ public class UnitSet {
     public static final UnitSet SOLAR_SYSTEM_HOUR = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.HOUR);
     public static final UnitSet ASTRONOMICAL = new UnitSet(Unit.SOLAR_MASS, Unit.STELLAR_DENSITY, Unit.ASTRONOMICAL_UNIT, Unit.SECOND);
     public static final UnitSet METRIC = new UnitSet(Unit.KILOGRAM, Unit.KILOGRAM_PER_CUBIC_METER, Unit.METER, Unit.SECOND);
-    public static final UnitSet GALACTIC_MERGE = new UnitSet(new Unit(Unit.SOLAR_MASS,SIPrefix.GIGA), Unit.STELLAR_DENSITY, new Unit(Unit.ASTRONOMICAL_UNIT,SIPrefix.MEGA), new Unit(Unit.SECOND,SIPrefix.MEGA));
+    public static final UnitSet GALACTIC_MERGE = new UnitSet(new Unit(Unit.SOLAR_MASS,SIPrefix.KILO), Unit.STELLAR_DENSITY, new Unit(Unit.ASTRONOMICAL_UNIT,SIPrefix.KILO), Unit.HOUR);
     //The unit of a body's mass (in kg) e.g. solar mass
     private Unit mass;
     //The unit of a body's length (in m) e.g. stellar radius

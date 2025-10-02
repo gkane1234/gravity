@@ -74,7 +74,7 @@ public class UITextField extends UIElement {
         int unroundedLength = unroundedString.length();
         
         if (value instanceof Number) {
-            this.text = new StringBuilder(String.format("%." + numericalRounding + "f", ((Number) value).doubleValue()));
+            this.text = new StringBuilder(String.format("%." + numericalRounding + "e", ((Number) value).doubleValue()));
             if (this.text.length() > unroundedLength) {
                 this.text = new StringBuilder(unroundedString);
             }
@@ -119,8 +119,6 @@ public class UITextField extends UIElement {
 
     @Override
     public void handleMouseRelease() {
-        focused = false;
-        forceUpdate = false;
     }
 
     @Override

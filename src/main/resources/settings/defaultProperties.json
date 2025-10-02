@@ -71,7 +71,7 @@
     },
     "minImpostorSize": {
       "type": "float",
-      "default": 0.002,
+      "default": 1e-5,
       "description": "Minimum impostor radius in NDC",
       "editable": true
     },
@@ -133,7 +133,7 @@
     },
     "WASDSensitivity": { 
       "type": "float",
-      "default": 0.01,
+      "default": 1,
       "description": "WASD movement sensitivity",
       "editable": true
     },

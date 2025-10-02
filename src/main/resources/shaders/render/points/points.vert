@@ -8,5 +8,5 @@ void main() {
   vec3 pos = relativeLocation(srcB.bodies[gl_InstanceID], uRelativeTo)*sim.units.len; // world coords
 
   gl_Position = uMVP * vec4(pos, 1.0);
-  gl_PointSize = 1;
+  gl_PointSize = 5;
 }
