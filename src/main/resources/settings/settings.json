@@ -4,10 +4,10 @@
   "renderMode" : "impGlow",
   "showRegions" : false,
   "wrapAround" : false,
-  "mergingCollisionOrNeither" : "merge",
+  "mergingCollisionOrNeither" : "none",
   "dynamic" : "dynamic",
-  "dt" : 5000.0,
-  "theta" : 100000.0,
+  "dt" : 1.0,
+  "theta" : 0.6,
   "relativeTo" : 0,
   "cameraScale" : 10.0,
   "minImpostorSize" : 1.0E-5,
@@ -25,15 +25,15 @@
   "mouseRotationSensitivity" : 0.04,
   "shift" : [ 0.0, 0.0, 0.0 ],
   "cameraPos" : {
-    "x" : -48.46837,
-    "y" : 221.71523,
-    "z" : 855.62994,
+    "x" : 0.0,
+    "y" : 0.0,
+    "z" : 1.0,
     "finite" : true
   },
   "cameraFront" : {
-    "x" : 0.015403197,
-    "y" : -0.28568867,
-    "z" : -0.95819867,
+    "x" : 0.0,
+    "y" : 0.0,
+    "z" : -1.0,
     "finite" : true
   },
   "cameraUp" : {
@@ -42,6 +42,6 @@
     "z" : 0.0,
     "finite" : true
   },
-  "yaw" : -89.07904,
-  "pitch" : -16.600018
+  "yaw" : -90.0,
+  "pitch" : 0.0
 }

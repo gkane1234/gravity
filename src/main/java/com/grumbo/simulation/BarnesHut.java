@@ -141,7 +141,7 @@ public class BarnesHut {
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
 
-        System.out.println(GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut", 0, 10));
+        //System.out.println(GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut", 0, 10));
 
         //System.out.println(GPU.SSBO_SIMULATION_VALUES.getIntegerData("uintDebug", true));
 

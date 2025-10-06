@@ -239,7 +239,7 @@ public class GPUSimulation {
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
             //"COMPUTE_INIT",
-             "COMPUTE_MORTON_ENCODE",
+            // "COMPUTE_MORTON_ENCODE",
             //"COMPUTE_DEAD_COUNT",
             //"COMPUTE_DEAD_EXCLUSIVE_SCAN",
             // "COMPUTE_DEAD_SCATTER",
@@ -251,7 +251,7 @@ public class GPUSimulation {
             //"COMPUTE_INIT_LEAVES",
             //"COMPUTE_RESET",
             //"COMPUTE_PROPAGATE_NODES",
-             "COMPUTE_FORCE_COMPUTE",
+            // "COMPUTE_FORCE_COMPUTE",
             //"COMPUTE_MERGE",
             //"COMPUTE_DEBUG",
         });
