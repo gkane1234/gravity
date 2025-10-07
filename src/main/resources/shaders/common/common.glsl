@@ -83,7 +83,7 @@ layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; }
 //  -Initialized to exactly fit the values. (In Java: 8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES)
 layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
                                                         uint outOfBounds; uint relativeTo; uint pad1; uint pad2; 
-                                                        AABB bounds; UnitSet units; uint uintDebug[100]; float floatDebug[100]; } sim;
+                                                        AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
 //Bodies of the simulation from the previous step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
 layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
@@ -150,7 +150,8 @@ const uint DYNAMIC = 1u;
 uniform uint passShift; //Pass shift for radix sort passes.
 //Common uniforms:
 uniform uint numWorkGroups; //Used to determine the number of work groups during the radix sort
-
+//Unit set uniforms:
+uniform UnitSet units;
 
 //Render Uniforms
 uniform mat4 uMVP; // model-view-projection matrix
@@ -201,34 +202,34 @@ bool outOfBounds(Body b) {
 }
 
 float scaledDensity(Body b) {
-    return b.velDensity.w*STELLAR_DENSITY;
+    return b.velDensity.w*units.density;
 }
 
 float scaledMass(Body b) {
-    return b.posMass.w*sim.units.mass;
+    return b.posMass.w*units.mass;
 }
 
 float scaledMass(Node node) {
-    return node.comMass.w*sim.units.mass;
+    return node.comMass.w*units.mass;
 }
 
 
 //Calculates the radius of a body
 float radius(Body b) {
-    return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
+    return units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
 }
 
 
 vec3 scaledDist(vec3 a, vec3 b) {
-    return (b - a)*sim.units.len;
+    return (b - a)*units.len;
 }
 
 vec3 scaledDist(vec3 a) {
-    return a*sim.units.len;
+    return a*units.len;
 }
 
 float scaledDist(float a) {
-    return a*sim.units.len;
+    return a*units.len;
 }
 
 vec3 relativeLocation(vec3 a, uint relativeTo) {

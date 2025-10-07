@@ -126,6 +126,10 @@ public class GPU {
     public static Uniform<Boolean> UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES;
     public static Uniform<Boolean> UNIFORM_WRAP_AROUND;
     public static Uniform<Integer> UNIFORM_STATIC_OR_DYNAMIC;
+    public static Uniform<Float> UNIFORM_TIME;
+    public static Uniform<Float> UNIFORM_MASS;
+    public static Uniform<Float> UNIFORM_DENSITY;
+    public static Uniform<Float> UNIFORM_LENGTH;
 
 
 
