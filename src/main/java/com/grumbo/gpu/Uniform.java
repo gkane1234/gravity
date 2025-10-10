@@ -13,17 +13,6 @@ import static org.lwjgl.opengl.GL43C.*;
  */
 public class Uniform<T> {
 
-    // uniform float softening;
-    // uniform float theta;
-    // uniform float dt;
-    // uniform uint numBodies;
-    // uniform float elasticity;
-    // uniform float density;
-    // uniform float restitution;
-    // uniform bool collision;
-    // uniform uint numWorkGroups; // number of workgroups dispatched for histogram/scatter
-    // uniform uint passShift;
-    // Name of the uniform
     private String name;
     // Function to get the value of the uniform
     private ValueFunction<T> value;

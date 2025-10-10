@@ -35,6 +35,9 @@ public final class GPUCommands {
         return sim -> Settings.getInstance().setSoftening(newSoftening);
     }
 
+
+    
+
     //Functions to be implemented for changing the planet data while a simulation is running
     // // Re-upload existing planet data (same size)
     // public static GPUCommand uploadPlanetData(java.util.List<Planet> planets) {

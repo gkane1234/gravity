@@ -281,7 +281,6 @@ public class SSBO {
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         bufferCache = copy;
-        System.out.println("Buffer cache created for " + name);
     }
 
 

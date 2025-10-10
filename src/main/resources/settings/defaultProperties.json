@@ -81,6 +81,30 @@
       "description": "Field of view for camera",
       "editable": true
     },
+    "mass": {
+      "type": "float",
+      "default": 1.0,
+      "description": "Body mass unit",
+      "editable": true
+    },
+    "density": {
+      "type": "float",
+      "default": 1.0,
+      "description": "Body density unit",
+      "editable": true
+    },
+    "length": {
+      "type": "float",
+      "default": 1.0,
+      "description": "Simulation length unit",
+      "editable": true
+    },
+    "time": {
+      "type": "float",
+      "default": 1.0,
+      "description": "Simulation time unit",
+      "editable": true
+    },
     "softening": {
       "type": "float",
       "default": 1e-12,

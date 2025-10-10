@@ -147,17 +147,11 @@ public class Planet {
 			e.printStackTrace();
 			return null;
 		}
-		System.out.println("jsonNode: " + jsonNode);
 		Vector3f position = new Vector3f(jsonNode.get("position").get(0).floatValue(), jsonNode.get("position").get(1).floatValue(), jsonNode.get("position").get(2).floatValue());
 		Vector3f velocity = new Vector3f(jsonNode.get("velocity").get(0).floatValue(), jsonNode.get("velocity").get(1).floatValue(), jsonNode.get("velocity").get(2).floatValue());
 		float mass = jsonNode.get("mass").floatValue();
 		float density = 100f;
 
-		System.out.println("position: " + position);
-		System.out.println("velocity: " + velocity);
-		System.out.println("mass: " + mass);
-		System.out.println("density: " + density);
-		
 		return new Planet(position, velocity, mass, density, UnitSet.METRIC);
 	}
 

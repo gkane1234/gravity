@@ -61,7 +61,6 @@ public abstract class GLSLProgram {
     public void addShader(GLSLShader shader) {
         glAttachShader(program, shader.getShader());
         glLinkProgram(program);
-        System.out.println("Program "+ programName + " linked");
         checkProgram(program);
     }
 

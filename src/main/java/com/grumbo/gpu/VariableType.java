@@ -29,6 +29,7 @@ public enum VariableType {
     VEC3F(Vector3f.class),
     VEC2I(Vector2i.class);
     
+    
     //The precision of the variable type.
     private static final int PRECISION = 5;
 

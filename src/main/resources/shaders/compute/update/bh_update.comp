@@ -9,13 +9,22 @@
 
 void updateKernel() {
     uint gid = gl_GlobalInvocationID.x;
-    if (gid == 0) {
+    if (gid == 0u) {
         if (resetValuesOrDecrementDeadBodies==1u) {
             //Reset Queues
             headIn=0u;
             tailIn = 0u;
             mergeTasksTail = 0u;
             mergeTasksHead = 0u;
+
+
+            //Update units if changed
+            if (mass != 0) { //Set mass to 0 if no change to units
+
+                updateUnits(mass, density, len, time);
+
+            }
+
         }
         else {
             //Update Number of Bodies

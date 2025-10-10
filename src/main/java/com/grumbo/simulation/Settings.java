@@ -93,6 +93,18 @@ public class Settings {
 		// Field of view for camera
 		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
 
+		// Body mass unit
+		{ Property<Float> p = Property.createFloatProperty("mass", 1.0f, 1.0f); p.setEditable(true); properties.put("mass", p); }
+
+		// Body density unit
+		{ Property<Float> p = Property.createFloatProperty("density", 1.0f, 1.0f); p.setEditable(true); properties.put("density", p); }
+
+		// Simulation length unit
+		{ Property<Float> p = Property.createFloatProperty("length", 1.0f, 1.0f); p.setEditable(true); properties.put("length", p); }
+
+		// Simulation time unit
+		{ Property<Float> p = Property.createFloatProperty("time", 1.0f, 1.0f); p.setEditable(true); properties.put("time", p); }
+
 		// Softening parameter
 		{ Property<Float> p = Property.createFloatProperty("softening", 1.0E-12f, 1.0E-12f); p.setEditable(true); properties.put("softening", p); }
 
@@ -386,6 +398,58 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setFov(float value) { setValue("fov", value); }
+
+	/**
+	 * Gets the value of thefloat property mass.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getMass() { return getValue("mass"); }
+	/**
+	 * Sets the value of the float property mass.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setMass(float value) { setValue("mass", value); }
+
+	/**
+	 * Gets the value of thefloat property density.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getDensity() { return getValue("density"); }
+	/**
+	 * Sets the value of the float property density.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setDensity(float value) { setValue("density", value); }
+
+	/**
+	 * Gets the value of thefloat property length.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getLength() { return getValue("length"); }
+	/**
+	 * Sets the value of the float property length.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setLength(float value) { setValue("length", value); }
+
+	/**
+	 * Gets the value of thefloat property time.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getTime() { return getValue("time"); }
+	/**
+	 * Sets the value of the float property time.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setTime(float value) { setValue("time", value); }
 
 	/**
 	 * Gets the value of thefloat property softening.

@@ -6,20 +6,15 @@
 // Uniforms: None
 // SSBOs: BodiesIn, BodiesOut, IndexIn, IndexOut
 
-void setScaledGravitationalConstant(UnitSet units) {
-    units.gravitationalConstant = GRAVITATIONAL_CONSTANT* pow(units.len, -3)* pow(units.time, 2)* pow(units.mass, 1);
-}
 
-void setScaledBodyLengthInSimulationLengthsConstant(UnitSet units) {
-    units.bodyLengthInSimulationLengthsConstant = THREE_OVER_FOUR_PI_TO_THE_ONE_THIRD * pow((units.mass/ units.density), 1.0/3.0)/units.len;
-}
 void initKernel() {
     uint gid = gl_GlobalInvocationID.x;
 
-    if (gid == 0) {
-        setScaledGravitationalConstant(units);
-        setScaledBodyLengthInSimulationLengthsConstant(units);
+    if (gid == 0u) {
+        updateUnits(mass, density, len, time);
     }
+
+
     //Set the index of the body in the input buffer
     //This will become the index of its sorted position after the radix sort/dead body counting.
     indexIn[gid] = gid; 

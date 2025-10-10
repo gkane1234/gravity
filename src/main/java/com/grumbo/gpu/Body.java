@@ -77,7 +77,7 @@ public class Body {
         ByteBuffer buf = BufferUtils.createByteBuffer((numBodies * STRUCT_SIZE)*4+HEADER_SIZE);
         for (int i = 0; i < numBodies; i++) {
             Planet p = planets.get(i);
-            //System.out.println("Packing planet: " + p.position + " " + p.mass + " " + p.density + " " + p.velocity);
+            //("Packing planet: " + p.position + " " + p.mass + " " + p.density + " " + p.velocity);
             buf.putFloat(p.position.x).putFloat(p.position.y).putFloat(p.position.z).putFloat(p.mass);
             buf.putFloat(p.velocity.x).putFloat(p.velocity.y).putFloat(p.velocity.z).putFloat(p.density);
         }

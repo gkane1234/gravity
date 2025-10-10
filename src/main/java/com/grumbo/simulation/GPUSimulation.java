@@ -340,7 +340,6 @@ public class GPUSimulation {
 
         if (state == State.PAUSED) {
 
-            //System.out.println(GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,10));
             
             render.render(state);
             checkGLError("after render");
@@ -392,6 +391,10 @@ public class GPUSimulation {
     public UnitSet getUnitSet() {
         return planetGenerator.getUnitSet();
     }
+
+
+
+
         
     /**
      * Enqueues a command into the command queue.

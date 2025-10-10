@@ -146,7 +146,6 @@ public class UIButton extends UIElement {
         
         }
         else {
-            System.out.println("Button Release");
             selected = false;
         } 
     }

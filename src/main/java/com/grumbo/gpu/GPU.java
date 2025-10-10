@@ -336,7 +336,6 @@ public class GPU {
         GPUSimulation.checkGLError("after initComputeSSBOs");
 
         for (SSBO ssbo : GPU.SSBOS.values()) {
-            System.out.println("Creating buffer for " + ssbo.getName());
             ssbo.createBufferData();
             GPUSimulation.checkGLError("after createBufferData for " + ssbo.getName());
         }
@@ -468,6 +467,26 @@ public class GPU {
         }, VariableType.UINT);
 
         GPU.UNIFORMS.put(UNIFORM_STATIC_OR_DYNAMIC.getName(), UNIFORM_STATIC_OR_DYNAMIC);
+
+        UNIFORM_MASS = new Uniform<Float>("mass", () -> {
+            return Settings.getInstance().getMass();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_MASS.getName(), UNIFORM_MASS);
+        UNIFORM_DENSITY = new Uniform<Float>("density", () -> {
+            return Settings.getInstance().getDensity();
+        }, VariableType.FLOAT);
+
+        GPU.UNIFORMS.put(UNIFORM_DENSITY.getName(), UNIFORM_DENSITY);
+
+        UNIFORM_LENGTH = new Uniform<Float>("len", () -> {
+            return Settings.getInstance().getLength();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_LENGTH.getName(), UNIFORM_LENGTH);
+
+        UNIFORM_TIME = new Uniform<Float>("time", () -> {
+            return Settings.getInstance().getTime();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_TIME.getName(), UNIFORM_TIME);
 
     }
 
@@ -704,7 +723,11 @@ public class GPU {
         COMPUTE_UPDATE = new ComputeProgram("COMPUTE_UPDATE");
 
         COMPUTE_UPDATE.setUniforms(new Uniform[] {
-            UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES
+            UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES,
+            UNIFORM_MASS,
+            UNIFORM_DENSITY,
+            UNIFORM_LENGTH,
+            UNIFORM_TIME,
         });
 
         COMPUTE_UPDATE.setSSBOs(new SSBO[] {

@@ -106,9 +106,6 @@ public class UITextField extends UIElement {
     @Override
     public boolean handleMousePress(double mouseX, double mouseY) {
         focused = hitTest(mouseX, mouseY) && !focused;
-        if (focused) {
-            System.out.println("focused: " + focused);
-        }
         return focused;
     }
 
@@ -125,7 +122,6 @@ public class UITextField extends UIElement {
     public boolean handleKeyPress(int key, int action, int mods) {
 
         if (!focused) return false;
-        System.out.println("key: " + key+" action: "+action+" mods: "+mods);
 
         if (action != GLFW.GLFW_PRESS && action != GLFW.GLFW_REPEAT) return false;
         if (key == GLFW.GLFW_KEY_ENTER) {

@@ -225,7 +225,6 @@ public class PlanetGenerator {
                 if (planetsGenerated <= prevNumPlanets) {
                     return prevGen.generateNextPlanet();
                 } else {
-                    //System.out.println("on the second one");
                     return pg.nextPlanet();
                 }
             }
@@ -428,11 +427,11 @@ public class PlanetGenerator {
 	
 		// u = normalize(n x a)
 		Vector3f u = new Vector3f(normal).cross(a).normalize();
-		//System.out.println("u: " + u.x + ", " + u.y + ", " + u.z);
+
 	
 		// v = n x u  (already normalized)
 		Vector3f v = new Vector3f(normal).cross(u);
-		//System.out.println("v: " + v.x + ", " + v.y + ", " + v.z);
+
 
         PlanetGenerator pg = new PlanetGenerator(new PlanetGeneratorFunction() {
 

@@ -1033,7 +1033,7 @@ public class Property<T> {
         elements.add(tfRed);
         elements.add(tfGreen);
         elements.add(tfBlue);
-        System.out.println("Red: " + tfRed.getText() + " Green: " + tfGreen.getText() + " Blue: " + tfBlue.getText());
+
         return elements;
     }
 

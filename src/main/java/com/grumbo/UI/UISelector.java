@@ -42,7 +42,6 @@ public class UISelector extends UIRow {
                 }
             });
             buttons[i].setOnRelease(() -> {});
-            System.out.println("Initial state: " + selectedOption + " Option: " + option + " Index: " + i);
             buttons[i].setSelected(selectedOption.equals(option));
             elements.add(buttons[i]);
         }

@@ -49,6 +49,11 @@ class Dimensions{
         Dimensions other = (Dimensions) obj;
         return this.length == other.length && this.mass == other.mass && this.time == other.time;
     }
+
+    @Override
+    public String toString() {
+        return "Dimensions [length=" + length + ", mass=" + mass + ", time=" + time + "]";
+    }
 }
 
 
@@ -136,6 +141,11 @@ class Unit {
      */
     public double getValue() {
         return value * Math.pow(10, siprefix.exponent);
+    }
+
+    @Override
+    public String toString() {
+        return "Unit [value=" + value + ", dimensions=" + dimensions + ", siprefix=" + siprefix + "]";
     }
 
 }
@@ -232,5 +242,10 @@ public class UnitSet {
     public double gravitationalConstant() {
         double G = Unit.GRAVITATIONAL_CONSTANT.getValue()* Math.pow(len.getValue(), -3)* Math.pow(time.getValue(), 2) * Math.pow(mass.getValue(), 1); //m^3 kg^-1 s^-2
         return G;
+    }
+
+    @Override
+    public String toString() {
+        return "UnitSet [mass=" + mass + ", density=" + density + ", len=" + len + ", time=" + time + "]";
     }
 }
