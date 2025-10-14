@@ -119,16 +119,30 @@ public class BarnesHut {
         // Decrements the number of dead bodies from the total number of bodies.
         decrementDeadBodies();
 
+
+        System.out.println("Partitioned dead bodies");
+
+        System.out.println(GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS));
+
+        System.out.println(GPU.SSBO_SWAPPING_INDEX_IN.getDataAsString("IndexIn",0,NUM_DEBUG_OUTPUTS));
+
+        System.out.println(GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+
         if (dynamicOrStatic.equals("dynamic")) {
             // Update the bounds of the simulation.
             updateBounds();
         }
+
+        System.out.println("Updated bounds");
+
+        System.out.println(GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
 
         // Generate the morton codes for the alive bodies.
         generateMortonCodes();
         
         // Radix sort the morton codes. This swaps the morton and index buffers for each radix sort pass.
         radixSort();
+
 
         // Build the binary radix tree.
         buildBinaryRadixTree();
@@ -139,6 +153,10 @@ public class BarnesHut {
         // Compute the force on each body using the tree.
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
+
+        System.out.println("Computed force");
+
+        System.out.println(GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
 
 
 

@@ -58,41 +58,46 @@ void mortonAABBRepopulateKernel() {
     uint gid = gl_GlobalInvocationID.x;
     uint lid = gl_LocalInvocationID.x;
 
-    if (2*gid >= sim.numBodies) {
+    uint leftBodyIdx = 0u;
+    uint rightBodyIdx = 0u;
+    bool laneHasBodies = 2*gid < sim.numBodies;
+
+    if (!laneHasBodies) {
         sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
-        return;
     }
+    else {
 
-    //Load AABB's into the shared memory
-    //We combine two bodies into each AABB to save time
+        //Load AABB's into the shared memory
+        //We combine two bodies into each AABB to save time
 
-    uint leftBodyIdx = indexIn[2*gid];
+        leftBodyIdx = indexIn[2*gid];
 
-    if (2*gid+1 >= sim.numBodies) {
-        // Only one body left
-        if (isEmpty(srcB.bodies[leftBodyIdx])) {
-            sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+        if (2*gid+1 >= sim.numBodies) {
+            // Only one body left
+            if (isEmpty(srcB.bodies[leftBodyIdx])) {
+                sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+            } else {
+                vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
+                sharedAABB[lid] = AABB(pos, pos);
+            }
         } else {
-            vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
-            sharedAABB[lid] = AABB(pos, pos);
-        }
-    } else {
-        uint rightBodyIdx = indexIn[2*gid+1];
-        bool leftEmpty  = isEmpty(srcB.bodies[leftBodyIdx]);
-        bool rightEmpty = isEmpty(srcB.bodies[rightBodyIdx]);
+            rightBodyIdx = indexIn[2*gid+1];
+            bool leftEmpty  = isEmpty(srcB.bodies[leftBodyIdx]);
+            bool rightEmpty = isEmpty(srcB.bodies[rightBodyIdx]);
 
-        if (leftEmpty && rightEmpty) {
-            sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
-        } else if (rightEmpty) {
-            vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
-            sharedAABB[lid] = AABB(pos, pos);
-        } else if (leftEmpty) {
-            vec3 pos = srcB.bodies[rightBodyIdx].posMass.xyz;
-            sharedAABB[lid] = AABB(pos, pos);
-        } else {
-            vec3 pos0 = srcB.bodies[leftBodyIdx].posMass.xyz;
-            vec3 pos1 = srcB.bodies[rightBodyIdx].posMass.xyz;
-            sharedAABB[lid] = AABB(min(pos0, pos1), max(pos0, pos1));
+            if (leftEmpty && rightEmpty) {
+                sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+            } else if (rightEmpty) {
+                vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
+                sharedAABB[lid] = AABB(pos, pos);
+            } else if (leftEmpty) {
+                vec3 pos = srcB.bodies[rightBodyIdx].posMass.xyz;
+                sharedAABB[lid] = AABB(pos, pos);
+            } else {
+                vec3 pos0 = srcB.bodies[leftBodyIdx].posMass.xyz;
+                vec3 pos1 = srcB.bodies[rightBodyIdx].posMass.xyz;
+                sharedAABB[lid] = AABB(min(pos0, pos1), max(pos0, pos1));
+            }
         }
     }
     barrier();
@@ -100,9 +105,33 @@ void mortonAABBRepopulateKernel() {
     collapseSharedAABB();
 
     if (lid == 0u) {
+        sim.uintDebug[5]=sim.numBodies;
+        sim.uintDebug[6]=laneHasBodies ? (isEmpty(srcB.bodies[leftBodyIdx])?1u:0u) : 0xFFFFFFFFu;
+        sim.floatDebug[7]=sharedAABB[0].minCorner.x;
+        sim.floatDebug[8]=sharedAABB[0].minCorner.y;
+        sim.floatDebug[9]=sharedAABB[0].minCorner.z;
+        sim.floatDebug[10]=sharedAABB[0].maxCorner.x;
+        sim.floatDebug[11]=sharedAABB[0].maxCorner.y;
+        sim.floatDebug[12]=sharedAABB[0].maxCorner.z;
+
+        if (laneHasBodies) {
+            sim.floatDebug[1]=srcB.bodies[leftBodyIdx].posMass.x;
+            sim.floatDebug[2]=srcB.bodies[leftBodyIdx].posMass.y;
+            sim.floatDebug[3]=srcB.bodies[leftBodyIdx].posMass.z;
+        } else {
+            sim.floatDebug[1]=0.0;
+            sim.floatDebug[2]=0.0;
+            sim.floatDebug[3]=0.0;
+        }
         uint wgId = gl_WorkGroupID.x;
-        if (wgId < numWorkGroups)
-            internalNodes[wgId].aabb = packAABB(sharedAABB[0]);
+        if (laneHasBodies) {
+            uint totalWorkGroups = gl_NumWorkGroups.x;
+            if (wgId < totalWorkGroups)
+                internalNodes[wgId].aabb = packAABB(sharedAABB[0]);
+        }
+
+            sim.floatDebug[13+wgId]=internalNodes[wgId].aabb[0];
+        
     }
 }
 
@@ -117,17 +146,17 @@ void mortonAABBCollapseKernel() {
     uint regionStart = lid*regionSize;
 
 
-    if (regionStart >= numWorkGroups) {
-        sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
-        return;
+    bool laneActive = regionStart < numWorkGroups;
+    AABB laneAABB;
+    if (laneActive) {
+        laneAABB = unpackAABB(internalNodes[regionStart].aabb);
+        for (uint i = regionStart+1; i < min(regionStart + regionSize, numWorkGroups); ++i) {
+            laneAABB = updateAABB(laneAABB, unpackAABB(internalNodes[i].aabb));
+        }
+    } else {
+        laneAABB = AABB(vec3(1e9), vec3(-1e9));
     }
-
-
-    AABB newAABB = unpackAABB(internalNodes[regionStart].aabb);
-    for (uint i = regionStart+1; i < min(regionStart + regionSize, numWorkGroups); ++i) {
-        newAABB = updateAABB(newAABB, unpackAABB(internalNodes[i].aabb));
-    }
-    sharedAABB[lid] = newAABB;
+    sharedAABB[lid] = laneAABB;
 
     barrier();
 

@@ -120,9 +120,9 @@ public class GPUSimulation {
 
     public static GPUSimulation createSeveralDisksAroundAnotherDiskSimulation() {
 
-        int numDisks = 1;
+        int numDisks = 13;
         float velocityFactor = 1;
-        float squareCenter = 30000;
+        float squareCenter = 3000;
         int[] numPlanetsRange = {250_000,250_000};
         float[] radiusRangeLow = {1, 2};
         float[] stellarDensityRange = {100,100};
@@ -142,7 +142,7 @@ public class GPUSimulation {
         boolean giveOrbitalVelocity = true;
 
 
-        int centerDiskPlanets = 600_000;
+        int centerDiskPlanets = 600_00;
         float[] centerDiskRadius = {2,1000};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
@@ -156,7 +156,7 @@ public class GPUSimulation {
         PlanetGenerator pg = PlanetGenerator.makeNewRandomDisk(centerDiskPlanets, centerDiskRadius, mRange, densityRange, centerDiskLocation, centerDiskRelativeVelocity, centerDiskPhi, centerDiskCenterMass, centerDiskCenterDensity, centerDiskAdherenceToPlane, centerDiskOrbitalFactor, false,centerDiskGiveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND);
         pg= new PlanetGenerator(pg, PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND));
         
-        return new GPUSimulation(pg, centerX[1]*2/1000, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
+        return new GPUSimulation(pg, centerX[1]*2/100, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
     
 
