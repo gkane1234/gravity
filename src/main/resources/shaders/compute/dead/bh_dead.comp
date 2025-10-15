@@ -16,7 +16,7 @@ void deadCountKernel() {
     uint wgId = gl_WorkGroupID.x;
 
     bool inRange = gid < sim.numBodies;
-    uint bodyIdx = indexIn[gid];
+    uint bodyIdx = indexDouble[indexSrcBuffer * sim.numBodies + gid];
     bool alive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
     bool dead = inRange && isEmpty(srcB.bodies[bodyIdx]);
 
@@ -73,7 +73,7 @@ void deadScatterKernel() {
     uint wgId = gl_WorkGroupID.x;
     uint gid = gl_GlobalInvocationID.x;
     bool inRange = (gid < sim.numBodies);
-    uint bodyIdx = indexIn[gid];
+    uint bodyIdx = indexDouble[indexSrcBuffer * sim.numBodies + gid];
     bool isDead  = inRange && isEmpty(srcB.bodies[bodyIdx]);
     bool isAlive = inRange && !isEmpty(srcB.bodies[bodyIdx]);
     //Calculate alive and dead flags analogously to deadCountKernel
@@ -102,11 +102,11 @@ void deadScatterKernel() {
     //Place the dead and alive bodies in the correct positions
     if (isDead) {
         uint dstIndex = sim.numBodies - sim.justDied + wgScanned[wgId] + localDeadRank;
-        indexOut[dstIndex]  = bodyIdx;
+        indexDouble[indexDstBuffer * sim.numBodies + dstIndex] = bodyIdx;
 
     } 
     else if (isAlive) {
         uint dstIndex =  WG_SIZE * wgId - wgScanned[wgId] + localAliveRank;
-        indexOut[dstIndex]  = bodyIdx;
+        indexDouble[indexDstBuffer * sim.numBodies + dstIndex] = bodyIdx;
     }
 }

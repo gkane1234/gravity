@@ -17,8 +17,13 @@ void initKernel() {
 
     //Set the index of the body in the input buffer
     //This will become the index of its sorted position after the radix sort/dead body counting.
-    indexIn[gid] = gid; 
-    
+    indexDouble[indexSrcBuffer * sim.numBodies + gid] = gid;
+    indexDouble[indexDstBuffer * sim.numBodies + gid] = gid;
+    if (gid < sim.numBodies) {
+        uint mortonOffset = mortonSrcBuffer * sim.numBodies + gid;
+        mortonDouble[mortonOffset] = 0ul;
+        mortonDouble[mortonDstBuffer * sim.numBodies + gid] = 0ul;
+    }
     // //Initial check for out of bounds
     // if (outOfBounds(srcB.bodies[gid])) {
     //     srcB.bodies[gid] = EMPTY_BODY;

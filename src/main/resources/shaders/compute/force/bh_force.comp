@@ -43,7 +43,7 @@ void forceComputeKernel()
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= sim.numBodies) return;
 
-    uint bodyIdx = indexIn[gid];
+    uint bodyIdx = indexDouble[indexSrcBuffer * sim.numBodies + gid];
 
     Body body = srcB.bodies[bodyIdx];
 
@@ -73,7 +73,7 @@ void forceComputeKernel()
             }
         }
         else {
-            if (indexIn[nodeIdx] == bodyIdx) {
+            if (indexDouble[indexSrcBuffer * sim.numBodies + nodeIdx] == bodyIdx) {
                 continue;
             }
             //If the node is a leaf node, we calculate the force and check for overlaps
@@ -83,7 +83,7 @@ void forceComputeKernel()
                 continue;
             }
         
-            Body other = srcB.bodies[indexIn[nodeIdx]];
+            Body other = srcB.bodies[indexDouble[indexSrcBuffer * sim.numBodies + nodeIdx]];
 
             float bodyRadius = radius(body);
             float otherRadius = radius(other);
@@ -106,9 +106,9 @@ void forceComputeKernel()
                 body.posMass.xyz -= correction;
             } 
             //If the bodies are merging, add them to the merge queue to be merged in mergeBodiesKernel
-            if ((mergingCollisionOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexIn[nodeIdx])) {
+            if ((mergingCollisionOrNeither == MERGING) && (penetration > 0) && (bodyIdx < indexDouble[indexSrcBuffer * sim.numBodies + nodeIdx])) {
                 uint slot = atomicAdd(mergeTasksTail, 1u);
-                mergeTasks[slot] = uvec2(bodyIdx , indexIn[nodeIdx]);
+                mergeTasks[slot] = uvec2(bodyIdx , indexDouble[indexSrcBuffer * sim.numBodies + nodeIdx]);
             }
         }
         

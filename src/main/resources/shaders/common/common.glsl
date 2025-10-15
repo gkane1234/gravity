@@ -2,16 +2,12 @@
 //                  Common layout and structs
 // =============================================================
 
-//For compute shaders:
-layout(local_size_x = 256u) in;
-const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
-//End for compute shaders
-
-//For render shaders:
 #version 430
-#extension GL_NV_gpu_shader5 : enable
 #extension GL_ARB_shading_language_include : enable
-//End for render shaders
+#ifdef COMPUTE_SHADER
+layout(local_size_x = 256u) in;
+const uint WG_SIZE = 256u;
+#endif
 
 
 //To change these, you need to also change them in BarnesHut.java
@@ -20,13 +16,18 @@ const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
 
 
+#ifdef COMPUTE_SHADER
+#define SIM sim
+#endif
+
 //Common structs:
 //Representation of a celestial body
 struct Body { 
     //position (x,y,z) and mass (w)
     vec4 posMass; 
     //velocity (x,y,z) and density (w)
-    vec4 velDensity;};
+    vec4 velDensity;
+};
 
 //Representation of an axis aligned bounding box
 struct AABB {
@@ -40,19 +41,24 @@ struct AABB {
 struct Node {
     //center of mass (x,y,z) and mass (w)
     vec4 comMass;
-    //stored as a float[6] to avoid padding
-    float[6] aabb;
+    //AABB packed as float[6]
+    float aabb[6];
     //children of the node
     uint childA;
     uint childB;
-    //depth of the node
+    //depth and bodies contained
     uint nodeDepth;
-    //number of bodies contained in the node
     uint bodiesContained;
     //number of ready children of the node (used in updating the tree)
     uint readyChildren;
     //parent of the node
     uint parentId;
+};
+
+struct NodeAABB {
+    float aabb[6];
+    uint nodeDepth;
+    uint bodiesContained;
 };
 
 
@@ -67,55 +73,53 @@ struct UnitSet {
     float bodyLengthInSimulationLengthsConstant;
 };
 
+
 // =============================================================
 //                       SSBO bindings
 // =============================================================
 
 //Note: in render shaders, these SSBO bindings are changed to readonly
 
-//Leaf nodes of the radix tree (node representation of a body).
-//  -Initialized with numBodies nodes (In Java: numBodies * Node.STRUCT_SIZE * Integer.BYTES)
-layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
-//Internal nodes of the radix tree.
-//  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES)
-layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
 //Simulation values
 //  -Initialized to exactly fit the values. (In Java: 8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES)
-layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
+layout(std430, binding = 0)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
                                                         uint outOfBounds; uint relativeTo; uint pad1; uint pad2; 
                                                         AABB bounds; UnitSet units; uint uintDebug[100]; float floatDebug[100]; } sim;
 //Bodies of the simulation from the previous step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
-layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
+layout(std430, binding = 1)  buffer BodiesIn           { Body bodies[]; } srcB;
 //Bodies of the simulation to be used in the next step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
-layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
+layout(std430, binding = 2)  buffer BodiesOut          { Body bodies[]; } dstB;
+//Parents of the leaf nodes (bodies) and locks for the bodies during merging, factored to keep each buffer to below 8 * numBodies bytes
+//  -Initialized with 2 * numBodies uints (In Java: 2 * numBodies * Integer.BYTES)
+layout(std430, binding = 3)  buffer ParentsAndLocks          { uint parentsAndLocks[]; };
+//Internal nodes of the radix tree.
+//  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES)
+layout(std430, binding = 4)  buffer InternalNodes      { Node internalNodes[]; };
+//AABBs of the internal nodes, factored to keep each buffer to below 8 * numBodies bytes
+//  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Children.STRUCT_SIZE * Integer.BYTES)
+layout(std430, binding = 5)  buffer InternalNodesAABB    { NodeAABB internalNodesAABB[]; };
 //Morton codes of the bodies of the simulation double buffered for dead partitioning and radix sort
 //  -Initialized with numBodies morton codes (uint64_t's) (In Java: numBodies * Long.BYTES)
-layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
-layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
+layout(std430, binding = 6)  buffer MortonDouble           { uint64_t mortonDouble[]; };
 //Sorted index of the bodies of the simulation double buffered for dead partitioning and radix sort
 //  -Initialized with numBodies indices (uints) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
-layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
+layout(std430, binding = 7)  buffer IndexDouble            { uint indexDouble[]; };
 //Work queue for propagating node data up the tree from the leaves. Double buffered for performance.
 //  -Initialized with numBodies indices (uints) (In Java: (4 + numBodies) * Integer.BYTES)
-layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
-layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+layout(std430, binding = 8)  buffer WorkQueueDouble        { uint workQueues[]; };
 //Per work group histogram of the radix sort buckets. Reused for dead sorting 
 //  -Initialized with numWorkGroups * NUM_BUCKETS histogram bars (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
+layout(std430, binding = 9) buffer RadixWGHist        { uint wgHist[];      };
 //Per work group inclusive sum of the radix sort buckets across all work groups. Reused for dead sorting
 //  -Initialized with numWorkGroups * NUM_BUCKETS inclusive sums (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
+layout(std430, binding = 10) buffer RadixWGScanned     { uint wgScanned[];   };
 //  -Initialized with numBodies buckets (uints) and numBodies global bases (uints) (In Java: NUM_BUCKETS * Integer.BYTES + NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 13) buffer RadixBucketTotalsAndAABB  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
+layout(std430, binding = 11) buffer RadixBucketTotalsAndAABB  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
 //Merge queue for merging bodies identified in the force kernel
 //  -Initialized with numBodies pairs of indices (uint[2]'s) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
-//Merge body locks to avoid races when merging bodies
-//  -Initialized with numBodies locks (uints) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
+layout(std430, binding = 12) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
 
 // =============================================================
 //           Common functions, uniforms, and constants
@@ -129,7 +133,6 @@ uniform float softening; //Used to soften the force calculation (F ∝ (r+soften
 uniform float theta; //Used to determine acceptance criterion for force calculation in node traversal
 uniform float dt; // Time step used to update the position and velocity of bodies
 uniform uint mergingCollisionOrNeither; // Selects collision, merging, or neither. 0 = neither, 1 = collision, 2 = merging, 3 = both
-uniform float cameraScale;
 //Constants for the mergingCollisionOrNeither uniform
 const uint NEITHER = 0u;
 const uint MERGING = 1u;
@@ -137,23 +140,10 @@ const uint COLLISION = 2u;
 
 const uint BOTH = 3u;
 
-uniform float elasticity; //Elasticity of collisions
-uniform float restitution; //Restitution of overlapping bodies in collisions 
-uniform float bothCriterion; //Used to determine if the body is colliding or merging
-uniform bool wrapAround; //If the simulation wraps around or kills OOB bodies 
-uniform uint staticOrDynamic; //If the simulation is static or dynamic
-//Constants for the dynamic uniform
-const uint STATIC = 0u;
-const uint DYNAMIC = 1u;
-
 //Radix sort uniforms:
 uniform uint passShift; //Pass shift for radix sort passes.
 //Common uniforms:
 uniform uint numWorkGroups; //Used to determine the number of work groups during the radix sort
-uniform float mass; //Body mass unit
-uniform float density; //Body density unit
-uniform float len; //Simulation length unit
-uniform float time; //Simulation time unit
 
 //Render Uniforms
 uniform mat4 uMVP; // model-view-projection matrix
@@ -174,6 +164,17 @@ uniform ivec2 uMinMaxDepth; //Min and max depth for regions
 uniform uint uRelativeTo; //Relative to
 uniform float uMinImpostorSize; //Minimum impostor radius in NDC
 
+uniform uint mortonSrcBuffer;
+uniform uint mortonDstBuffer;
+uniform uint indexSrcBuffer;
+uniform uint indexDstBuffer;
+#ifdef COMPUTE_SHADER
+#define WORK_QUEUE_SRC workQueueSrcBuffer
+#define WORK_QUEUE_DST workQueueDstBuffer
+#else
+#define WORK_QUEUE_SRC 0u
+#define WORK_QUEUE_DST 1u
+#endif
 
 
 //Empty body constant for merged bodies or OOB bodies
@@ -204,34 +205,34 @@ bool outOfBounds(Body b) {
 }
 
 float scaledDensity(Body b) {
-    return b.velDensity.w*sim.units.density;
+    return b.velDensity.w*SIM_BUFFER.units.density;
 }
 
 float scaledMass(Body b) {
-    return b.posMass.w*sim.units.mass;
+    return b.posMass.w*SIM_BUFFER.units.mass;
 }
 
 float scaledMass(Node node) {
-    return node.comMass.w*sim.units.mass;
+    return node.comMass.w*SIM_BUFFER.units.mass;
 }
 
 
 //Calculates the radius of a body
 float radius(Body b) {
-    return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
+    return SIM_BUFFER.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
 }
 
 
 vec3 scaledDist(vec3 a, vec3 b) {
-    return (b - a)*sim.units.len;
+    return (b - a)*SIM_BUFFER.units.len;
 }
 
 vec3 scaledDist(vec3 a) {
-    return a*sim.units.len;
+    return a*SIM_BUFFER.units.len;
 }
 
 float scaledDist(float a) {
-    return a*sim.units.len;
+    return a*SIM_BUFFER.units.len;
 }
 
 vec3 relativeLocation(vec3 a, uint relativeTo) {

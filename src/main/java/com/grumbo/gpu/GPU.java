@@ -50,48 +50,46 @@ public class GPU {
 
     // SSBOs
 
-    // layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
-    // layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
-    // layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
-    // layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
-    // layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
-    // layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
-    // layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
-    // layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
-    // layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
-    // layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
-    // layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
-    // layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
-    // layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
-    // layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
-    // layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
-    // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
+    // layout(std430, binding = 0)  buffer SimulationValues       { ... } sim;
+    // layout(std430, binding = 1)  buffer BodiesIn               { Body bodies[]; } srcB;
+    // layout(std430, binding = 2)  buffer BodiesOut              { Body bodies[]; } dstB;
+    // layout(std430, binding = 3)  buffer ParentsAndLocks        { uint parentsAndLocks[]; };
+    // layout(std430, binding = 4)  buffer InternalNodes          { Node internalNodes[]; };
+    // layout(std430, binding = 5)  buffer InternalNodesAABB      { NodeAABB internalNodesAABB[]; };
+    // layout(std430, binding = 6)  buffer MortonInOut            { mortonInOut mortonInOut[]; };
+    // layout(std430, binding = 7)  buffer IndexInOut             { uint indexInOut[]; };
+    // layout(std430, binding = 8)  buffer WorkQueueInOut         { uint headIn; uint headOut; uint tailIn; uint tailOut; uint itemsInOut[]; };
+    // layout(std430, binding = 9)  buffer RadixWGHist            { uint wgHist[];      };
+    // layout(std430, binding = 10) buffer RadixWGScanned         { uint wgScanned[];   };
+    // layout(std430, binding = 11) buffer RadixBucketTotalsAndAABB { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
+    // layout(std430, binding = 12) buffer MergeTasks             { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
 
-    public static SSBO SSBO_LEAF_NODES;
+    public static SSBO SSBO_PARENTS_AND_LOCKS;
     public static SSBO SSBO_INTERNAL_NODES;
+    public static SSBO SSBO_INTERNAL_NODES_AABB;
     public static SSBO SSBO_SIMULATION_VALUES;
     public static SSBO SSBO_FIXED_BODIES_IN;
     public static SSBO SSBO_FIXED_BODIES_OUT;
-    public static SSBO SSBO_FIXED_MORTON_IN;
-    public static SSBO SSBO_FIXED_MORTON_OUT;
-    public static SSBO SSBO_FIXED_INDEX_IN;
-    public static SSBO SSBO_FIXED_INDEX_OUT;
-    public static SSBO SSBO_FIXED_TREE_WORK_QUEUE_IN;
-    public static SSBO SSBO_FIXED_TREE_WORK_QUEUE_OUT;
+    public static SSBO SSBO_MORTON_DOUBLE;
+    public static SSBO SSBO_INDEX_DOUBLE;
+    public static SSBO SSBO_WORK_QUEUE_DOUBLE;
     public static SSBO SSBO_RADIX_WG_HIST;
     public static SSBO SSBO_RADIX_WG_SCANNED;
-    public static SSBO SSBO_RADIX_BUCKET_TOTALS;
-    public static SSBO SSBO_MERGE_QUEUE;
-    public static SSBO SSBO_MERGE_BODY_LOCKS;
+    public static SSBO SSBO_RADIX_BUCKET_TOTALS_AND_AABB;
+    public static SSBO SSBO_MERGE_TASKS;
 
     public static SSBO SSBO_SWAPPING_BODIES_IN;
     public static SSBO SSBO_SWAPPING_BODIES_OUT;
-    public static SSBO SSBO_SWAPPING_MORTON_IN;
-    public static SSBO SSBO_SWAPPING_MORTON_OUT;
-    public static SSBO SSBO_SWAPPING_INDEX_IN;
-    public static SSBO SSBO_SWAPPING_INDEX_OUT;
-    public static SSBO SSBO_SWAPPING_TREE_WORK_QUEUE_IN;
-    public static SSBO SSBO_SWAPPING_TREE_WORK_QUEUE_OUT;
+    public static SSBO SSBO_MORTON_A;
+    public static SSBO SSBO_MORTON_B;
+    public static SSBO SSBO_INDEX_A;
+    public static SSBO SSBO_INDEX_B;
+    public static SSBO SSBO_WORK_QUEUE_A;
+    public static SSBO SSBO_WORK_QUEUE_B;
+
+    private static int mortonBufferStride;
+    private static int indexBufferStride;
+    private static int workQueueBufferStride;
 
     // Compute Programs
     public static ComputeProgram COMPUTE_INIT; // bh_init.comp
@@ -123,6 +121,12 @@ public class GPU {
     public static Uniform<Float> UNIFORM_RESTITUTION;
     public static Uniform<Integer> UNIFORM_MERGING_COLLISION_OR_NEITHER;
     public static Uniform<Integer> UNIFORM_PASS_SHIFT;
+    public static Uniform<Integer> UNIFORM_MORTON_SRC_BUFFER;
+    public static Uniform<Integer> UNIFORM_MORTON_DST_BUFFER;
+    public static Uniform<Integer> UNIFORM_INDEX_SRC_BUFFER;
+    public static Uniform<Integer> UNIFORM_INDEX_DST_BUFFER;
+    public static Uniform<Integer> UNIFORM_WORK_QUEUE_SRC_BUFFER;
+    public static Uniform<Integer> UNIFORM_WORK_QUEUE_DST_BUFFER;
     public static Uniform<Boolean> UNIFORM_RESET_VALUES_OR_DECREMENT_DEAD_BODIES;
     public static Uniform<Boolean> UNIFORM_WRAP_AROUND;
     public static Uniform<Integer> UNIFORM_STATIC_OR_DYNAMIC;
@@ -220,25 +224,36 @@ public class GPU {
 
         //These are the fixed SSBOs that point to the morton and index buffers.
         //They are intialized with the correct sizes.
-        SSBO_FIXED_MORTON_IN = new SSBO(SSBO.MORTON_IN_BINDING, () -> {
-            return numBodies() * Long.BYTES;
-        }, "SSBO_FIXED_MORTON_IN", new GLSLVariable(VariableType.UINT64,"MortonIn", numBodies()));
-        GPU.SSBOS.put(SSBO_FIXED_MORTON_IN.getName(), SSBO_FIXED_MORTON_IN);
+        SSBO_MORTON_DOUBLE = new SSBO(SSBO.MORTON_IN_OUT_BINDING, () -> {
+            mortonBufferStride = numBodies() * Long.BYTES;
+            return mortonBufferStride * 2;
+        }, "SSBO_MORTON_DOUBLE", new GLSLVariable(VariableType.UINT64, "Morton", 1));
+        GPU.SSBOS.put(SSBO_MORTON_DOUBLE.getName(), SSBO_MORTON_DOUBLE);
 
-        SSBO_FIXED_INDEX_IN = new SSBO(SSBO.INDEX_IN_BINDING, () -> {
-            return numBodies() * Integer.BYTES;
-        }, "SSBO_FIXED_INDEX_IN", new GLSLVariable(VariableType.UINT,"IndexIn", numBodies()));
-        GPU.SSBOS.put(SSBO_FIXED_INDEX_IN.getName(), SSBO_FIXED_INDEX_IN);
+        SSBO_INDEX_DOUBLE = new SSBO(SSBO.INDEX_IN_OUT_BINDING, () -> {
+            indexBufferStride = numBodies() * Integer.BYTES;
+            return indexBufferStride * 2;
+        }, "SSBO_INDEX_DOUBLE", new GLSLVariable(VariableType.UINT,"IndexDouble", numBodies() * 2));
+        GPU.SSBOS.put(SSBO_INDEX_DOUBLE.getName(), SSBO_INDEX_DOUBLE);
 
-        SSBO_LEAF_NODES = new SSBO(SSBO.LEAF_NODES_BINDING, () -> {
-            return numBodies() * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "SSBO_LEAF_NODES", new GLSLVariable(Node.nodeStruct,"LeafNodes", numBodies()));
-        GPU.SSBOS.put(SSBO_LEAF_NODES.getName(), SSBO_LEAF_NODES);
+        SSBO_PARENTS_AND_LOCKS = new SSBO(SSBO.PARENTS_AND_LOCKS_BINDING, () -> {
+            return 2 * numBodies() * Integer.BYTES;
+        }, "SSBO_PARENTS_AND_LOCKS", new GLSLVariable(VariableType.UINT, "ParentsAndLocks", 2 * numBodies()));
+        GPU.SSBOS.put(SSBO_PARENTS_AND_LOCKS.getName(), SSBO_PARENTS_AND_LOCKS);
 
         SSBO_INTERNAL_NODES = new SSBO(SSBO.INTERNAL_NODES_BINDING, () -> {
             return (numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
         }, "SSBO_INTERNAL_NODES", new GLSLVariable(Node.nodeStruct,"InternalNodes", numBodies() - 1));
         GPU.SSBOS.put(SSBO_INTERNAL_NODES.getName(), SSBO_INTERNAL_NODES);
+
+        SSBO_INTERNAL_NODES_AABB = new SSBO(SSBO.INTERNAL_NODES_AABB_BINDING, () -> {
+            return Math.max(1, numBodies() - 1) * (6 * Float.BYTES + 2 * Integer.BYTES);
+        }, "SSBO_INTERNAL_NODES_AABB", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.FLOAT, "aabb", 6),
+            new GLSLVariable(VariableType.UINT, "nodeDepth", 1),
+            new GLSLVariable(VariableType.UINT, "bodiesContained", 1)
+        }, "InternalNodesAABB", Math.max(1, numBodies() - 1)));
+        GPU.SSBOS.put(SSBO_INTERNAL_NODES_AABB.getName(), SSBO_INTERNAL_NODES_AABB);
 
         //This is the SSBO that holds values that are used in different shaders
         SSBO_SIMULATION_VALUES = new SSBO(SSBO.SIMULATION_VALUES_BINDING, () -> {
@@ -281,57 +296,29 @@ public class GPU {
         GPU.SSBOS.put(SSBO_RADIX_WG_SCANNED.getName(), SSBO_RADIX_WG_SCANNED);
 
         //This is the SSBO that holds the total number of bodies in each bucket of the radix sort.
-        SSBO_RADIX_BUCKET_TOTALS = new SSBO(SSBO.RADIX_BUCKET_TOTALS_BINDING, () -> {
+        SSBO_RADIX_BUCKET_TOTALS_AND_AABB = new SSBO(SSBO.RADIX_BUCKET_TOTALS_AND_AABB_BINDING, () -> {
             return NUM_RADIX_BUCKETS * Integer.BYTES * 2;
-        }, "SSBO_BUCKET_TOTALS", new GLSLVariable(new GLSLVariable[] {
+        }, "SSBO_BUCKET_TOTALS_AND_AABB", new GLSLVariable(new GLSLVariable[] {
             new GLSLVariable(VariableType.UINT,"BucketTotals", NUM_RADIX_BUCKETS), 
             new GLSLVariable(VariableType.UINT,"GlobalBase", NUM_RADIX_BUCKETS)}));
-        GPU.SSBOS.put(SSBO_RADIX_BUCKET_TOTALS.getName(), SSBO_RADIX_BUCKET_TOTALS);
+        GPU.SSBOS.put(SSBO_RADIX_BUCKET_TOTALS_AND_AABB.getName(), SSBO_RADIX_BUCKET_TOTALS_AND_AABB);
 
-        //These are the fixed SSBOs that point to the morton and index buffers after the radix sort.
-        //They are intialized with the correct sizes.
-        SSBO_FIXED_MORTON_OUT = new SSBO(SSBO.MORTON_OUT_BINDING, () -> {
-            return numBodies() * Long.BYTES;
-        }, "SSBO_FIXED_MORTON_OUT", new GLSLVariable(VariableType.UINT64,"MortonOut", numBodies()));
-        GPU.SSBOS.put(SSBO_FIXED_MORTON_OUT.getName(), SSBO_FIXED_MORTON_OUT);
+        SSBO_WORK_QUEUE_DOUBLE = new SSBO(SSBO.WORK_QUEUE_IN_OUT_BINDING, () -> {
+            workQueueBufferStride = (2 + numBodies()) * Integer.BYTES;
+            return workQueueBufferStride * 2;
+        }, "SSBO_WORK_QUEUE_DOUBLE", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT,"Head", 1),
+            new GLSLVariable(VariableType.UINT,"Tail", 1),
+            new GLSLVariable(VariableType.UINT,"Items", numBodies()*2)}));
+        GPU.SSBOS.put(SSBO_WORK_QUEUE_DOUBLE.getName(), SSBO_WORK_QUEUE_DOUBLE);
 
-        SSBO_FIXED_INDEX_OUT = new SSBO(SSBO.INDEX_OUT_BINDING, () -> {
-            return numBodies() * Integer.BYTES;
-        }, "SSBO_FIXED_INDEX_OUT", new GLSLVariable(VariableType.UINT,"IndexOut", numBodies()));
-        GPU.SSBOS.put(SSBO_FIXED_INDEX_OUT.getName(), SSBO_FIXED_INDEX_OUT);
-
-        //This is the SSBO that holds the work queue.
-        //It is intialized with the correct sizes.
-        SSBO_FIXED_TREE_WORK_QUEUE_IN = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_IN_BINDING, () -> {
-            return (4 + numBodies()) * Integer.BYTES;
-        }, "SSBO_FIXED_TREE_WORK_QUEUE_IN", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"HeadIn", 1), 
-            new GLSLVariable(VariableType.UINT,"TailIn", 1), 
-            new GLSLVariable(VariableType.UINT,"ItemsIn", numBodies())}));
-        GPU.SSBOS.put(SSBO_FIXED_TREE_WORK_QUEUE_IN.getName(), SSBO_FIXED_TREE_WORK_QUEUE_IN);
-
-        //This is the SSBO that holds the work queue for the second pass.
-        //It is intialized with the correct sizes.
-        SSBO_FIXED_TREE_WORK_QUEUE_OUT = new SSBO(SSBO.PROPAGATE_WORK_QUEUE_OUT_BINDING, () -> {
-            return (4 + numBodies()) * Integer.BYTES;
-        }, "SSBO_FIXED_TREE_WORK_QUEUE_OUT", new GLSLVariable(new GLSLVariable[] {
-            new GLSLVariable(VariableType.UINT,"HeadOut", 1), 
-            new GLSLVariable(VariableType.UINT,"TailOut", 1), 
-            new GLSLVariable(VariableType.UINT,"ItemsOut", numBodies())}));
-        GPU.SSBOS.put(SSBO_FIXED_TREE_WORK_QUEUE_OUT.getName(), SSBO_FIXED_TREE_WORK_QUEUE_OUT);
-
-        SSBO_MERGE_QUEUE = new SSBO(SSBO.MERGE_QUEUE_BINDING, () -> {
-            return Math.max(2*Integer.BYTES, 2*Integer.BYTES+numBodies() * 2 * Integer.BYTES);
-        }, "SSBO_MERGE_QUEUE", new GLSLVariable(new GLSLVariable[] {
+        SSBO_MERGE_TASKS = new SSBO(SSBO.MERGE_TASKS_BINDING, () -> {
+            return Math.max(2 * Integer.BYTES, 2 * Integer.BYTES + numBodies() * 2 * Integer.BYTES);
+        }, "SSBO_MERGE_TASKS", new GLSLVariable(new GLSLVariable[] {
             new GLSLVariable(VariableType.UINT,"MergeTasksHead", 1), 
             new GLSLVariable(VariableType.UINT,"MergeTasksTail", 1), 
             new GLSLVariable(VariableType.UINT,"MergeTasks", numBodies() * 2)}));
-        GPU.SSBOS.put(SSBO_MERGE_QUEUE.getName(), SSBO_MERGE_QUEUE);
-
-        SSBO_MERGE_BODY_LOCKS = new SSBO(SSBO.MERGE_BODY_LOCKS_BINDING, () -> {
-            return numBodies() * Integer.BYTES;
-        }, "SSBO_BODY_LOCKS", new GLSLVariable(VariableType.UINT,"BodyLocks", numBodies()));
-        GPU.SSBOS.put(SSBO_MERGE_BODY_LOCKS.getName(), SSBO_MERGE_BODY_LOCKS);
+        GPU.SSBOS.put(SSBO_MERGE_TASKS.getName(), SSBO_MERGE_TASKS);
 
         GPUSimulation.checkGLError("after initComputeSSBOs");
 
@@ -366,26 +353,26 @@ public class GPU {
 
         // These exist to do the radix sort and dead body paritioning.
 
-        SSBO_SWAPPING_MORTON_IN = SSBO_FIXED_MORTON_IN;
-        SSBO_SWAPPING_MORTON_IN.setName("SSBO_SWAPPING_MORTON_IN");
-        GPU.SSBOS.put(SSBO_SWAPPING_MORTON_IN.getName(), SSBO_SWAPPING_MORTON_IN);
-        SSBO_SWAPPING_MORTON_OUT = SSBO_FIXED_MORTON_OUT;
-        SSBO_SWAPPING_MORTON_OUT.setName("SSBO_SWAPPING_MORTON_OUT");
-        GPU.SSBOS.put(SSBO_SWAPPING_MORTON_OUT.getName(), SSBO_SWAPPING_MORTON_OUT);
-        SSBO_SWAPPING_INDEX_IN = SSBO_FIXED_INDEX_IN;
-        SSBO_SWAPPING_INDEX_IN.setName("SSBO_SWAPPING_INDEX_IN");
-        GPU.SSBOS.put(SSBO_SWAPPING_INDEX_IN.getName(), SSBO_SWAPPING_INDEX_IN);
-        SSBO_SWAPPING_INDEX_OUT = SSBO_FIXED_INDEX_OUT;
-        SSBO_SWAPPING_INDEX_OUT.setName("SSBO_SWAPPING_INDEX_OUT");
-        GPU.SSBOS.put(SSBO_SWAPPING_INDEX_OUT.getName(), SSBO_SWAPPING_INDEX_OUT);
+        SSBO_MORTON_A = SSBO_MORTON_DOUBLE;
+        SSBO_MORTON_A.setName("SSBO_MORTON_A");
+        GPU.SSBOS.put(SSBO_MORTON_A.getName(), SSBO_MORTON_A);
+        SSBO_MORTON_B = SSBO_MORTON_DOUBLE;
+        SSBO_MORTON_B.setName("SSBO_MORTON_B");
+        GPU.SSBOS.put(SSBO_MORTON_B.getName(), SSBO_MORTON_B);
 
-        // These are used for the work queue for propagating node data up the tree.
-        SSBO_SWAPPING_TREE_WORK_QUEUE_IN = SSBO_FIXED_TREE_WORK_QUEUE_IN;
-        SSBO_SWAPPING_TREE_WORK_QUEUE_IN.setName("SSBO_SWAPPING_TREE_WORK_QUEUE_IN");
-        GPU.SSBOS.put(SSBO_SWAPPING_TREE_WORK_QUEUE_IN.getName(), SSBO_SWAPPING_TREE_WORK_QUEUE_IN);
-        SSBO_SWAPPING_TREE_WORK_QUEUE_OUT = SSBO_FIXED_TREE_WORK_QUEUE_OUT;
-        SSBO_SWAPPING_TREE_WORK_QUEUE_OUT.setName("SSBO_SWAPPING_TREE_WORK_QUEUE_OUT");
-        GPU.SSBOS.put(SSBO_SWAPPING_TREE_WORK_QUEUE_OUT.getName(), SSBO_SWAPPING_TREE_WORK_QUEUE_OUT);
+        SSBO_INDEX_A = SSBO_INDEX_DOUBLE;
+        SSBO_INDEX_A.setName("SSBO_INDEX_A");
+        GPU.SSBOS.put(SSBO_INDEX_A.getName(), SSBO_INDEX_A);
+        SSBO_INDEX_B = SSBO_INDEX_DOUBLE;
+        SSBO_INDEX_B.setName("SSBO_INDEX_B");
+        GPU.SSBOS.put(SSBO_INDEX_B.getName(), SSBO_INDEX_B);
+
+        SSBO_WORK_QUEUE_A = SSBO_WORK_QUEUE_DOUBLE;
+        SSBO_WORK_QUEUE_A.setName("SSBO_WORK_QUEUE_A");
+        GPU.SSBOS.put(SSBO_WORK_QUEUE_A.getName(), SSBO_WORK_QUEUE_A);
+        SSBO_WORK_QUEUE_B = SSBO_WORK_QUEUE_DOUBLE;
+        SSBO_WORK_QUEUE_B.setName("SSBO_WORK_QUEUE_B");
+        GPU.SSBOS.put(SSBO_WORK_QUEUE_B.getName(), SSBO_WORK_QUEUE_B);
     }
 
     /**
@@ -441,8 +428,37 @@ public class GPU {
         UNIFORM_PASS_SHIFT = new Uniform<Integer>("passShift", () -> {
             return barnesHut.radixSortPassShift;
         }, VariableType.UINT);
-
         GPU.UNIFORMS.put(UNIFORM_PASS_SHIFT.getName(), UNIFORM_PASS_SHIFT);
+
+        UNIFORM_MORTON_SRC_BUFFER = new Uniform<Integer>("mortonSrcBuffer", () -> {
+            return barnesHut.mortonSourceBufferIndex();
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_MORTON_SRC_BUFFER.getName(), UNIFORM_MORTON_SRC_BUFFER);
+
+        UNIFORM_MORTON_DST_BUFFER = new Uniform<Integer>("mortonDstBuffer", () -> {
+            return barnesHut.mortonDestinationBufferIndex();
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_MORTON_DST_BUFFER.getName(), UNIFORM_MORTON_DST_BUFFER);
+
+        UNIFORM_INDEX_SRC_BUFFER = new Uniform<Integer>("indexSrcBuffer", () -> {
+            return barnesHut.indexSourceBufferIndex();
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_INDEX_SRC_BUFFER.getName(), UNIFORM_INDEX_SRC_BUFFER);
+
+        UNIFORM_INDEX_DST_BUFFER = new Uniform<Integer>("indexDstBuffer", () -> {
+            return barnesHut.indexDestinationBufferIndex();
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_INDEX_DST_BUFFER.getName(), UNIFORM_INDEX_DST_BUFFER);
+
+        UNIFORM_WORK_QUEUE_SRC_BUFFER = new Uniform<Integer>("workQueueSrcBuffer", () -> {
+            return 0;
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_WORK_QUEUE_SRC_BUFFER.getName(), UNIFORM_WORK_QUEUE_SRC_BUFFER);
+
+        UNIFORM_WORK_QUEUE_DST_BUFFER = new Uniform<Integer>("workQueueDstBuffer", () -> {
+            return 1;
+        }, VariableType.UINT);
+        GPU.UNIFORMS.put(UNIFORM_WORK_QUEUE_DST_BUFFER.getName(), UNIFORM_WORK_QUEUE_DST_BUFFER);
 
         UNIFORM_MERGING_COLLISION_OR_NEITHER = new Uniform<Integer>("mergingCollisionOrNeither", () -> {
             return Settings.getInstance().getSelectedIndexMergingCollisionOrNeither();
@@ -502,7 +518,7 @@ public class GPU {
         });
         COMPUTE_INIT.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_FIXED_BODIES_IN,
             GPU.SSBO_FIXED_BODIES_OUT
         });
@@ -512,12 +528,13 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS.put(COMPUTE_INIT.getProgramName(), COMPUTE_INIT);
         COMPUTE_MORTON_AABB_REPOPULATE = new ComputeProgram("COMPUTE_MORTON_AABB_REPOPULATE");
         COMPUTE_MORTON_AABB_REPOPULATE.setUniforms(new Uniform[] {
-
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER
         });
         COMPUTE_MORTON_AABB_REPOPULATE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_INTERNAL_NODES,
         });
         COMPUTE_MORTON_AABB_REPOPULATE.setXWorkGroupsFunction(() -> {
@@ -526,12 +543,14 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS.put(COMPUTE_MORTON_AABB_REPOPULATE.getProgramName(), COMPUTE_MORTON_AABB_REPOPULATE);
         COMPUTE_MORTON_AABB_COLLAPSE = new ComputeProgram("COMPUTE_MORTON_AABB_COLLAPSE");
         COMPUTE_MORTON_AABB_COLLAPSE.setUniforms(new Uniform[] {
-            UNIFORM_NUM_WORK_GROUPS
+            UNIFORM_NUM_WORK_GROUPS,
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER
         });
         COMPUTE_MORTON_AABB_COLLAPSE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_INTERNAL_NODES,
         });
         COMPUTE_MORTON_AABB_COLLAPSE.setXWorkGroupsFunction(() -> {
@@ -540,12 +559,14 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS.put(COMPUTE_MORTON_AABB_COLLAPSE.getProgramName(), COMPUTE_MORTON_AABB_COLLAPSE);
         COMPUTE_MORTON_ENCODE = new ComputeProgram("COMPUTE_MORTON_ENCODE");
         COMPUTE_MORTON_ENCODE.setUniforms(new Uniform[] {
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER
         });
         COMPUTE_MORTON_ENCODE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_MORTON_IN,
+            GPU.SSBO_MORTON_DOUBLE,
             GPU.SSBO_SWAPPING_BODIES_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_INDEX_DOUBLE,
 
         });
         COMPUTE_MORTON_ENCODE.setXWorkGroupsFunction(() -> {
@@ -554,15 +575,17 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS.put(COMPUTE_MORTON_ENCODE.getProgramName(), COMPUTE_MORTON_ENCODE);   
         COMPUTE_DEAD_COUNT = new ComputeProgram("COMPUTE_DEAD_COUNT");
         COMPUTE_DEAD_COUNT.setUniforms(new Uniform[] {
-            UNIFORM_NUM_WORK_GROUPS
+            UNIFORM_NUM_WORK_GROUPS,
+            UNIFORM_INDEX_SRC_BUFFER,
+            UNIFORM_INDEX_DST_BUFFER
         });
         COMPUTE_DEAD_COUNT.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_BODIES_OUT,
-            GPU.SSBO_SWAPPING_INDEX_IN,
-            GPU.SSBO_SWAPPING_MORTON_IN,
+            GPU.SSBO_INDEX_DOUBLE,
+            GPU.SSBO_MORTON_DOUBLE,
         });
         COMPUTE_DEAD_COUNT.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -578,8 +601,8 @@ public class GPU {
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_RADIX_WG_SCANNED,
             GPU.SSBO_SWAPPING_BODIES_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
-            GPU.SSBO_SWAPPING_MORTON_IN,
+            GPU.SSBO_INDEX_DOUBLE,
+            GPU.SSBO_MORTON_DOUBLE,
         });
         COMPUTE_DEAD_EXCLUSIVE_SCAN.setXWorkGroupsFunction(() -> {
             return 1;
@@ -588,16 +611,16 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS.put(COMPUTE_DEAD_EXCLUSIVE_SCAN.getProgramName(), COMPUTE_DEAD_EXCLUSIVE_SCAN);
         COMPUTE_DEAD_SCATTER = new ComputeProgram("COMPUTE_DEAD_SCATTER");
         COMPUTE_DEAD_SCATTER.setUniforms(new Uniform[] {
-            UNIFORM_NUM_WORK_GROUPS
+            UNIFORM_NUM_WORK_GROUPS,
+            UNIFORM_INDEX_SRC_BUFFER,
+            UNIFORM_INDEX_DST_BUFFER
         });
         COMPUTE_DEAD_SCATTER.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_SCANNED,
             GPU.SSBO_SWAPPING_BODIES_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
-            GPU.SSBO_SWAPPING_MORTON_IN,
-            GPU.SSBO_SWAPPING_MORTON_OUT,
-            GPU.SSBO_SWAPPING_INDEX_OUT,
+            GPU.SSBO_INDEX_DOUBLE,
+            GPU.SSBO_MORTON_DOUBLE,
         });
         COMPUTE_DEAD_SCATTER.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -608,12 +631,14 @@ public class GPU {
         COMPUTE_RADIX_HISTOGRAM.setUniforms(new Uniform[] {
 
             UNIFORM_PASS_SHIFT,
-            UNIFORM_NUM_WORK_GROUPS
+            UNIFORM_NUM_WORK_GROUPS,
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER
         });
         COMPUTE_RADIX_HISTOGRAM.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_MORTON_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_MORTON_DOUBLE,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
@@ -630,7 +655,7 @@ public class GPU {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_RADIX_WG_HIST,
             GPU.SSBO_RADIX_WG_SCANNED,
-            GPU.SSBO_RADIX_BUCKET_TOTALS,
+            GPU.SSBO_RADIX_BUCKET_TOTALS_AND_AABB,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
         COMPUTE_RADIX_BUCKET_SCAN.setXWorkGroupsFunction(() -> {
@@ -644,7 +669,7 @@ public class GPU {
         });
         COMPUTE_RADIX_GLOBAL_SCAN.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_RADIX_BUCKET_TOTALS,
+            GPU.SSBO_RADIX_BUCKET_TOTALS_AND_AABB,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
         COMPUTE_RADIX_GLOBAL_SCAN.setXWorkGroupsFunction(() -> {
@@ -656,17 +681,19 @@ public class GPU {
 
         COMPUTE_RADIX_SCATTER.setUniforms(new Uniform[] {
             UNIFORM_PASS_SHIFT,
-            UNIFORM_NUM_WORK_GROUPS
+            UNIFORM_NUM_WORK_GROUPS,
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_MORTON_DST_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER,
+            UNIFORM_INDEX_DST_BUFFER
         });
 
         COMPUTE_RADIX_SCATTER.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_MORTON_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_MORTON_DOUBLE,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_RADIX_WG_SCANNED,
-            GPU.SSBO_RADIX_BUCKET_TOTALS,
-            GPU.SSBO_SWAPPING_MORTON_OUT,
-            GPU.SSBO_SWAPPING_INDEX_OUT,
+            GPU.SSBO_RADIX_BUCKET_TOTALS_AND_AABB,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
 
@@ -679,16 +706,17 @@ public class GPU {
 
         COMPUTE_TREE_BUILD = new ComputeProgram("COMPUTE_TREE_BUILD");
         COMPUTE_TREE_BUILD.setUniforms(new Uniform[] {
-
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER
         });
         
         COMPUTE_TREE_BUILD.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_MORTON_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_MORTON_DOUBLE,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_INTERNAL_NODES,
-            GPU.SSBO_LEAF_NODES,
             GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_PARENTS_AND_LOCKS,
         });
 
         COMPUTE_TREE_BUILD.setXWorkGroupsFunction(() -> {
@@ -703,17 +731,20 @@ public class GPU {
         COMPUTE_TREE_INIT_LEAVES = new ComputeProgram("COMPUTE_TREE_INIT_LEAVES");
 
         COMPUTE_TREE_INIT_LEAVES.setUniforms(new Uniform[] {
-
+            UNIFORM_INDEX_SRC_BUFFER,
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_WORK_QUEUE_SRC_BUFFER,
+            UNIFORM_WORK_QUEUE_DST_BUFFER
         }); 
 
         COMPUTE_TREE_INIT_LEAVES.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_INTERNAL_NODES,
-            GPU.SSBO_LEAF_NODES,
-            GPU.SSBO_SWAPPING_MORTON_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
-            GPU.SSBO_SWAPPING_TREE_WORK_QUEUE_IN,
+            GPU.SSBO_PARENTS_AND_LOCKS,
+            GPU.SSBO_MORTON_DOUBLE,
+            GPU.SSBO_INDEX_DOUBLE,
+            GPU.SSBO_WORK_QUEUE_DOUBLE,
         });
 
         COMPUTE_TREE_INIT_LEAVES.setXWorkGroupsFunction(() -> {
@@ -732,8 +763,8 @@ public class GPU {
 
         COMPUTE_UPDATE.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_TREE_WORK_QUEUE_IN,
-            GPU.SSBO_MERGE_QUEUE,
+            GPU.SSBO_WORK_QUEUE_DOUBLE,
+            GPU.SSBO_MERGE_TASKS,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_BODIES_OUT
         });
@@ -745,17 +776,16 @@ public class GPU {
         COMPUTE_TREE_PROPAGATE_NODES = new ComputeProgram("COMPUTE_TREE_PROPAGATE_NODES");
 
         COMPUTE_TREE_PROPAGATE_NODES.setUniforms(new Uniform[] {
+            UNIFORM_WORK_QUEUE_SRC_BUFFER,
+            UNIFORM_WORK_QUEUE_DST_BUFFER
         });
 
         COMPUTE_TREE_PROPAGATE_NODES.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_INTERNAL_NODES,
-            GPU.SSBO_LEAF_NODES,
-            GPU.SSBO_SWAPPING_TREE_WORK_QUEUE_IN,
-            GPU.SSBO_SWAPPING_TREE_WORK_QUEUE_OUT,
+            GPU.SSBO_PARENTS_AND_LOCKS,
+            GPU.SSBO_WORK_QUEUE_DOUBLE,
             GPU.SSBO_SWAPPING_BODIES_IN,
-
-            
         });
         COMPUTE_TREE_PROPAGATE_NODES.setXWorkGroupsFunction(() -> {
             int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,barnesHut.COMPropagationPassNumber)));
@@ -780,9 +810,10 @@ public class GPU {
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_BODIES_OUT,
             GPU.SSBO_INTERNAL_NODES,
-            GPU.SSBO_LEAF_NODES,
-            GPU.SSBO_SWAPPING_INDEX_IN,
-            GPU.SSBO_MERGE_QUEUE
+            GPU.SSBO_INTERNAL_NODES_AABB,
+            GPU.SSBO_INDEX_DOUBLE,
+            GPU.SSBO_MERGE_TASKS,
+            GPU.SSBO_PARENTS_AND_LOCKS
         });
 
         COMPUTE_FORCE_COMPUTE.setXWorkGroupsFunction(() -> {
@@ -797,8 +828,8 @@ public class GPU {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_SWAPPING_BODIES_OUT,
-            GPU.SSBO_MERGE_QUEUE,
-            GPU.SSBO_MERGE_BODY_LOCKS,
+            GPU.SSBO_MERGE_TASKS,
+            GPU.SSBO_PARENTS_AND_LOCKS,
         });
         COMPUTE_MERGE_BODIES.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -812,8 +843,8 @@ public class GPU {
 
         COMPUTE_DEBUG.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
-            GPU.SSBO_SWAPPING_MORTON_IN,
-            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_MORTON_DOUBLE,
+            GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_SWAPPING_BODIES_IN,
         });
 
@@ -992,29 +1023,6 @@ public class GPU {
         SSBO_SWAPPING_BODIES_OUT.setBufferLocation(tmpIn);
     }
     /**
-     * Swaps the morton and index buffers.
-     */
-    public static void swapMortonAndIndexBuffers() {
-        // Swap input/output buffers for next pass of radix sort and the one pass of dead body paritioning.
-        int tempMortonIn = SSBO_SWAPPING_MORTON_IN.getBufferLocation();
-        int tempIndexIn = SSBO_SWAPPING_INDEX_IN.getBufferLocation();
-        SSBO_SWAPPING_MORTON_IN.setBufferLocation(SSBO_SWAPPING_MORTON_OUT.getBufferLocation());
-        SSBO_SWAPPING_INDEX_IN.setBufferLocation(SSBO_SWAPPING_INDEX_OUT.getBufferLocation());
-        SSBO_SWAPPING_MORTON_OUT.setBufferLocation(tempMortonIn);
-        SSBO_SWAPPING_INDEX_OUT.setBufferLocation(tempIndexIn);
-    }
-
-    /**
-     * Swaps the propagate work queue buffers.
-     */
-    public static void swapPropagateWorkQueueBuffers() {
-        int tmpIn = SSBO_SWAPPING_TREE_WORK_QUEUE_IN.getBufferLocation();
-        SSBO_SWAPPING_TREE_WORK_QUEUE_IN.setBufferLocation(SSBO_SWAPPING_TREE_WORK_QUEUE_OUT.getBufferLocation());
-        SSBO_SWAPPING_TREE_WORK_QUEUE_OUT.setBufferLocation(tmpIn);
-    }
-
-
-    /**
      * Packs the values to a float buffer.
      * @param numBodies the number of bodies
      * @param bounds the bounds of the simulation
@@ -1123,6 +1131,31 @@ public class GPU {
         bodiesSSBO.unbind();
     }
 
+    public static int mortonBufferStride() {
+        return mortonBufferStride;
+    }
+    public static int indexBufferStride() {
+        return indexBufferStride;
+    }
+    public static int workQueueBufferStride() {
+        return workQueueBufferStride;
+    }
+
+    public static int mortonOffsetForBuffer(int bufferIndex) {
+        return bufferIndex * mortonBufferStride;
+    }
+
+    public static int indexOffsetForBuffer(int bufferIndex) {
+        return bufferIndex * indexBufferStride;
+    }
+
+    public static int workQueueOffsetForBuffer(int bufferIndex) {
+        return bufferIndex * workQueueBufferStride;
+    }
+
+    public static int workQueueBaseForBuffer(int bufferIndex) {
+        return bufferIndex * workQueueBufferStride;
+    }
 
 
     /* --------- Cleanup --------- */

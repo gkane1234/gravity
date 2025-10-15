@@ -80,6 +80,9 @@ public class BarnesHut {
 
     private int steps;
 
+    private int mortonSrcBuffer = 0;
+    private int indexSrcBuffer = 0;
+
     /**
      * Constructor for BarnesHut.
      * @param gpuSimulation The GPU simulation.
@@ -114,7 +117,7 @@ public class BarnesHut {
         partitionDeadBodies();
 
         // Swap the morton and index buffers. This is where the bodies were partitioned to.
-        GPU.swapMortonAndIndexBuffers();
+        flipMortonAndIndexBuffers();
 
         // Decrements the number of dead bodies from the total number of bodies.
         decrementDeadBodies();
@@ -287,6 +290,11 @@ public class BarnesHut {
 
     }
 
+    private void flipMortonAndIndexBuffers() {
+        mortonSrcBuffer = 1 - mortonSrcBuffer;
+        indexSrcBuffer = 1 - indexSrcBuffer;
+    }
+
     /**
      * Update the bounds of the simulation. In bh_morton.comp
      */
@@ -294,7 +302,7 @@ public class BarnesHut {
         if (debug) {
             mortonAABBRepopulateBoundsTime = System.nanoTime();
             if (GPU.COMPUTE_MORTON_AABB_REPOPULATE.isPreDebugSelected()) {
-                GPU.COMPUTE_MORTON_AABB_REPOPULATE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+                GPU.COMPUTE_MORTON_AABB_REPOPULATE.addToPreDebugString("Updated bounds"+GPU.SSBO_MORTON_DOUBLE.getDataAsString("MortonDouble",0,NUM_DEBUG_OUTPUTS));
             }
         }
         GPU.COMPUTE_MORTON_AABB_REPOPULATE.run();
@@ -302,14 +310,14 @@ public class BarnesHut {
             GPUSimulation.checkGLError("MortonAABBRepopulateKernel");
             glFinish();
             if (GPU.COMPUTE_MORTON_AABB_REPOPULATE.isPostDebugSelected()) {
-                GPU.COMPUTE_MORTON_AABB_REPOPULATE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+                GPU.COMPUTE_MORTON_AABB_REPOPULATE.addToPostDebugString("Updated bounds"+GPU.SSBO_MORTON_DOUBLE.getDataAsString("MortonDouble",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBRepopulateBoundsTime = System.nanoTime() - mortonAABBRepopulateBoundsTime;
         }
 
         if (debug) {
             if (GPU.COMPUTE_MORTON_AABB_COLLAPSE.isPreDebugSelected()) {
-                GPU.COMPUTE_MORTON_AABB_COLLAPSE.addToPreDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+                GPU.COMPUTE_MORTON_AABB_COLLAPSE.addToPreDebugString("Updated bounds"+GPU.SSBO_MORTON_DOUBLE.getDataAsString("MortonDouble",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBCollapseBoundsTime = System.nanoTime();
         }
@@ -319,7 +327,7 @@ public class BarnesHut {
             GPUSimulation.checkGLError("MortonAABBCollapseKernel");
             glFinish();
             if (GPU.COMPUTE_MORTON_AABB_COLLAPSE.isPostDebugSelected()) {
-                GPU.COMPUTE_MORTON_AABB_COLLAPSE.addToPostDebugString("Updated bounds"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+                GPU.COMPUTE_MORTON_AABB_COLLAPSE.addToPostDebugString("Updated bounds"+GPU.SSBO_MORTON_DOUBLE.getDataAsString("MortonDouble",0,NUM_DEBUG_OUTPUTS));
             }
             mortonAABBCollapseBoundsTime = System.nanoTime() - mortonAABBCollapseBoundsTime;
             mortonAABBupdateBoundsTime = mortonAABBRepopulateBoundsTime + mortonAABBCollapseBoundsTime;
@@ -335,7 +343,7 @@ public class BarnesHut {
         if (debug) {
             mortonCodeGenerationTime = System.nanoTime();
             if (GPU.COMPUTE_MORTON_ENCODE.isPreDebugSelected()) {
-                GPU.COMPUTE_MORTON_ENCODE.addToPreDebugString("Generating morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+                GPU.COMPUTE_MORTON_ENCODE.addToPreDebugString("Generating morton codes"+GPU.SSBO_MORTON_DOUBLE.getDataAsString("MortonDouble",0,NUM_DEBUG_OUTPUTS));
             }
         }
 
@@ -343,7 +351,7 @@ public class BarnesHut {
         if (debug) {
             GPUSimulation.checkGLError("generateMortonCodes");
             if (GPU.COMPUTE_MORTON_ENCODE.isPostDebugSelected()) {
-                GPU.COMPUTE_MORTON_ENCODE.addToPostDebugString("Generated morton codes"+GPU.SSBO_SWAPPING_MORTON_IN.getDataAsString("MortonIn",0,NUM_DEBUG_OUTPUTS));
+                GPU.COMPUTE_MORTON_ENCODE.addToPostDebugString("Generated morton codes"+GPU.SSBO_MORTON_DOUBLE.getDataAsString("MortonDouble",0,NUM_DEBUG_OUTPUTS));
             }
             glFinish();
             mortonCodeGenerationTime = System.nanoTime() - mortonCodeGenerationTime;
@@ -423,7 +431,7 @@ public class BarnesHut {
                     GPU.COMPUTE_RADIX_GLOBAL_SCAN.addToPostDebugString("Exclusive scanned morton codes Pass "+pass+": "+GPU.SSBO_RADIX_WG_SCANNED.getDataAsString("WGScanned",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
                 if (GPU.COMPUTE_RADIX_SCATTER.isPreDebugSelected()) {
-                    GPU.COMPUTE_RADIX_SCATTER.addToPreDebugString("Scattering morton codes Pass "+pass+": "+GPU.SSBO_RADIX_BUCKET_TOTALS.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
+                    GPU.COMPUTE_RADIX_SCATTER.addToPreDebugString("Scattering morton codes Pass "+pass+": "+GPU.SSBO_RADIX_BUCKET_TOTALS_AND_AABB.getDataAsString("BucketTotals",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
 
@@ -439,7 +447,7 @@ public class BarnesHut {
             }
             
 
-            GPU.swapMortonAndIndexBuffers();
+            flipMortonAndIndexBuffers();
         }
 
         if (debug) {
@@ -454,7 +462,7 @@ public class BarnesHut {
         if (debug) {
             buildTreeTime = System.nanoTime();
             if (GPU.COMPUTE_TREE_BUILD.isPreDebugSelected()) {
-                GPU.COMPUTE_TREE_BUILD.setPreDebugString("Building binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_TREE_BUILD.setPreDebugString("Building binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_PARENTS_AND_LOCKS.getDataAsString("ParentsAndLocks",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
         GPU.COMPUTE_TREE_BUILD.run();
@@ -463,7 +471,7 @@ public class BarnesHut {
             glFinish();
             buildTreeTime = System.nanoTime() - buildTreeTime;
             if (GPU.COMPUTE_TREE_BUILD.isPostDebugSelected()) {
-                GPU.COMPUTE_TREE_BUILD.setPostDebugString("Built binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_TREE_BUILD.setPostDebugString("Built binary radix tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_PARENTS_AND_LOCKS.getDataAsString("ParentsAndLocks",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -475,7 +483,7 @@ public class BarnesHut {
         if (debug) {
             initLeavesTime = System.nanoTime();
             if (GPU.COMPUTE_TREE_INIT_LEAVES.isPreDebugSelected()) {
-                GPU.COMPUTE_TREE_INIT_LEAVES.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_TREE_INIT_LEAVES.setPreDebugString("Computing center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
 
@@ -486,10 +494,10 @@ public class BarnesHut {
             glFinish();
             initLeavesTime = System.nanoTime() - initLeavesTime;
             if (GPU.COMPUTE_TREE_INIT_LEAVES.isPostDebugSelected()) {
-                GPU.COMPUTE_TREE_INIT_LEAVES.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_TREE_INIT_LEAVES.setPostDebugString("Computed center of mass and location of leaf nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
-                GPU.COMPUTE_TREE_PROPAGATE_NODES.setPreDebugString("Propagating nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_TREE_PROPAGATE_NODES.setPreDebugString("Propagating nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             propagateNodesTime = System.nanoTime();
 
@@ -499,7 +507,7 @@ public class BarnesHut {
         for (COMPropagationPassNumber = 0; COMPropagationPassNumber < GPU.PROPAGATE_NODES_ITERATIONS; COMPropagationPassNumber++) {
             if (debug) {
                 if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPreDebugSelected()) {
-                    GPU.COMPUTE_TREE_PROPAGATE_NODES.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                    GPU.COMPUTE_TREE_PROPAGATE_NODES.addToPreDebugString("Propagating nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
             GPU.COMPUTE_TREE_PROPAGATE_NODES.run();
@@ -507,10 +515,10 @@ public class BarnesHut {
                 GPUSimulation.checkGLError("propagateNodesPass" + COMPropagationPassNumber);
                 glFinish();
                 if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
-                    GPU.COMPUTE_TREE_PROPAGATE_NODES.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                    GPU.COMPUTE_TREE_PROPAGATE_NODES.addToPostDebugString("Propagated nodes in the tree Pass "+COMPropagationPassNumber+": "+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n");
                 }
             }
-            GPU.swapPropagateWorkQueueBuffers();
+        // work queue buffers stay double-addressable using the existing uniforms
             //int workedThreads =DEBUG_SSBO.getHeaderAsInts()[1];
 
             // lastThreads = workedThreads;
@@ -525,7 +533,7 @@ public class BarnesHut {
         
         if (debug) {
             if (GPU.COMPUTE_TREE_PROPAGATE_NODES.isPostDebugSelected()) {
-                GPU.COMPUTE_TREE_PROPAGATE_NODES.setPostDebugString("Propagated nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_TREE_PROPAGATE_NODES.setPostDebugString("Propagated nodes in the tree"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
             GPUSimulation.checkGLError("propagateNodes");
             glFinish();
@@ -541,7 +549,7 @@ public class BarnesHut {
         if (debug) {
             computeForceTime = System.nanoTime();
             if (GPU.COMPUTE_FORCE_COMPUTE.isPreDebugSelected()) {
-                GPU.COMPUTE_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODE
+                GPU.COMPUTE_FORCE_COMPUTE.setPreDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
 
@@ -552,7 +560,7 @@ public class BarnesHut {
             glFinish();
             computeForceTime = System.nanoTime() - computeForceTime;
             if (GPU.COMPUTE_FORCE_COMPUTE.isPostDebugSelected()) {
-                GPU.COMPUTE_FORCE_COMPUTE.setPostDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_LEAF_NODES.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_FORCE_COMPUTE.setPostDebugString("Computing force on each body: "+GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES_AABB.getDataAsString("InternalNodesAABB",0,NUM_DEBUG_OUTPUTS)+"\n"+GPU.SSBO_INTERNAL_NODES.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -564,7 +572,7 @@ public class BarnesHut {
         if (debug) {
             mergeBodiesTime = System.nanoTime();
             if (GPU.COMPUTE_MERGE_BODIES.isPreDebugSelected()) {
-                GPU.COMPUTE_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeTasks",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_MERGE_BODIES.setPreDebugString("Merging bodies: "+GPU.SSBO_MERGE_TASKS.getDataAsString("MergeTasks",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
         GPU.COMPUTE_MERGE_BODIES.run();
@@ -573,7 +581,7 @@ public class BarnesHut {
             glFinish();
             mergeBodiesTime = System.nanoTime() - mergeBodiesTime;
             if (GPU.COMPUTE_MERGE_BODIES.isPostDebugSelected()) {
-                GPU.COMPUTE_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_QUEUE.getDataAsString("MergeTasks",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
+                GPU.COMPUTE_MERGE_BODIES.setPostDebugString("Merged bodies: "+GPU.SSBO_MERGE_TASKS.getDataAsString("MergeTasks",0,NUM_DEBUG_OUTPUTS)+"\n" + GPU.SSBO_SWAPPING_BODIES_OUT.getDataAsString("BodiesOut",0,NUM_DEBUG_OUTPUTS)+"\n");// + INTERNAL_NODES_SSBO.getDataAsString("InternalNodes",0,NUM_DEBUG_OUTPUTS)+"\n" + LEAF_NODES_SSBO.getDataAsString("LeafNodes",0,NUM_DEBUG_OUTPUTS)+"\n");
             }
         }
     }
@@ -722,7 +730,6 @@ public class BarnesHut {
     private void debugMortonCodes() {
         
         // Read morton codes from GPU buffer
-        GPU.SSBO_SWAPPING_MORTON_IN.bind();
         ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         LongBuffer mortonData = mortonBuffer.asLongBuffer();
         HashSet<Long> mortonSet = new HashSet<>();
@@ -753,7 +760,7 @@ public class BarnesHut {
         ByteBuffer mortonBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer mortonData = mortonBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        GPU.SSBO_SWAPPING_INDEX_IN.bind();
+        GPU.SSBO_INDEX_DOUBLE.bind();
         ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer indexData = indexBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -765,7 +772,7 @@ public class BarnesHut {
         ByteBuffer wgScannedBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer wgScannedData = wgScannedBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        GPU.SSBO_RADIX_BUCKET_TOTALS.bind();
+        GPU.SSBO_RADIX_BUCKET_TOTALS_AND_AABB.bind();
         ByteBuffer bucketTotalsBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
         IntBuffer bucketTotalsData = bucketTotalsBuffer.asIntBuffer();
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -813,7 +820,7 @@ public class BarnesHut {
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             
             // Read sorted body indices
-            GPU.SSBO_SWAPPING_INDEX_IN.bind();
+            GPU.SSBO_INDEX_DOUBLE.bind();
             ByteBuffer indexBuffer = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
             IntBuffer indexData = indexBuffer.asIntBuffer();
             System.out.println("Sorted body indices:");
@@ -998,5 +1005,18 @@ public class BarnesHut {
         System.out.printf("Root nodes: %d, Total nodes: %d (Leaves: %d, Internal: %d)\n", 
             rootCount, totalNodes, numLeaves, totalNodes - numLeaves);
         System.out.println("=== END VERIFICATION ===\n");
+    }
+
+    public int mortonSourceBufferIndex() {
+        return mortonSrcBuffer;
+    }
+    public int mortonDestinationBufferIndex() {
+        return 1 - mortonSrcBuffer;
+    }
+    public int indexSourceBufferIndex() {
+        return indexSrcBuffer;
+    }
+    public int indexDestinationBufferIndex() {
+        return 1 - indexSrcBuffer;
     }
 }

@@ -11,9 +11,13 @@ void updateKernel() {
     uint gid = gl_GlobalInvocationID.x;
     if (gid == 0u) {
         if (resetValuesOrDecrementDeadBodies==1u) {
-            //Reset Queues
-            headIn=0u;
-            tailIn = 0u;
+            //Reset queues (both halves)
+            uint workQueueStride = 2u + sim.numBodies;
+            for (uint bufferIdx = 0u; bufferIdx < 2u; ++bufferIdx) {
+                uint base = bufferIdx * workQueueStride;
+                workQueues[base + 0u] = 0u; // head
+                workQueues[base + 1u] = 0u; // tail
+            }
             mergeTasksTail = 0u;
             mergeTasksHead = 0u;
 

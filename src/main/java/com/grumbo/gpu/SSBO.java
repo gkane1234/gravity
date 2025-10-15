@@ -18,41 +18,35 @@ public class SSBO {
     // Precision for floating point numbers
     private static final int PRECISION = 2; 
 
-    // SSBO Bindings set in bh_common.comp:
+    // SSBO Bindings set in common.glsl:
 
-    // layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
-    // layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
-    // layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint justMerged; AABB bounds; uint uintDebug[100]; float floatDebug[100]; } sim;
-    // layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
-    // layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
-    // layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
-    // layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
-    // layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
-    // layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
-    // layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
-    // layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
-    // layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
-    // layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
-    // layout(std430, binding = 13) buffer RadixBucketTotals  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS];};
-    // layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
-    // layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
+    // layout(std430, binding = 0)  buffer SimulationValues       { ... } sim;
+    // layout(std430, binding = 1)  buffer BodiesIn               { Body bodies[]; } srcB;
+    // layout(std430, binding = 2)  buffer BodiesOut              { Body bodies[]; } dstB;
+    // layout(std430, binding = 3)  buffer ParentsAndLocks        { uint parentsAndLocks[]; };
+    // layout(std430, binding = 4)  buffer InternalNodes          { Node internalNodes[]; };
+    // layout(std430, binding = 5)  buffer InternalNodesAABB      { NodeAABB internalNodesAABB[]; };
+    // layout(std430, binding = 6)  buffer MortonInOut            { mortonInOut mortonInOut[]; };
+    // layout(std430, binding = 7)  buffer IndexInOut             { uint indexInOut[]; };
+    // layout(std430, binding = 8)  buffer WorkQueueInOut         { uint headIn; uint headOut; uint tailIn; uint tailOut; uint itemsInOut[]; };
+    // layout(std430, binding = 9)  buffer RadixWGHist            { uint wgHist[]; };
+    // layout(std430, binding = 10) buffer RadixWGScanned         { uint wgScanned[]; };
+    // layout(std430, binding = 11) buffer RadixBucketTotalsAndAABB { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
+    // layout(std430, binding = 12) buffer MergeTasks             { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[]; };
 
-    public static final int LEAF_NODES_BINDING = 0;
-    public static final int INTERNAL_NODES_BINDING = 1;
-    public static final int SIMULATION_VALUES_BINDING = 2;
-    public static final int BODIES_IN_BINDING = 3;
-    public static final int BODIES_OUT_BINDING = 4;
-    public static final int MORTON_IN_BINDING = 5;
-    public static final int MORTON_OUT_BINDING = 6;
-    public static final int INDEX_IN_BINDING = 7;
-    public static final int INDEX_OUT_BINDING = 8;
-    public static final int PROPAGATE_WORK_QUEUE_IN_BINDING = 9;
-    public static final int PROPAGATE_WORK_QUEUE_OUT_BINDING = 10;
-    public static final int RADIX_WG_HIST_BINDING = 11;
-    public static final int RADIX_WG_SCANNED_BINDING = 12;
-    public static final int RADIX_BUCKET_TOTALS_BINDING = 13;
-    public static final int MERGE_QUEUE_BINDING = 14;
-    public static final int MERGE_BODY_LOCKS_BINDING = 15;
+    public static final int SIMULATION_VALUES_BINDING = 0;
+    public static final int BODIES_IN_BINDING = 1;
+    public static final int BODIES_OUT_BINDING = 2;
+    public static final int PARENTS_AND_LOCKS_BINDING = 3;
+    public static final int INTERNAL_NODES_BINDING = 4;
+    public static final int INTERNAL_NODES_AABB_BINDING = 5;
+    public static final int MORTON_IN_OUT_BINDING = 6;
+    public static final int INDEX_IN_OUT_BINDING = 7;
+    public static final int WORK_QUEUE_IN_OUT_BINDING = 8;
+    public static final int RADIX_WG_HIST_BINDING = 9;
+    public static final int RADIX_WG_SCANNED_BINDING = 10;
+    public static final int RADIX_BUCKET_TOTALS_AND_AABB_BINDING = 11;
+    public static final int MERGE_TASKS_BINDING = 12;
 
 
     // Buffer location of the SSBO

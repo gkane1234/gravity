@@ -21,8 +21,8 @@ int safeLCP(int i, int j)
 {
     if (i < 0 || j < 0 || i >= int(sim.numBodies) || j >= int(sim.numBodies)) return -1;
     
-    uint64_t mortonI = mortonIn[i];
-    uint64_t mortonJ = mortonIn[j];
+    uint64_t mortonI = mortonDouble[mortonSrcBuffer * sim.numBodies + uint(i)];
+    uint64_t mortonJ = mortonDouble[mortonSrcBuffer * sim.numBodies + uint(j)];
 
     if (mortonI == mortonJ) {
         uint iu = uint(i);
@@ -138,16 +138,27 @@ void treeBuildBinaryRadixTreeKernel()
 void treeInitLeafNodesKernel()
 {
     uint gid = gl_GlobalInvocationID.x;
-    //Reset the work queue
-    if (gid == 0) {
-        tailIn = 0u;
-        headIn = 0u;
-        tailOut = 0u;
-        headOut = 0u;
+    uint workQueueStride = 2u + sim.numBodies;
+    uint workQueueBaseSrc = workQueueSrcBuffer * workQueueStride;
+    uint workQueueBaseDst = workQueueDstBuffer * workQueueStride;
+    uint headInPtr = workQueueBaseSrc;
+    uint tailInPtr = workQueueBaseSrc + 1u;
+    uint itemsBaseSrc = workQueueBaseSrc + 2u;
+    uint headOutPtr = workQueueBaseDst;
+    uint tailOutPtr = workQueueBaseDst + 1u;
+    uint itemsBaseDst = workQueueBaseDst + 2u;
+
+    if (gl_GlobalInvocationID.x == 0u) {
+        workQueues[headInPtr] = 0u;
+        workQueues[tailInPtr] = 0u;
+        workQueues[headOutPtr] = 0u;
+        workQueues[tailOutPtr] = 0u;
     }
+    barrier();
     if (gid >= sim.numBodies) return;
 
-    uint bodyIdx = indexIn[gid];
+    uint indexOffset = indexSrcBuffer * sim.numBodies + gid;
+    uint bodyIdx = indexDouble[indexOffset];
     Body body = srcB.bodies[bodyIdx];
 
     leafNodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
@@ -159,10 +170,9 @@ void treeInitLeafNodesKernel()
 
     uint parentIdx = leafNodes[gid].parentId;
     uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
-    if (prev == 1u) { //meaning the current value is 2.
-        //Enqueue the internal node to the work queue
-        uint idx = atomicAdd(tailIn, 1u);
-        itemsIn[idx] = parentIdx;
+    if (prev == 1u) {
+        uint idx = atomicAdd(workQueues + tailInPtr, 1u);
+        workQueues[itemsBaseSrc + idx] = parentIdx;
     }
 }
 // Each pass of this kernel propagates COM and AABB one level up the tree
@@ -174,25 +184,34 @@ void treeInitLeafNodesKernel()
 // SSBOs: SimulationValues, InternalNodes, LeafNodes, WorkQueueIn, WorkQueueOut
 void treePropagateNodesKernel()
 {
+    uint workQueueStride = 2u + sim.numBodies;
+    uint workQueueBaseSrc = workQueueSrcBuffer * workQueueStride;
+    uint workQueueBaseDst = workQueueDstBuffer * workQueueStride;
+    uint headInPtr = workQueueBaseSrc;
+    uint tailInPtr = workQueueBaseSrc + 1u;
+    uint itemsBaseSrc = workQueueBaseSrc + 2u;
+    uint headOutPtr = workQueueBaseDst;
+    uint tailOutPtr = workQueueBaseDst + 1u;
+    uint itemsBaseDst = workQueueBaseDst + 2u;
+
     uint threadId = gl_GlobalInvocationID.x;
     uint totalThreads = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
 
     if (gl_GlobalInvocationID.x == 0u) {
-        //Reset the work queue
-        headIn = 0u;
-        headOut = 0u;
-        tailOut = 0u;
+        workQueues[headInPtr] = 0u;
+        workQueues[headOutPtr] = 0u;
+        workQueues[tailOutPtr] = 0u;
     }
 
     memoryBarrierBuffer();
-   
-    uint workIdx = atomicAdd(headIn, 1u);
-    while (workIdx < tailIn) {
+
+    uint workIdx = atomicAdd(workQueues + headInPtr, 1u);
+    while (workIdx < workQueues[tailInPtr]) {
         
-        uint internalNodeIdx = itemsIn[workIdx]-sim.initialNumBodies;
+        uint internalNodeIdx = workQueues[itemsBaseSrc + workIdx] - sim.initialNumBodies;
         uint readyChildren = internalNodes[internalNodeIdx].readyChildren;
         if (readyChildren == 0xFFFFFFFFu) { //Already processed, take the next item
-            workIdx = atomicAdd(headIn, 1u);
+        workIdx = atomicAdd(workQueues + headInPtr, 1u);
             continue;
         }
         
@@ -201,13 +220,13 @@ void treePropagateNodesKernel()
         uint rightReadyChildren = internalNodes[internalNodeIdx].childB < sim.initialNumBodies ? 
             leafNodes[internalNodes[internalNodeIdx].childB].readyChildren : 0xFFFFFFFFu; //Leaf nodes ready children is 0xFFFFFFFF
         if (leftReadyChildren < 2u || rightReadyChildren < 2u) { //If the children are not ready, take the next item
-            workIdx = atomicAdd(headIn, 1u);
+            workIdx = atomicAdd(workQueues + headInPtr, 1u);
             continue;
 
             
         }
         if (atomicCompSwap(internalNodes[internalNodeIdx].readyChildren, 2u, 0xFFFFFFFFu) != 2u) { //If someone else has this node, take the next item
-            workIdx = atomicAdd(headIn, 1u);
+            workIdx = atomicAdd(workQueues + headInPtr, 1u);
             continue;
         }
 
@@ -237,11 +256,11 @@ void treePropagateNodesKernel()
         if (parentIdx != 0xFFFFFFFFu) { //If not the root
             uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u); //Increment the ready children of the parent
             if (prev == 1u) { //meaning the current value is 2.
-                uint idx = atomicAdd(tailOut, 1u); //Enqueue the parent to the work queue
-                itemsOut[idx] = parentIdx;
+                uint idx = atomicAdd(workQueues + tailOutPtr, 1u); //Enqueue the parent to the work queue
+                workQueues[itemsBaseDst + idx] = parentIdx;
 
             }
         }
-        workIdx = atomicAdd(headIn, 1u); //Take the next item
+        workIdx = atomicAdd(workQueues + headInPtr, 1u); //Take the next item
     }
 }

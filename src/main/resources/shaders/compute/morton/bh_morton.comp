@@ -70,7 +70,7 @@ void mortonAABBRepopulateKernel() {
         //Load AABB's into the shared memory
         //We combine two bodies into each AABB to save time
 
-        leftBodyIdx = indexIn[2*gid];
+        leftBodyIdx = indexDouble[indexSrcBuffer * sim.numBodies + 2u*gid];
 
         if (2*gid+1 >= sim.numBodies) {
             // Only one body left
@@ -81,7 +81,7 @@ void mortonAABBRepopulateKernel() {
                 sharedAABB[lid] = AABB(pos, pos);
             }
         } else {
-            rightBodyIdx = indexIn[2*gid+1];
+            rightBodyIdx = indexDouble[indexSrcBuffer * sim.numBodies + (2u*gid+1u)];
             bool leftEmpty  = isEmpty(srcB.bodies[leftBodyIdx]);
             bool rightEmpty = isEmpty(srcB.bodies[rightBodyIdx]);
 
@@ -179,7 +179,8 @@ void mortonEncodeKernel()
 
 
     //get the index of the body
-    uint bodyIdx = indexIn[gid];
+    uint indexOffset = indexSrcBuffer * sim.numBodies + gid;
+    uint bodyIdx = indexDouble[indexOffset];
 
     Body body = srcB.bodies[bodyIdx];
 
@@ -188,7 +189,8 @@ void mortonEncodeKernel()
     vec3 extent = max(scene.maxCorner - scene.minCorner, vec3(1e-9));
     vec3 pNorm = (pos - scene.minCorner) / extent; //normalize the position to the range [0,1]^3
 
-    mortonIn[gid] = mortonEncode3D(pNorm); //encode the normalized position into a 64-bit Morton code
+    uint offset = mortonSrcBuffer * sim.numBodies + gid;
+    mortonDouble[offset] = mortonEncode3D(pNorm);
 }
 
 
