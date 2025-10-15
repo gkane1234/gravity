@@ -121,35 +121,35 @@ public class GPUSimulation {
     public static GPUSimulation createSeveralDisksAroundAnotherDiskSimulation() {
 
         int numDisks = 13;
-        float velocityFactor = 1;
+        float squareVelocity = 0.001f;
         float squareCenter = 3000;
         int[] numPlanetsRange = {250_000,250_000};
         float[] radiusRangeLow = {1, 2};
         float[] stellarDensityRange = {100,100};
-        float[] mRange = {100, 1200};
+        float[] mRange = {0.1f, 3f};
         float[] densityRange = {1f, 1f};
         float[] centerX = {-squareCenter, squareCenter};
         float[] centerY = {-squareCenter, squareCenter};
         float[] centerZ = {-squareCenter, squareCenter};
-        float[] relativeVelocityX = {-velocityFactor, velocityFactor};
-        float[] relativeVelocityY = {-velocityFactor, velocityFactor};
-        float[] relativeVelocityZ = {-velocityFactor, velocityFactor};
+        float[] relativeVelocityX = {-squareVelocity, squareVelocity};
+        float[] relativeVelocityY = {-squareVelocity, squareVelocity};
+        float[] relativeVelocityZ = {-squareVelocity, squareVelocity};
         float[] phiRange = {0, (float)Math.PI};
         float[] centerMassRange = {1000000,1000000};
         float[] centerDensityRange = {0.9f,1f};
-        float[] adherenceToPlaneRange = {0.95f,1f};
+        float[] adherenceToPlaneRange = {0.97f,1f};
         float orbitalFactor = 1f;
         boolean giveOrbitalVelocity = true;
 
 
-        int centerDiskPlanets = 600_00;
+        int centerDiskPlanets = 600_000;
         float[] centerDiskRadius = {2,1000};
         float[] centerDiskLocation = {(centerX[0]+centerX[1])/2, (centerY[0]+centerY[1])/2, (centerZ[0]+centerZ[1])/2};
         float[] centerDiskRelativeVelocity = {0, 0, 0};
         float centerDiskPhi = (float)(Math.PI/2);
         float centerDiskCenterMass = 200000f;
         float centerDiskCenterDensity = 0.9f;
-        float centerDiskAdherenceToPlane = 0.99f;
+        float centerDiskAdherenceToPlane = 0.995f;
         float centerDiskOrbitalFactor = 1f;
         boolean centerDiskGiveOrbitalVelocity = true;
 

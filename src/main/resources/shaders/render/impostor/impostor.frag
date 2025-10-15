@@ -18,7 +18,7 @@ out vec4 fragColor;
 // and as an additive glow when they are far.
 void main() {
     float r2 = dot(vMapping, vMapping);
-    const float bodyRenderDistance = 1000000;
+    const float bodyRenderDistance = 1000;
 
     bool tooFar = length(vCenterView) > bodyRenderDistance;
     if (r2 > 1.0) discard;

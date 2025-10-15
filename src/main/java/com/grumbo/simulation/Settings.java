@@ -76,13 +76,13 @@ public class Settings {
 		properties.put("dynamic", Property.createSelectorProperty("dynamic", "dynamic", "dynamic", new String[]{"static", "dynamic"}, true));
 
 		// Time step
-		{ Property<Float> p = Property.createFloatProperty("dt", 1f, 1f); p.setEditable(true); properties.put("dt", p); }
+		{ Property<Float> p = Property.createFloatProperty("dt", 100f, 100f); p.setEditable(true); properties.put("dt", p); }
 
 		// Barnes-Hut acceptance criterion
-		{ Property<Float> p = Property.createFloatProperty("theta", 0.6f, 0.6f); p.setEditable(true); properties.put("theta", p); }
+		{ Property<Float> p = Property.createFloatProperty("theta", 0.77f, 0.77f); p.setEditable(true); properties.put("theta", p); }
 
 		// Relative to
-		{ Property<Integer> p = Property.createIntProperty("relativeTo", 0, 0); p.setEditable(true); properties.put("relativeTo", p); }
+		{ Property<Integer> p = Property.createIntProperty("relativeTo", -1, -1); p.setEditable(true); properties.put("relativeTo", p); }
 
 		// Camera scale
 		{ Property<Float> p = Property.createFloatProperty("cameraScale", 10.0f, 10.0f); p.setEditable(true); properties.put("cameraScale", p); }
@@ -91,7 +91,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("minImpostorSize", 1.0E-5f, 1.0E-5f); p.setEditable(true); properties.put("minImpostorSize", p); }
 
 		// Field of view for camera
-		{ Property<Float> p = Property.createFloatProperty("fov", 45.0f, 45.0f); p.setEditable(true); properties.put("fov", p); }
+		{ Property<Float> p = Property.createFloatProperty("fov", 70f, 70f); p.setEditable(true); properties.put("fov", p); }
 
 		// Body mass unit
 		{ Property<Float> p = Property.createFloatProperty("mass", 1.0f, 1.0f); p.setEditable(true); properties.put("mass", p); }
@@ -121,7 +121,7 @@ public class Settings {
 		{ Property<Integer> p = Property.createIntProperty("maxDepth", 100, 100); p.setEditable(true); properties.put("maxDepth", p); }
 
 		// Near plane for camera
-		{ Property<Float> p = Property.createFloatProperty("nearPlane", 1.0E-4f, 1.0E-4f); p.setEditable(true); properties.put("nearPlane", p); }
+		{ Property<Float> p = Property.createFloatProperty("nearPlane", 0.1f, 0.1f); p.setEditable(true); properties.put("nearPlane", p); }
 
 		// Far plane for camera
 		{ Property<Float> p = Property.createFloatProperty("farPlane", 1.0E8f, 1.0E8f); p.setEditable(true); properties.put("farPlane", p); }
@@ -130,7 +130,7 @@ public class Settings {
 		{ Property<Float> p = Property.createFloatProperty("cameraMoveSpeed", 1f, 1f); p.setEditable(true); properties.put("cameraMoveSpeed", p); }
 
 		// WASD movement sensitivity
-		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 1f, 1f); p.setEditable(true); properties.put("WASDSensitivity", p); }
+		{ Property<Float> p = Property.createFloatProperty("WASDSensitivity", 100f, 100f); p.setEditable(true); properties.put("WASDSensitivity", p); }
 
 		// Mouse wheel sensitivity
 		{ Property<Float> p = Property.createFloatProperty("mouseWheelSensitivity", 0.1f, 0.1f); p.setEditable(true); properties.put("mouseWheelSensitivity", p); }

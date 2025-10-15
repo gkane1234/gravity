@@ -120,23 +120,14 @@ public class BarnesHut {
         decrementDeadBodies();
 
 
-        System.out.println("Partitioned dead bodies");
-
-        System.out.println(GPU.SSBO_SWAPPING_BODIES_IN.getDataAsString("BodiesIn",0,NUM_DEBUG_OUTPUTS));
-
-        System.out.println(GPU.SSBO_SWAPPING_INDEX_IN.getDataAsString("IndexIn",0,NUM_DEBUG_OUTPUTS));
-
-        System.out.println(GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
+        
 
         if (dynamicOrStatic.equals("dynamic")) {
             // Update the bounds of the simulation.
             updateBounds();
         }
 
-        System.out.println("Updated bounds");
-
-        System.out.println(GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
-
+        
         // Generate the morton codes for the alive bodies.
         generateMortonCodes();
         
@@ -154,9 +145,6 @@ public class BarnesHut {
         // If bounded, OOB bodies are either killed or wraped around in here
         computeForce();
 
-        System.out.println("Computed force");
-
-        System.out.println(GPU.SSBO_SIMULATION_VALUES.getDataAsString("SimulationValues"));
 
 
 
