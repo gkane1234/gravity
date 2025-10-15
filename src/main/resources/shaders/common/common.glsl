@@ -26,34 +26,35 @@ struct Body {
     //position (x,y,z) and mass (w)
     vec4 posMass; 
     //velocity (x,y,z) and density (w)
-    vec4 velDensity;};
+    vec4 velDensity;
+};
 
 //Representation of an axis aligned bounding box
 struct AABB {
     //minimum corner of the bounding box
-    vec3 minCorner;
+    float[3] minCorner;
     //maximum corner of the bounding box
-    vec3 maxCorner;
+    uint diameter;
 };
 
 //Representation of a node in the radix tree
 struct Node {
     //center of mass (x,y,z) and mass (w)
     vec4 comMass;
-    //stored as a float[6] to avoid padding
-    float[6] aabb;
-    //children of the node
-    uint childA;
-    uint childB;
-    //depth of the node
-    uint nodeDepth;
-    //number of bodies contained in the node
-    uint bodiesContained;
-    //number of ready children of the node (used in updating the tree)
-    uint readyChildren;
+    //depth of the node for first 4 bits and ready children for last 4 bits
+    uint depthReadyChildren;
     //parent of the node
     uint parentId;
+    //number of bodies contained in the node
+    uint bodiesContained;
+    //pad to make the node 16 bytes
+    uint pad;
 };
+
+
+struct Children {
+    uint[8] children;
+}
 
 
 struct UnitSet {
@@ -67,55 +68,57 @@ struct UnitSet {
     float bodyLengthInSimulationLengthsConstant;
 };
 
+struct mortonInOut {
+    uint64_t mortonIn;
+    uint64_t mortonOut;
+}
+
 // =============================================================
 //                       SSBO bindings
 // =============================================================
 
 //Note: in render shaders, these SSBO bindings are changed to readonly
-
-//Leaf nodes of the radix tree (node representation of a body).
-//  -Initialized with numBodies nodes (In Java: numBodies * Node.STRUCT_SIZE * Integer.BYTES)
-layout(std430, binding = 0)  buffer LeafNodes          { Node leafNodes[]; };
-//Internal nodes of the radix tree.
-//  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES)
-layout(std430, binding = 1)  buffer InternalNodes      { Node internalNodes[]; };
 //Simulation values
 //  -Initialized to exactly fit the values. (In Java: 8*Integer.BYTES+8*Float.BYTES+100*Integer.BYTES+100*Float.BYTES)
-layout(std430, binding = 2)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
+layout(std430, binding = 0)  buffer SimulationValues   { uint numBodies; uint initialNumBodies; uint justDied; uint merged; 
                                                         uint outOfBounds; uint relativeTo; uint pad1; uint pad2; 
                                                         AABB bounds; UnitSet units; uint uintDebug[100]; float floatDebug[100]; } sim;
 //Bodies of the simulation from the previous step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
-layout(std430, binding = 3)  buffer BodiesIn           { Body bodies[]; } srcB;
+layout(std430, binding = 1)  buffer BodiesIn           { Body bodies[]; } srcB;
 //Bodies of the simulation to be used in the next step
 //  -Initialized with numBodies bodies (In Java: numBodies * Body.STRUCT_SIZE * Float.BYTES)
-layout(std430, binding = 4)  buffer BodiesOut          { Body bodies[]; } dstB;
+layout(std430, binding = 2)  buffer BodiesOut          { Body bodies[]; } dstB;
+//Parents of the leaf nodes (bodies) and locks for the bodies during merging, factored to keep each buffer to below 8 * numBodies bytes
+//  -Initialized with 2 * numBodies uints (In Java: 2 * numBodies * Integer.BYTES)
+layout(std430, binding = 3)  buffer ParentsAndLocks          { uint parentsAndLocks[]; };
+//Internal nodes of the radix tree.
+//  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES)
+layout(std430, binding = 4)  buffer InternalNodes      { Node internalNodes[]; };
+//Children of the internal nodes, factored to keep each buffer to below 8 * numBodies bytes
+//  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Children.STRUCT_SIZE * Integer.BYTES)
+layout(std430, binding = 5)  buffer Children      { Children children[]; };
 //Morton codes of the bodies of the simulation double buffered for dead partitioning and radix sort
 //  -Initialized with numBodies morton codes (uint64_t's) (In Java: numBodies * Long.BYTES)
-layout(std430, binding = 5)  buffer MortonIn           { uint64_t mortonIn[]; };
-layout(std430, binding = 6)  buffer MortonOut          { uint64_t mortonOut[]; };
+layout(std430, binding = 6)  buffer MortonInOut           { mortonInOut mortonInOut[]; };
 //Sorted index of the bodies of the simulation double buffered for dead partitioning and radix sort
 //  -Initialized with numBodies indices (uints) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 7)  buffer IndexIn            { uint indexIn[]; };
-layout(std430, binding = 8)  buffer IndexOut           { uint indexOut[]; };
+layout(std430, binding = 7)  buffer IndexInOut            { uint indexInOut[]; };
 //Work queue for propagating node data up the tree from the leaves. Double buffered for performance.
 //  -Initialized with numBodies indices (uints) (In Java: (4 + numBodies) * Integer.BYTES)
-layout(std430, binding = 9)  buffer WorkQueueIn        { uint headIn; uint tailIn; uint itemsIn[]; };
-layout(std430, binding = 10)  buffer WorkQueueOut       { uint headOut; uint tailOut; uint itemsOut[]; };
+layout(std430, binding = 8)  buffer WorkQueueInOut        { uint headIn; uint headOut; uint tailIn; uint tailOut; uint itemsInOut[]; };
 //Per work group histogram of the radix sort buckets. Reused for dead sorting 
 //  -Initialized with numWorkGroups * NUM_BUCKETS histogram bars (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 11) buffer RadixWGHist        { uint wgHist[];      };
+layout(std430, binding = 9) buffer RadixWGHist        { uint wgHist[];      };
 //Per work group inclusive sum of the radix sort buckets across all work groups. Reused for dead sorting
 //  -Initialized with numWorkGroups * NUM_BUCKETS inclusive sums (uints) (In Java: numWorkGroups * NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 12) buffer RadixWGScanned     { uint wgScanned[];   };
+layout(std430, binding = 10) buffer RadixWGScanned     { uint wgScanned[];   };
 //  -Initialized with numBodies buckets (uints) and numBodies global bases (uints) (In Java: NUM_BUCKETS * Integer.BYTES + NUM_BUCKETS * Integer.BYTES)
-layout(std430, binding = 13) buffer RadixBucketTotalsAndAABB  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
+layout(std430, binding = 11) buffer RadixBucketTotalsAndAABB  { uint bucketTotals[NUM_BUCKETS]; uint globalBase[NUM_BUCKETS]; };
 //Merge queue for merging bodies identified in the force kernel
 //  -Initialized with numBodies pairs of indices (uint[2]'s) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 14) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
-//Merge body locks to avoid races when merging bodies
-//  -Initialized with numBodies locks (uints) (In Java: numBodies * Integer.BYTES)
-layout(std430, binding = 15) buffer MergeBodyLocks     { uint bodyLocks[]; };
+layout(std430, binding = 12) buffer MergeTasks         { uint mergeTasksHead; uint mergeTasksTail; uvec2 mergeTasks[];};
+
 
 // =============================================================
 //           Common functions, uniforms, and constants
