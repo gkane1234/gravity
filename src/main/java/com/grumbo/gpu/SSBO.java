@@ -61,6 +61,7 @@ public class SSBO {
     // Name of the SSBO
     private String name;
     private int size;
+    private int baseOffset;
 
     // Types of the fields of the struct
     private GLSLVariable SSBOLayout;
@@ -87,6 +88,21 @@ public class SSBO {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
     }
+
+
+    public SSBO(int bufferLocation, int binding, sizeFunction sizeFunction, dataFunction dataFunction, String name, GLSLVariable SSBOLayout, int baseOffset) {
+        this.bufferLocation = bufferLocation;
+        this.bufferBinding = binding;
+        this.sizeFunction = sizeFunction;
+        this.dataFunction = dataFunction;
+        this.name = name;
+        this.SSBOLayout = SSBOLayout;
+        this.SSBOLayoutMap = new HashMap<>();
+        this.SSBOByteOffsets = new HashMap<>();
+        this.ProgramBindingRanges = new HashMap<>();
+        addToSSBOLayoutMap(SSBOLayout, 0);
+        this.baseOffset = baseOffset;
+    }
     /**
      * Constructor for the SSBO class
      * @param binding the binding of the SSBO set in bh_common.comp
@@ -98,17 +114,9 @@ public class SSBO {
      * @param headerSize the size of the header in this SSBO in bytes
      * @param headerTypes the types of the fields of the header
      */
-    public SSBO(int binding, sizeFunction sizeFunction, dataFunction dataFunction, String name, GLSLVariable SSBOLayout) {
-        this.bufferBinding = binding;
-        this.sizeFunction = sizeFunction;
-        this.dataFunction = dataFunction;
-        this.name = name;
-        this.bufferLocation = glGenBuffers();
-        this.SSBOLayout = SSBOLayout;
-        this.SSBOLayoutMap = new HashMap<>();
-        this.SSBOByteOffsets = new HashMap<>();
-        this.ProgramBindingRanges = new HashMap<>();
-        addToSSBOLayoutMap(SSBOLayout, 0);
+    public SSBO(int binding, sizeFunction sizeFunction, dataFunction dataFunction, String name, GLSLVariable SSBOLayout, int baseOffset) {
+        this(glGenBuffers(), binding, sizeFunction, dataFunction, name, SSBOLayout, baseOffset);
+        
     }
     /**
      * Adds the variable to the SSBOLayoutMap.
@@ -132,8 +140,20 @@ public class SSBO {
      * @param sizeFunction the function to get the size of the SSBO
      * @param name the name of the SSBO
      */
+    public SSBO(int binding, sizeFunction size, String name, int baseOffset) {
+        this(binding, size, null, name, null, baseOffset);
+    }
+
     public SSBO(int binding, sizeFunction size, String name) {
-        this(binding, size, null, name, null);
+        this(binding, size, null, name, null, 0);
+    }
+
+
+    public SSBO(SSBO ssbo, String name, int size, GLSLVariable SSBOLayout, int baseOffset) {
+        this(ssbo.getBufferLocation(),ssbo.getBinding(), () -> size, null, name, SSBOLayout, baseOffset);
+    }
+    public SSBO(SSBO ssbo, String name, int size, GLSLVariable SSBOLayout) {
+        this(ssbo.getBufferLocation(),ssbo.getBinding(), () -> size, null, name, SSBOLayout, 0);
     }
     /**
      * Constructor for the SSBO class
@@ -141,8 +161,11 @@ public class SSBO {
      * @param dataFunction the function to set the data of the SSBO
      * @param name the name of the SSBO
      */
+    public SSBO(int binding, dataFunction dataFunction, String name, int baseOffset) {
+        this(binding, null, dataFunction, name, null, baseOffset);
+    }
     public SSBO(int binding, dataFunction dataFunction, String name) {
-        this(binding, null, dataFunction, name, null);
+        this(binding, null, dataFunction, name, null, 0);
     }
     /**
      * Constructor for the SSBO class
@@ -152,8 +175,12 @@ public class SSBO {
      * @param structSize the size of the struct in this SSBO in bytes
      * @param types the types of the fields of the struct
      */
+    public SSBO(int binding, sizeFunction size, String name, GLSLVariable SSBOLayout, int baseOffset) {
+        this(binding, size, null, name, SSBOLayout, baseOffset);
+    }
+
     public SSBO(int binding, sizeFunction size, String name, GLSLVariable SSBOLayout) {
-        this(binding, size, null, name, SSBOLayout);
+        this(binding, size, null, name, SSBOLayout, 0);
     }
     /**
      * Constructor for the SSBO class
@@ -163,8 +190,12 @@ public class SSBO {
      * @param structSize the size of the struct in this SSBO in bytes
      * @param types the types of the fields of the struct
      */
+    public SSBO(int binding, dataFunction dataFunction, String name, GLSLVariable SSBOLayout, int baseOffset) {
+        this(binding, null, dataFunction, name, SSBOLayout, baseOffset);
+    }
+
     public SSBO(int binding, dataFunction dataFunction, String name, GLSLVariable SSBOLayout) {
-        this(binding, null, dataFunction, name, SSBOLayout);
+        this(binding, null, dataFunction, name, SSBOLayout, 0);
     }
 
 
@@ -196,31 +227,9 @@ public class SSBO {
      * Binds the SSBO.
      */
     public void bind() {
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation);
+        bind(baseOffset, baseOffset + size);
     }
 
-    /**
-     * Binds the SSBO to a program.
-     * @param program the program to bind the SSBO to
-     */
-    public void bind(int program) {
-        if (ProgramBindingRanges.containsKey(program)) {
-            bind(ProgramBindingRanges.get(program)[0], ProgramBindingRanges.get(program)[1]);
-        } else {
-            bind();
-        }
-    }
-
-
-    /**
-     * Sets the program binding range.
-     * @param program the program to set the binding range for
-     * @param startIndex the start index of the binding range
-     * @param endIndex the end index of the binding range
-     */
-    public void setProgramBindingRange(int program, int startIndex, int endIndex) {
-        ProgramBindingRanges.put(program, new Integer[] {startIndex, endIndex});
-    }
 
     /**
      * Unbinds the SSBO

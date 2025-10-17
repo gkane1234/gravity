@@ -80,12 +80,12 @@ public class GPU {
 
     public static SSBO SSBO_SWAPPING_BODIES_IN;
     public static SSBO SSBO_SWAPPING_BODIES_OUT;
-    public static SSBO SSBO_MORTON_A;
-    public static SSBO SSBO_MORTON_B;
-    public static SSBO SSBO_INDEX_A;
-    public static SSBO SSBO_INDEX_B;
-    public static SSBO SSBO_WORK_QUEUE_A;
-    public static SSBO SSBO_WORK_QUEUE_B;
+    public static SSBO SSBO_SWAPPING_MORTON_IN;
+    public static SSBO SSBO_SWAPPING_MORTON_OUT;
+    public static SSBO SSBO_SWAPPING_INDEX_IN;
+    public static SSBO SSBO_SWAPPING_INDEX_OUT;
+    public static SSBO SSBO_SWAPPING_WORK_QUEUE_IN;
+    public static SSBO SSBO_SWAPPING_WORK_QUEUE_OUT;
 
     private static int mortonBufferStride;
     private static int indexBufferStride;
@@ -224,14 +224,17 @@ public class GPU {
 
         //These are the fixed SSBOs that point to the morton and index buffers.
         //They are intialized with the correct sizes.
+
+        mortonBufferStride = numBodies() * Long.BYTES;
         SSBO_MORTON_DOUBLE = new SSBO(SSBO.MORTON_IN_OUT_BINDING, () -> {
-            mortonBufferStride = numBodies() * Long.BYTES;
+            
             return mortonBufferStride * 2;
         }, "SSBO_MORTON_DOUBLE", new GLSLVariable(VariableType.UINT64, "Morton", 1));
         GPU.SSBOS.put(SSBO_MORTON_DOUBLE.getName(), SSBO_MORTON_DOUBLE);
 
+        indexBufferStride = numBodies() * Integer.BYTES;
         SSBO_INDEX_DOUBLE = new SSBO(SSBO.INDEX_IN_OUT_BINDING, () -> {
-            indexBufferStride = numBodies() * Integer.BYTES;
+            
             return indexBufferStride * 2;
         }, "SSBO_INDEX_DOUBLE", new GLSLVariable(VariableType.UINT,"IndexDouble", numBodies() * 2));
         GPU.SSBOS.put(SSBO_INDEX_DOUBLE.getName(), SSBO_INDEX_DOUBLE);
@@ -302,9 +305,9 @@ public class GPU {
             new GLSLVariable(VariableType.UINT,"BucketTotals", NUM_RADIX_BUCKETS), 
             new GLSLVariable(VariableType.UINT,"GlobalBase", NUM_RADIX_BUCKETS)}));
         GPU.SSBOS.put(SSBO_RADIX_BUCKET_TOTALS_AND_AABB.getName(), SSBO_RADIX_BUCKET_TOTALS_AND_AABB);
-
+        workQueueBufferStride = (2 + numBodies()) * Integer.BYTES;
         SSBO_WORK_QUEUE_DOUBLE = new SSBO(SSBO.WORK_QUEUE_IN_OUT_BINDING, () -> {
-            workQueueBufferStride = (2 + numBodies()) * Integer.BYTES;
+            
             return workQueueBufferStride * 2;
         }, "SSBO_WORK_QUEUE_DOUBLE", new GLSLVariable(new GLSLVariable[] {
             new GLSLVariable(VariableType.UINT,"Head", 1),
@@ -353,26 +356,28 @@ public class GPU {
 
         // These exist to do the radix sort and dead body paritioning.
 
-        SSBO_MORTON_A = SSBO_MORTON_DOUBLE;
-        SSBO_MORTON_A.setName("SSBO_MORTON_A");
-        GPU.SSBOS.put(SSBO_MORTON_A.getName(), SSBO_MORTON_A);
-        SSBO_MORTON_B = SSBO_MORTON_DOUBLE;
-        SSBO_MORTON_B.setName("SSBO_MORTON_B");
-        GPU.SSBOS.put(SSBO_MORTON_B.getName(), SSBO_MORTON_B);
+        SSBO_SWAPPING_MORTON_IN = new SSBO(SSBO_MORTON_DOUBLE, "SSBO_SWAPPING_MORTON_IN",  mortonBufferStride, new GLSLVariable(VariableType.UINT64, "Morton", 1), 0);
+        SSBO_SWAPPING_MORTON_OUT = new SSBO(SSBO_MORTON_DOUBLE, "SSBO_SWAPPING_MORTON_OUT", mortonBufferStride, new GLSLVariable(VariableType.UINT64, "Morton", 1), mortonBufferStride);
+        GPU.SSBOS.put(SSBO_SWAPPING_MORTON_IN.getName(), SSBO_SWAPPING_MORTON_IN);
+        GPU.SSBOS.put(SSBO_SWAPPING_MORTON_OUT.getName(), SSBO_SWAPPING_MORTON_OUT);
 
-        SSBO_INDEX_A = SSBO_INDEX_DOUBLE;
-        SSBO_INDEX_A.setName("SSBO_INDEX_A");
-        GPU.SSBOS.put(SSBO_INDEX_A.getName(), SSBO_INDEX_A);
-        SSBO_INDEX_B = SSBO_INDEX_DOUBLE;
-        SSBO_INDEX_B.setName("SSBO_INDEX_B");
-        GPU.SSBOS.put(SSBO_INDEX_B.getName(), SSBO_INDEX_B);
+        SSBO_SWAPPING_INDEX_IN = new SSBO(SSBO_INDEX_DOUBLE, "SSBO_SWAPPING_INDEX_IN", indexBufferStride, new GLSLVariable(VariableType.UINT, "IndexDouble", numBodies() * 2), 0);
+        SSBO_SWAPPING_INDEX_OUT = new SSBO(SSBO_INDEX_DOUBLE, "SSBO_SWAPPING_INDEX_OUT", indexBufferStride, new GLSLVariable(VariableType.UINT, "IndexDouble", numBodies() * 2), indexBufferStride);
+        GPU.SSBOS.put(SSBO_SWAPPING_INDEX_IN.getName(), SSBO_SWAPPING_INDEX_IN);
+        GPU.SSBOS.put(SSBO_SWAPPING_INDEX_OUT.getName(), SSBO_SWAPPING_INDEX_OUT);
 
-        SSBO_WORK_QUEUE_A = SSBO_WORK_QUEUE_DOUBLE;
-        SSBO_WORK_QUEUE_A.setName("SSBO_WORK_QUEUE_A");
-        GPU.SSBOS.put(SSBO_WORK_QUEUE_A.getName(), SSBO_WORK_QUEUE_A);
-        SSBO_WORK_QUEUE_B = SSBO_WORK_QUEUE_DOUBLE;
-        SSBO_WORK_QUEUE_B.setName("SSBO_WORK_QUEUE_B");
-        GPU.SSBOS.put(SSBO_WORK_QUEUE_B.getName(), SSBO_WORK_QUEUE_B);
+        SSBO_SWAPPING_WORK_QUEUE_IN = new SSBO(SSBO_WORK_QUEUE_DOUBLE, "SSBO_SWAPPING_WORK_QUEUE_IN", workQueueBufferStride, new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT, "Head", 1),
+            new GLSLVariable(VariableType.UINT, "Tail", 1),
+            new GLSLVariable(VariableType.UINT, "Items", numBodies()*2)
+        }), 0);
+        SSBO_SWAPPING_WORK_QUEUE_OUT = new SSBO(SSBO_WORK_QUEUE_DOUBLE, "SSBO_SWAPPING_WORK_QUEUE_OUT", workQueueBufferStride, new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.UINT, "Head", 1),
+            new GLSLVariable(VariableType.UINT, "Tail", 1),
+            new GLSLVariable(VariableType.UINT, "Items", numBodies()*2)
+        }), workQueueBufferStride);
+        GPU.SSBOS.put(SSBO_SWAPPING_WORK_QUEUE_IN.getName(), SSBO_SWAPPING_WORK_QUEUE_IN);
+        GPU.SSBOS.put(SSBO_SWAPPING_WORK_QUEUE_OUT.getName(), SSBO_SWAPPING_WORK_QUEUE_OUT);
     }
 
     /**
@@ -1022,6 +1027,29 @@ public class GPU {
         SSBO_SWAPPING_BODIES_IN.setBufferLocation(SSBO_SWAPPING_BODIES_OUT.getBufferLocation());
         SSBO_SWAPPING_BODIES_OUT.setBufferLocation(tmpIn);
     }
+    /**
+     * Swaps the morton and index buffers.
+     */
+    public static void swapMortonAndIndexBuffers() {
+        // Swap input/output buffers for next pass of radix sort and the one pass of dead body paritioning.
+        int tempMortonIn = SSBO_SWAPPING_MORTON_IN.getBufferLocation();
+        int tempIndexIn = SSBO_SWAPPING_INDEX_IN.getBufferLocation();
+        SSBO_SWAPPING_MORTON_IN.setBufferLocation(SSBO_SWAPPING_MORTON_OUT.getBufferLocation());
+        SSBO_SWAPPING_INDEX_IN.setBufferLocation(SSBO_SWAPPING_INDEX_OUT.getBufferLocation());
+        SSBO_SWAPPING_MORTON_OUT.setBufferLocation(tempMortonIn);
+        SSBO_SWAPPING_INDEX_OUT.setBufferLocation(tempIndexIn);
+    }
+
+    /**
+     * Swaps the propagate work queue buffers.
+     */
+    public static void swapPropagateWorkQueueBuffers() {
+        int tmpIn = SSBO_SWAPPING_WORK_QUEUE_IN.getBufferLocation();
+        SSBO_SWAPPING_WORK_QUEUE_IN.setBufferLocation(SSBO_SWAPPING_WORK_QUEUE_OUT.getBufferLocation());
+        SSBO_SWAPPING_WORK_QUEUE_OUT.setBufferLocation(tmpIn);
+    }
+
+
     /**
      * Packs the values to a float buffer.
      * @param numBodies the number of bodies

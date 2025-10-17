@@ -2,23 +2,22 @@
 //                  Common layout and structs
 // =============================================================
 
-#version 430
-#extension GL_ARB_shading_language_include : enable
-#ifdef COMPUTE_SHADER
+//For compute shaders:
 layout(local_size_x = 256u) in;
-const uint WG_SIZE = 256u;
-#endif
+const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE in Java
+//End for compute shaders
+
+//For render shaders:
+#version 430
+#extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_shading_language_include : enable
+//End for render shaders
 
 
 //To change these, you need to also change them in BarnesHut.java
 //Radix sort constants:
 const uint RADIX_BITS = 4u;
 const uint NUM_BUCKETS = 1u << RADIX_BITS;
-
-
-#ifdef COMPUTE_SHADER
-#define SIM sim
-#endif
 
 //Common structs:
 //Representation of a celestial body
@@ -55,7 +54,19 @@ struct Node {
     uint parentId;
 };
 
-struct NodeAABB {
+struct NodeTopHalf {
+    //center of mass (x,y,z) and mass (w)
+    vec4 comMass;
+    //children of the node
+    uint childA;
+    uint childB;
+    //number of ready children of the node (used in updating the tree)
+    uint readyChildren;
+    //parent of the node
+    uint parentId;
+}
+
+struct NodeBottomHalf {
     float aabb[6];
     uint nodeDepth;
     uint bodiesContained;
@@ -96,10 +107,10 @@ layout(std430, binding = 2)  buffer BodiesOut          { Body bodies[]; } dstB;
 layout(std430, binding = 3)  buffer ParentsAndLocks          { uint parentsAndLocks[]; };
 //Internal nodes of the radix tree.
 //  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Node.STRUCT_SIZE * Integer.BYTES)
-layout(std430, binding = 4)  buffer InternalNodes      { Node internalNodes[]; };
+layout(std430, binding = 4)  buffer InternalNodesTopHalf      { NodeTopHalf internalNodesTopHalf[]; };
 //AABBs of the internal nodes, factored to keep each buffer to below 8 * numBodies bytes
 //  -Initialized with numBodies - 1 nodes (In Java: (numBodies - 1) * Children.STRUCT_SIZE * Integer.BYTES)
-layout(std430, binding = 5)  buffer InternalNodesAABB    { NodeAABB internalNodesAABB[]; };
+layout(std430, binding = 5)  buffer InternalNodesBottomHalf    { NodeBottomHalf internalNodesBottomHalf[]; };
 //Morton codes of the bodies of the simulation double buffered for dead partitioning and radix sort
 //  -Initialized with numBodies morton codes (uint64_t's) (In Java: numBodies * Long.BYTES)
 layout(std430, binding = 6)  buffer MortonDouble           { uint64_t mortonDouble[]; };
@@ -205,34 +216,34 @@ bool outOfBounds(Body b) {
 }
 
 float scaledDensity(Body b) {
-    return b.velDensity.w*SIM_BUFFER.units.density;
+    return b.velDensity.w*sim.units.density;
 }
 
 float scaledMass(Body b) {
-    return b.posMass.w*SIM_BUFFER.units.mass;
+    return b.posMass.w*sim.units.mass;
 }
 
 float scaledMass(Node node) {
-    return node.comMass.w*SIM_BUFFER.units.mass;
+    return node.comMass.w*sim.units.mass;
 }
 
 
 //Calculates the radius of a body
 float radius(Body b) {
-    return SIM_BUFFER.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
+    return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
 }
 
 
 vec3 scaledDist(vec3 a, vec3 b) {
-    return (b - a)*SIM_BUFFER.units.len;
+    return (b - a)*sim.units.len;
 }
 
 vec3 scaledDist(vec3 a) {
-    return a*SIM_BUFFER.units.len;
+    return a*sim.units.len;
 }
 
 float scaledDist(float a) {
-    return a*SIM_BUFFER.units.len;
+    return a*sim.units.len;
 }
 
 vec3 relativeLocation(vec3 a, uint relativeTo) {
@@ -281,7 +292,25 @@ bool emptyAABB(float[6] aabb) {
 }
 // Gets a node from the leaf or internal nodes buffer depending on the index
 Node getNode(uint nodeIdx) {
-    return nodeIdx < sim.initialNumBodies ? leafNodes[nodeIdx] : internalNodes[nodeIdx-sim.initialNumBodies];
+    if (nodeIdx < sim.initialNumBodies) {
+        Body body  = srcB.bodies[nodeIdx];
+        float[6] aabb = [body.posMass.x, body.posMass.y, body.posMass.z, body.posMass.x, body.posMass.y, body.posMass.z];
+        return Node(body.posMass, aabb, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 1, 0xFFFFFFFFu, parentsAndLocks[nodeIdx]);
+    } else {
+        NodeTopHalf topHalf = internalNodesTopHalf[nodeIdx-sim.initialNumBodies];
+        NodeBottomHalf bottomHalf = internalNodesBottomHalf[nodeIdx-sim.initialNumBodies];
+        return Node(topHalf.comMass, bottomHalf.aabb, topHalf.childA, topHalf.childB, topHalf.nodeDepth, bottomHalf.bodiesContained, topHalf.readyChildren, topHalf.parentId);
+    }
+}
+
+void setNode(uint nodeIdx, Node node) {
+    if (nodeIdx < sim.initialNumBodies) {
+        srcB.bodies[nodeIdx].posMass.xyz = node.comMass.xyz;
+        parentsAndLocks[nodeIdx] = node.parentId;
+    } else {
+        internalNodesTopHalf[nodeIdx-sim.initialNumBodies] = NodeTopHalf(node.comMass, node.childA, node.childB, node.readyChildren, node.parentId);
+        internalNodesBottomHalf[nodeIdx-sim.initialNumBodies] = NodeBottomHalf(node.aabb, node.nodeDepth, node.bodiesContained);
+    }
 }
 // Checks if a node is an internal node
 bool isInternalNode(Node node) {

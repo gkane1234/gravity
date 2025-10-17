@@ -46,15 +46,9 @@ void treeBuildBinaryRadixTreeKernel()
     if (gid >= sim.numBodies - 1u) {
         // For when there is only one body
         if (gid == 0) {
-            internalNodes[0].parentId = 0xFFFFFFFFu;
-            internalNodes[0].childA = 0;
-            internalNodes[0].childB = 0xFFFFFFFFu;
-            internalNodes[0].readyChildren = 1u;
-            internalNodes[0].comMass = vec4(0.0);
-            internalNodes[0].aabb = packAABB(DEFAULT_AABB);
-            internalNodes[0].nodeDepth = 0u;
-            internalNodes[0].bodiesContained = 0u;
-            leafNodes[0].parentId = sim.initialNumBodies;
+            Node root = Node(vec4(0.0), float[6](0.0, 0.0, 0.0, 0.0, 0.0, 0.0), 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 1, 0xFFFFFFFFu, 0xFFFFFFFFu);
+            setNode(sim.initialNumBodies,root);
+            parentsAndLocks[0] = sim.initialNumBodies;
 
         }
         return;
@@ -157,19 +151,10 @@ void treeInitLeafNodesKernel()
     barrier();
     if (gid >= sim.numBodies) return;
 
-    uint indexOffset = indexSrcBuffer * sim.numBodies + gid;
-    uint bodyIdx = indexDouble[indexOffset];
-    Body body = srcB.bodies[bodyIdx];
 
-    leafNodes[gid].comMass = vec4(body.posMass.xyz, body.posMass.w);
-    leafNodes[gid].aabb = packAABB(AABB(body.posMass.xyz, body.posMass.xyz));
-    leafNodes[gid].childA = 0xFFFFFFFFu;
-    leafNodes[gid].childB = 0xFFFFFFFFu;
-    leafNodes[gid].readyChildren = 0xFFFFFFFFu;
-    leafNodes[gid].nodeDepth = 0u;
-
-    uint parentIdx = leafNodes[gid].parentId;
-    uint prev = atomicAdd(internalNodes[parentIdx-sim.initialNumBodies].readyChildren, 1u);
+    uint parentIdx = parentsAndLocks[gid];
+    Node parentNode = getNode(parentIdx);
+    uint prev = atomicAdd(parentNode.readyChildren, 1u);
     if (prev == 1u) {
         uint idx = atomicAdd(workQueues + tailInPtr, 1u);
         workQueues[itemsBaseSrc + idx] = parentIdx;

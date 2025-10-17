@@ -86,7 +86,7 @@ public abstract class GLSLProgram {
         }
         if (ssbos != null) {
             for (SSBO ssbo : ssbos) {
-                ssbo.bind(program);
+                ssbo.bind();
             }
         }
     }
@@ -153,7 +153,7 @@ public abstract class GLSLProgram {
      * @param endIndex the end index of the binding range
      */
     public void setSSBOBindinRange(SSBO ssbo, int startIndex, int endIndex) {
-        ssbo.setProgramBindingRange(program, startIndex, endIndex);
+        ssbo.bind(startIndex, endIndex);
     }
 
     /**
