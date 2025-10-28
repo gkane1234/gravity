@@ -2,6 +2,8 @@
 A Barnes Hut Implementation of the N-Body problem capable of handling over 32 million objects in realtime.
 All calculations during the simulation are done using compute shaders in GLSL. The CPU side is written in Java using LWGL
 
+![Image](https://github.com/gkane1234/gravity/blob/master/Screenshot%202025-10-28%20153033.png)
+
 ## Features:
  1. Real-time n-body interaction with massive, highly parallelized simulations
  2. Fully custom graphical UI
