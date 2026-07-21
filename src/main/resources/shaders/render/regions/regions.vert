@@ -23,7 +23,7 @@ void main() {
 	}
 	int nodeIndex = gl_InstanceID;
 
-	Node node = internalNodes[nodeIndex];
+	Node node = getNode(uint(nodeIndex) + sim.initialNumBodies);
 
 	if (emptyAABB(node.aabb)) {
 		cullRegion();

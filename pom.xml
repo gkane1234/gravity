@@ -88,6 +88,15 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <!-- Multi-GB SPICE kernels; keep local for tools, do not ship in the app jar -->
+                    <exclude>planet_data/planet_data_bsp/**</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

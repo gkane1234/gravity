@@ -438,7 +438,9 @@ public class SettingsGenerator {
     private static String generateLoadSaveMethods() {
         return """
                 \t/**
-                \t * Loads the settings file.
+                \t * Resolves the writable settings file path.
+                \t * Dev builds (Maven project with pom.xml) write under src/main/resources.
+                \t * Packaged / installed builds write under the user config directory.
                 \t * This method is automatically generated from defaultProperties.json
                 \t * Any changes made here will be overwritten when regenerating
                 \t */
@@ -446,30 +448,31 @@ public class SettingsGenerator {
                 \t\ttry {
                 \t\t\tjava.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
                 \t\t\tjava.nio.file.Path p = java.nio.file.Paths.get(loc.toURI());
-                \t\t\tjava.nio.file.Path moduleRoot;
+                \t\t\tjava.nio.file.Path moduleRoot = null;
                 \t\t\tif (java.nio.file.Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
                 \t\t\t\tmoduleRoot = p.getParent().getParent();
                 \t\t\t} else if (java.nio.file.Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
                 \t\t\t\tmoduleRoot = p.getParent().getParent();
                 \t\t\t} else {
                 \t\t\t\tjava.nio.file.Path q = p;
-                \t\t\t\tjava.nio.file.Path found = null;
                 \t\t\t\twhile (q != null) {
-                \t\t\t\t\tif (java.nio.file.Files.exists(q.resolve("pom.xml"))) { found = q; break; }
+                \t\t\t\t\tif (java.nio.file.Files.exists(q.resolve("pom.xml"))) { moduleRoot = q; break; }
                 \t\t\t\t\tq = q.getParent();
                 \t\t\t\t}
-                \t\t\t\tmoduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
                 \t\t\t}
-                \t\t\tjava.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings/settings.json");
-                \t\t\treturn settingsPath.toFile();
-                \t\t} catch (Exception e) {
-                \t\t\tjava.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
-                \t\t\tjava.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings/settings.json");
-                \t\t\tif (!java.nio.file.Files.exists(candidate.getParent())) {
-                \t\t\t\tcandidate = userDir.resolve("src/main/resources/settings/settings.json");
+                \t\t\tif (moduleRoot != null && java.nio.file.Files.exists(moduleRoot.resolve("pom.xml"))) {
+                \t\t\t\treturn moduleRoot.resolve("src/main/resources/settings/settings.json").toFile();
                 \t\t\t}
-                \t\t\treturn candidate.toFile();
+                \t\t} catch (Exception ignored) {
                 \t\t}
+                \t\tString appData = System.getenv("APPDATA");
+                \t\tjava.nio.file.Path configDir;
+                \t\tif (appData != null && !appData.isBlank()) {
+                \t\t\tconfigDir = java.nio.file.Paths.get(appData, "GravityChunk");
+                \t\t} else {
+                \t\t\tconfigDir = java.nio.file.Paths.get(System.getProperty("user.home"), ".gravitychunk");
+                \t\t}
+                \t\treturn configDir.resolve("settings.json").toFile();
                 \t}
                 \t/**
                 \t * Loads the settings from the settings file.

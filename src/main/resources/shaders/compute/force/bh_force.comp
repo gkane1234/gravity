@@ -65,11 +65,14 @@ void forceComputeKernel()
             if (acceptanceCriterion(getLongestSide(node), oneOverDist, theta)) {
                 accel += force(node, r, oneOverDist);
             }
-            //Add the children to the stack
-            else {
+            //Add the children to the stack (stop subdividing if the stack is full)
+            else if (currentStackSize + 2u <= STACK_SIZE) {
                 stack[currentStackSize++] = node.childA;
                 stack[currentStackSize++] = node.childB;
                 atomicAdd(sim.uintDebug[0], 1u);
+            } else {
+                // Stack exhausted: approximate with this node's COM rather than overflowing.
+                accel += force(node, r, oneOverDist);
             }
         }
         else {

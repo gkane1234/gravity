@@ -148,8 +148,58 @@ Creates a global debugging object that can write debug files for easy debugging 
 
 Allows for the recording of the simulation by saving each individual frame as a png.
 
+**Hotkey:** `F6` toggles recording. Frames go to `captures/rec_<timestamp>/`.
 
+Encode a capture for the website:
 
+```powershell
+.\scripts\encode-capture.ps1 -CaptureDir captures\rec_YYYYMMDD_HHMMSS -Name hero
+```
+
+Output lands in `website/public/videos/` (see [`website/README.md`](website/README.md)).
+
+## Running locally
+
+Requirements: **JDK 17+**, **Maven**, **Windows**, **NVIDIA GPU** with recent drivers (OpenGL 4.3+ compute). CUDA Toolkit is not required.
+
+From the project root:
+
+```powershell
+mvn compile exec:java
+```
+
+Or package and run the shaded jar:
+
+```powershell
+mvn -DskipTests package
+java -Xmx8g -jar target\gravitychunk-1.0-SNAPSHOT.jar
+```
+
+Recording: press **F6** while the sim is running.
+
+## Windows installer
+
+Build an app-image (and Inno Setup installer if `iscc` is installed):
+
+```powershell
+.\scripts\build-installer.ps1
+# or app-image only:
+.\scripts\build-installer.ps1 -SkipInno
+```
+
+- App-image: `dist/app-image/GravityChunk/`
+- Setup exe (with Inno Setup 6): `dist/installer/GravityChunk-Setup-*.exe`
+
+Publish the setup exe as a GitHub Release asset. The website download button points at `https://github.com/gkane1234/gravity/releases/latest`.
+
+## Website showcase
+
+This sim does not run in a browser. Use recorded videos + a download link:
+
+1. Record with F6, encode with `scripts/encode-capture.ps1`
+2. Copy [`website/GravityShowcase.jsx`](website/GravityShowcase.jsx) into your React site
+3. Put videos under that site's `public/videos/`
+4. Ship the installer via GitHub Releases
 
 ## Features to implement:
 

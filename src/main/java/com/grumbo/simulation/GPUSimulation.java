@@ -51,7 +51,7 @@ public class GPUSimulation {
         STOPPED
     }
 
-    public State state = State.PAUSED;
+    public State state = State.RUNNING;
     @SuppressWarnings("unused")
     private boolean debug;
 
@@ -156,7 +156,7 @@ public class GPUSimulation {
         PlanetGenerator pg = PlanetGenerator.makeNewRandomDisk(centerDiskPlanets, centerDiskRadius, mRange, densityRange, centerDiskLocation, centerDiskRelativeVelocity, centerDiskPhi, centerDiskCenterMass, centerDiskCenterDensity, centerDiskAdherenceToPlane, centerDiskOrbitalFactor, false,centerDiskGiveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND);
         pg= new PlanetGenerator(pg, PlanetGenerator.createSeveralDisks(numDisks, numPlanetsRange, radiusRangeLow, stellarDensityRange, mRange, densityRange, centerX, centerY, centerZ, relativeVelocityX, relativeVelocityY, relativeVelocityZ, phiRange, centerMassRange, centerDensityRange, adherenceToPlaneRange, orbitalFactor, giveOrbitalVelocity, UnitSet.SOLAR_SYSTEM_SECOND));
         
-        return new GPUSimulation(pg, centerX[1]*2/100, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
+        return new GPUSimulation(pg, centerX[1]*2/100, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, false);
     }
     
 
@@ -297,9 +297,20 @@ public class GPUSimulation {
      * @param operation the name of the operation that was just performed on the GPU.
      */
     public static void checkGLError(String operation) {
-        int error = glGetError();
-        if (error != GL_NO_ERROR) {
-            System.err.println("OpenGL Error " + operation + ": " + error);
+        int error;
+        while ((error = glGetError()) != GL_NO_ERROR) {
+            System.err.println("OpenGL Error " + operation + ": " + error + " (" + glErrorName(error) + ")");
+        }
+    }
+
+    private static String glErrorName(int error) {
+        switch (error) {
+            case GL_INVALID_ENUM: return "GL_INVALID_ENUM";
+            case GL_INVALID_VALUE: return "GL_INVALID_VALUE";
+            case GL_INVALID_OPERATION: return "GL_INVALID_OPERATION";
+            case GL_OUT_OF_MEMORY: return "GL_OUT_OF_MEMORY";
+            case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+            default: return "unknown";
         }
     }
 

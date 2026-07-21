@@ -95,20 +95,19 @@ public class OpenGLWindow {
         openGlUI = new OpenGLUI(this);
         
         System.out.println(getStartupInfo());
+        System.out.println("Simulation starts RUNNING. F1 pauses / resumes. ENTER advances one frame while paused.");
     }
     /**
      * Steps the OpenGL window.
      */
     public void step() {
-
         if (glfwWindowShouldClose(window)) {
-
             System.out.println("Render loop ended");
-
             gpuSimulation.stop();
             cleanup();
+            return;
         }
-        
+
         // Update FPS calculation
         updateFPS();
         openGlUI.drawUI();

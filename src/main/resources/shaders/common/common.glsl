@@ -64,7 +64,7 @@ struct NodeTopHalf {
     uint readyChildren;
     //parent of the node
     uint parentId;
-}
+};
 
 struct NodeBottomHalf {
     float aabb[6];
@@ -151,6 +151,20 @@ const uint COLLISION = 2u;
 
 const uint BOTH = 3u;
 
+uniform float elasticity; //Elasticity of collisions
+uniform float restitution; //Restitution of overlapping bodies in collisions
+uniform bool wrapAround; //If the simulation wraps around or kills OOB bodies
+uniform uint staticOrDynamic; //If the simulation is static or dynamic
+const uint STATIC = 0u;
+const uint DYNAMIC = 1u;
+
+// Unit-system uniforms (uploaded from Settings); mass==0 means "no unit change" in update
+uniform float mass;
+uniform float density;
+uniform float len;
+uniform float time;
+uniform float cameraScale;
+
 //Radix sort uniforms:
 uniform uint passShift; //Pass shift for radix sort passes.
 //Common uniforms:
@@ -179,13 +193,8 @@ uniform uint mortonSrcBuffer;
 uniform uint mortonDstBuffer;
 uniform uint indexSrcBuffer;
 uniform uint indexDstBuffer;
-#ifdef COMPUTE_SHADER
-#define WORK_QUEUE_SRC workQueueSrcBuffer
-#define WORK_QUEUE_DST workQueueDstBuffer
-#else
-#define WORK_QUEUE_SRC 0u
-#define WORK_QUEUE_DST 1u
-#endif
+uniform uint workQueueSrcBuffer;
+uniform uint workQueueDstBuffer;
 
 
 //Empty body constant for merged bodies or OOB bodies
@@ -290,28 +299,32 @@ bool emptyAABB(AABB aabb) {
 bool emptyAABB(float[6] aabb) {
     return aabb[0] > aabb[3];
 }
-// Gets a node from the leaf or internal nodes buffer depending on the index
+// Gets a node from the leaf or internal nodes buffer depending on the index.
+// Leaf indices are sorted Morton slots; body data lives at indexDouble[slot].
 Node getNode(uint nodeIdx) {
     if (nodeIdx < sim.initialNumBodies) {
-        Body body  = srcB.bodies[nodeIdx];
-        float[6] aabb = [body.posMass.x, body.posMass.y, body.posMass.z, body.posMass.x, body.posMass.y, body.posMass.z];
-        return Node(body.posMass, aabb, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 1, 0xFFFFFFFFu, parentsAndLocks[nodeIdx]);
+        uint bodyIdx = indexDouble[indexSrcBuffer * sim.numBodies + nodeIdx];
+        Body body = srcB.bodies[bodyIdx];
+        float[6] aabb = float[6](body.posMass.x, body.posMass.y, body.posMass.z, body.posMass.x, body.posMass.y, body.posMass.z);
+        return Node(body.posMass, aabb, 0xFFFFFFFFu, 0xFFFFFFFFu, 0u, 1u, 0xFFFFFFFFu, parentsAndLocks[nodeIdx]);
     } else {
-        NodeTopHalf topHalf = internalNodesTopHalf[nodeIdx-sim.initialNumBodies];
-        NodeBottomHalf bottomHalf = internalNodesBottomHalf[nodeIdx-sim.initialNumBodies];
-        return Node(topHalf.comMass, bottomHalf.aabb, topHalf.childA, topHalf.childB, topHalf.nodeDepth, bottomHalf.bodiesContained, topHalf.readyChildren, topHalf.parentId);
+        NodeTopHalf topHalf = internalNodesTopHalf[nodeIdx - sim.initialNumBodies];
+        NodeBottomHalf bottomHalf = internalNodesBottomHalf[nodeIdx - sim.initialNumBodies];
+        return Node(topHalf.comMass, bottomHalf.aabb, topHalf.childA, topHalf.childB, bottomHalf.nodeDepth, bottomHalf.bodiesContained, topHalf.readyChildren, topHalf.parentId);
     }
 }
 
+//For compute shaders:
 void setNode(uint nodeIdx, Node node) {
     if (nodeIdx < sim.initialNumBodies) {
         srcB.bodies[nodeIdx].posMass.xyz = node.comMass.xyz;
         parentsAndLocks[nodeIdx] = node.parentId;
     } else {
-        internalNodesTopHalf[nodeIdx-sim.initialNumBodies] = NodeTopHalf(node.comMass, node.childA, node.childB, node.readyChildren, node.parentId);
-        internalNodesBottomHalf[nodeIdx-sim.initialNumBodies] = NodeBottomHalf(node.aabb, node.nodeDepth, node.bodiesContained);
+        internalNodesTopHalf[nodeIdx - sim.initialNumBodies] = NodeTopHalf(node.comMass, node.childA, node.childB, node.readyChildren, node.parentId);
+        internalNodesBottomHalf[nodeIdx - sim.initialNumBodies] = NodeBottomHalf(node.aabb, node.nodeDepth, node.bodiesContained);
     }
 }
+//End for compute shaders
 // Checks if a node is an internal node
 bool isInternalNode(Node node) {
     return node.childA != 0xFFFFFFFFu;

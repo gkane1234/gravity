@@ -102,6 +102,10 @@ public class SSBO {
         this.ProgramBindingRanges = new HashMap<>();
         addToSSBOLayoutMap(SSBOLayout, 0);
         this.baseOffset = baseOffset;
+        // Alias / view SSBOs never call createBufferData(); still need a valid bind size.
+        if (sizeFunction != null) {
+            this.size = sizeFunction.getSize();
+        }
     }
     /**
      * Constructor for the SSBO class
@@ -217,42 +221,58 @@ public class SSBO {
     }
 
     /**
-     * Binds the SSBO
+     * Binds a byte range of this buffer to its SSBO binding point.
+     * {@code offset} and {@code rangeSize} are passed directly to {@code glBindBufferRange}.
      */
-    public void bind(int startIndex, int endIndex) {
-        glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation, startIndex, endIndex);
+    public void bindRange(int offset, int rangeSize) {
+        if (rangeSize <= 0) {
+            throw new IllegalArgumentException("SSBO bind range size must be > 0 for " + name + ", got " + rangeSize);
+        }
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bufferBinding, bufferLocation, offset, rangeSize);
     }
 
     /**
-     * Binds the SSBO.
+     * @deprecated Prefer {@link #bindRange(int, int)}. The second argument was historically treated as an end offset
+     *             but {@code glBindBufferRange} requires a size; this overload now interprets it as size for compatibility
+     *             with {@link #bind()}.
+     */
+    public void bind(int offset, int rangeSize) {
+        bindRange(offset, rangeSize);
+    }
+
+    /**
+     * Binds this SSBO's active view ({@code baseOffset}, {@code size}) to its binding point.
      */
     public void bind() {
-        bind(baseOffset, baseOffset + size);
+        bindRange(baseOffset, size);
     }
 
 
     /**
-     * Unbinds the SSBO
+     * Unbinds the SSBO from the generic binding point (does not clear indexed bindings).
      */
     public void unbind() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     /**
-     * Creates the buffer for the SSBO
+     * Allocates (or resizes) the buffer store. Must use {@code glBindBuffer} + {@code glBufferData}
+     * — not {@code glBindBufferRange}, which is invalid on an empty buffer and caused GL error 1281.
      */
     public void createBufferData() {
-        bind();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bufferLocation);
         if (sizeFunction != null) {
             size = sizeFunction.getSize();
-            glBufferData(GL_SHADER_STORAGE_BUFFER, size, GL_DYNAMIC_COPY);
-
+            if (size <= 0) {
+                throw new IllegalArgumentException("SSBO size must be > 0 for " + name + ", got " + size);
+            }
+            glBufferData(GL_SHADER_STORAGE_BUFFER, (long) size, GL_DYNAMIC_COPY);
         } else {
             ByteBuffer data = dataFunction.setData();
             size = data.capacity();
             glBufferData(GL_SHADER_STORAGE_BUFFER, data, GL_DYNAMIC_COPY);
         }
-        unbind();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     /**

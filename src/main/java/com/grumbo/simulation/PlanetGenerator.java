@@ -3,13 +3,12 @@ package com.grumbo.simulation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import org.joml.Vector3f;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grumbo.gpu.ResourceLoader;
 import com.grumbo.simulation.UnitSet;
 
 /**
@@ -526,14 +525,13 @@ public class PlanetGenerator {
 
 
     public static PlanetGenerator makeSolarSystem() {
-        String json = null;
         try {
-            json = Files.readString(Path.of("src/main/resources/planet_data/solar_system.json"));
+            String json = ResourceLoader.readText("planet_data/solar_system.json");
+            return fromJson(json);
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
-        return fromJson(json);
     }
 
     /**

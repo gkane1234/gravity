@@ -25,9 +25,10 @@ public class FragmentShader extends GLSLShader {
     @Override
     public String getSource(String shaderName) {
         try {
-            String source = hashtagIncludeShaders("src/main/resources/shaders/render/" + shaderName + "/"+ shaderName + ".frag");
+            String source = hashtagIncludeShaders("render/" + shaderName + "/" + shaderName + ".frag");
             source = source.replaceAll("(?s)//For compute shaders:.*?//End for compute shaders", "//Removed compute shader code here");
-            source = source.replaceAll("buffer", "readonly buffer");
+            // Only the buffer keyword (not identifiers like mortonSrcBuffer)
+            source = source.replaceAll("(?<!\\w)buffer(?=\\s)", "readonly buffer");
             return source;
         } catch (IOException e) {
             throw new RuntimeException("Failed to read fragment shader: " + e.getMessage());

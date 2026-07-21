@@ -244,18 +244,26 @@ public class GPU {
         }, "SSBO_PARENTS_AND_LOCKS", new GLSLVariable(VariableType.UINT, "ParentsAndLocks", 2 * numBodies()));
         GPU.SSBOS.put(SSBO_PARENTS_AND_LOCKS.getName(), SSBO_PARENTS_AND_LOCKS);
 
+        // Top-half of each internal node (comMass, children, readyChildren, parentId) — 32 bytes
         SSBO_INTERNAL_NODES = new SSBO(SSBO.INTERNAL_NODES_BINDING, () -> {
-            return (numBodies() - 1) * Node.STRUCT_SIZE * Integer.BYTES;
-        }, "SSBO_INTERNAL_NODES", new GLSLVariable(Node.nodeStruct,"InternalNodes", numBodies() - 1));
+            return (numBodies() - 1) * 8 * Integer.BYTES;
+        }, "SSBO_INTERNAL_NODES", new GLSLVariable(new GLSLVariable[] {
+            new GLSLVariable(VariableType.FLOAT, "comMass", 4),
+            new GLSLVariable(VariableType.UINT, "childA", 1),
+            new GLSLVariable(VariableType.UINT, "childB", 1),
+            new GLSLVariable(VariableType.UINT, "readyChildren", 1),
+            new GLSLVariable(VariableType.UINT, "parentId", 1)
+        }, "InternalNodesTopHalf", numBodies() - 1));
         GPU.SSBOS.put(SSBO_INTERNAL_NODES.getName(), SSBO_INTERNAL_NODES);
 
+        // Bottom-half (aabb, nodeDepth, bodiesContained) — 32 bytes
         SSBO_INTERNAL_NODES_AABB = new SSBO(SSBO.INTERNAL_NODES_AABB_BINDING, () -> {
             return Math.max(1, numBodies() - 1) * (6 * Float.BYTES + 2 * Integer.BYTES);
         }, "SSBO_INTERNAL_NODES_AABB", new GLSLVariable(new GLSLVariable[] {
             new GLSLVariable(VariableType.FLOAT, "aabb", 6),
             new GLSLVariable(VariableType.UINT, "nodeDepth", 1),
             new GLSLVariable(VariableType.UINT, "bodiesContained", 1)
-        }, "InternalNodesAABB", Math.max(1, numBodies() - 1)));
+        }, "InternalNodesBottomHalf", Math.max(1, numBodies() - 1)));
         GPU.SSBOS.put(SSBO_INTERNAL_NODES_AABB.getName(), SSBO_INTERNAL_NODES_AABB);
 
         //This is the SSBO that holds values that are used in different shaders
@@ -456,12 +464,12 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_INDEX_DST_BUFFER.getName(), UNIFORM_INDEX_DST_BUFFER);
 
         UNIFORM_WORK_QUEUE_SRC_BUFFER = new Uniform<Integer>("workQueueSrcBuffer", () -> {
-            return 0;
+            return barnesHut.workQueueSourceBufferIndex();
         }, VariableType.UINT);
         GPU.UNIFORMS.put(UNIFORM_WORK_QUEUE_SRC_BUFFER.getName(), UNIFORM_WORK_QUEUE_SRC_BUFFER);
 
         UNIFORM_WORK_QUEUE_DST_BUFFER = new Uniform<Integer>("workQueueDstBuffer", () -> {
-            return 1;
+            return barnesHut.workQueueDestinationBufferIndex();
         }, VariableType.UINT);
         GPU.UNIFORMS.put(UNIFORM_WORK_QUEUE_DST_BUFFER.getName(), UNIFORM_WORK_QUEUE_DST_BUFFER);
 
@@ -520,10 +528,19 @@ public class GPU {
         GPU.COMPUTE_PROGRAMS = new HashMap<>();
         COMPUTE_INIT = new ComputeProgram("COMPUTE_INIT");
         COMPUTE_INIT.setUniforms(new Uniform[] {
+            UNIFORM_MASS,
+            UNIFORM_DENSITY,
+            UNIFORM_LENGTH,
+            UNIFORM_TIME,
+            UNIFORM_MORTON_SRC_BUFFER,
+            UNIFORM_MORTON_DST_BUFFER,
+            UNIFORM_INDEX_SRC_BUFFER,
+            UNIFORM_INDEX_DST_BUFFER,
         });
         COMPUTE_INIT.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_INDEX_DOUBLE,
+            GPU.SSBO_MORTON_DOUBLE,
             GPU.SSBO_FIXED_BODIES_IN,
             GPU.SSBO_FIXED_BODIES_OUT
         });
@@ -540,7 +557,7 @@ public class GPU {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_INDEX_DOUBLE,
-            GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_INTERNAL_NODES_AABB,
         });
         COMPUTE_MORTON_AABB_REPOPULATE.setXWorkGroupsFunction(() -> {
             return numGroups();
@@ -556,7 +573,7 @@ public class GPU {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_INDEX_DOUBLE,
-            GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_INTERNAL_NODES_AABB,
         });
         COMPUTE_MORTON_AABB_COLLAPSE.setXWorkGroupsFunction(() -> {
             return 1;
@@ -720,6 +737,7 @@ public class GPU {
             GPU.SSBO_MORTON_DOUBLE,
             GPU.SSBO_INDEX_DOUBLE,
             GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_INTERNAL_NODES_AABB,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_PARENTS_AND_LOCKS,
         });
@@ -746,6 +764,7 @@ public class GPU {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_SWAPPING_BODIES_IN,
             GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_INTERNAL_NODES_AABB,
             GPU.SSBO_PARENTS_AND_LOCKS,
             GPU.SSBO_MORTON_DOUBLE,
             GPU.SSBO_INDEX_DOUBLE,
@@ -781,6 +800,7 @@ public class GPU {
         COMPUTE_TREE_PROPAGATE_NODES = new ComputeProgram("COMPUTE_TREE_PROPAGATE_NODES");
 
         COMPUTE_TREE_PROPAGATE_NODES.setUniforms(new Uniform[] {
+            UNIFORM_INDEX_SRC_BUFFER,
             UNIFORM_WORK_QUEUE_SRC_BUFFER,
             UNIFORM_WORK_QUEUE_DST_BUFFER
         });
@@ -788,9 +808,11 @@ public class GPU {
         COMPUTE_TREE_PROPAGATE_NODES.setSSBOs(new SSBO[] {
             GPU.SSBO_SIMULATION_VALUES,
             GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_INTERNAL_NODES_AABB,
             GPU.SSBO_PARENTS_AND_LOCKS,
             GPU.SSBO_WORK_QUEUE_DOUBLE,
             GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_INDEX_DOUBLE,
         });
         COMPUTE_TREE_PROPAGATE_NODES.setXWorkGroupsFunction(() -> {
             int maxPossibleNodes = Math.max(4*WORK_GROUP_SIZE,(int)((numBodies() - 1)/Math.pow(2,barnesHut.COMPropagationPassNumber)));
@@ -804,10 +826,12 @@ public class GPU {
             UNIFORM_THETA,
             UNIFORM_DT,
             UNIFORM_ELASTICITY,
+            UNIFORM_RESTITUTION,
             UNIFORM_WRAP_AROUND,
             UNIFORM_SOFTENING,
             UNIFORM_MERGING_COLLISION_OR_NEITHER,
             UNIFORM_STATIC_OR_DYNAMIC,
+            UNIFORM_INDEX_SRC_BUFFER,
         });
 
         COMPUTE_FORCE_COMPUTE.setSSBOs(new SSBO[] {

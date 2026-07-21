@@ -88,14 +88,6 @@ public class OpenGLUI {
         }
 
         /**
-         * Run when the key is released.
-         */
-        public void release() {
-            pressed = false;
-            repeat = false;
-        }
-
-        /**
          * Tries to run key events
          * @return True if a key event was run, false otherwise.
          */
@@ -104,9 +96,9 @@ public class OpenGLUI {
             if (pressed && !repeat) {
                 pressAction.run();
                 repeat = true;
+                lastRepeatTime = System.currentTimeMillis();
                 ran = true;
-            }
-            else if (repeatable && repeat) {
+            } else if (pressed && repeatable && repeat) {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - lastRepeatTime >= REPEAT_DELAY) {
                     pressAction.run();
@@ -114,18 +106,20 @@ public class OpenGLUI {
                     ran = true;
                 }
             }
-            else if (releaseAction != null) {
-                releaseAction.run();
-                ran = true;
-            }
             return ran;
         }
 
         /**
-         * Checks if the key event is equal to another key event.
-         * @param o The object to compare to.
-         * @return True if the key event is equal to the other key event, false otherwise.
+         * Run when the key is released.
          */
+        public void release() {
+            if (pressed && releaseAction != null) {
+                releaseAction.run();
+            }
+            pressed = false;
+            repeat = false;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (o instanceof KeyEvent) {

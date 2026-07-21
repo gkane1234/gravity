@@ -690,7 +690,9 @@ public class Settings {
 		return properties.get(name);
 	}
 	/**
-	 * Loads the settings file.
+	 * Resolves the writable settings file path.
+	 * Dev builds (Maven project with pom.xml) write under src/main/resources.
+	 * Packaged / installed builds write under the user config directory.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
@@ -698,30 +700,31 @@ public class Settings {
 		try {
 			java.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
 			java.nio.file.Path p = java.nio.file.Paths.get(loc.toURI());
-			java.nio.file.Path moduleRoot;
+			java.nio.file.Path moduleRoot = null;
 			if (java.nio.file.Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
 				moduleRoot = p.getParent().getParent();
 			} else if (java.nio.file.Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
 				moduleRoot = p.getParent().getParent();
 			} else {
 				java.nio.file.Path q = p;
-				java.nio.file.Path found = null;
 				while (q != null) {
-					if (java.nio.file.Files.exists(q.resolve("pom.xml"))) { found = q; break; }
+					if (java.nio.file.Files.exists(q.resolve("pom.xml"))) { moduleRoot = q; break; }
 					q = q.getParent();
 				}
-				moduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
 			}
-			java.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings/settings.json");
-			return settingsPath.toFile();
-		} catch (Exception e) {
-			java.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
-			java.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings/settings.json");
-			if (!java.nio.file.Files.exists(candidate.getParent())) {
-				candidate = userDir.resolve("src/main/resources/settings/settings.json");
+			if (moduleRoot != null && java.nio.file.Files.exists(moduleRoot.resolve("pom.xml"))) {
+				return moduleRoot.resolve("src/main/resources/settings/settings.json").toFile();
 			}
-			return candidate.toFile();
+		} catch (Exception ignored) {
 		}
+		String appData = System.getenv("APPDATA");
+		java.nio.file.Path configDir;
+		if (appData != null && !appData.isBlank()) {
+			configDir = java.nio.file.Paths.get(appData, "GravityChunk");
+		} else {
+			configDir = java.nio.file.Paths.get(System.getProperty("user.home"), ".gravitychunk");
+		}
+		return configDir.resolve("settings.json").toFile();
 	}
 	/**
 	 * Loads the settings from the settings file.

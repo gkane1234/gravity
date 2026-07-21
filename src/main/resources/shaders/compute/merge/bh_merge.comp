@@ -43,14 +43,14 @@ void mergeBodiesKernel() {
         uint first  = min(iA, iB);
         uint second = max(iA, iB);
 
-        if (atomicCompSwap(bodyLocks[first], 0u, 1u) != 0u) {
+        if (atomicCompSwap(parentsAndLocks[sim.initialNumBodies + first], 0u, 1u) != 0u) {
             // could not lock first, already locked
             continue; // Skip this pair
         }
-        if (atomicCompSwap(bodyLocks[second], 0u, 1u) != 0u) {
+        if (atomicCompSwap(parentsAndLocks[sim.initialNumBodies + second], 0u, 1u) != 0u) {
             // could not lock second, already locked
             // release first, then skip
-            bodyLocks[first] = 0u;
+            parentsAndLocks[sim.initialNumBodies + first] = 0u;
             continue; // Skip this pair
         }
 
@@ -65,7 +65,7 @@ void mergeBodiesKernel() {
         }
 
         // Unlock both
-        bodyLocks[first] = 0u;
-        bodyLocks[second] = 0u;
+        parentsAndLocks[sim.initialNumBodies + first] = 0u;
+        parentsAndLocks[sim.initialNumBodies + second] = 0u;
     }
 }

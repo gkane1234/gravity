@@ -34,7 +34,7 @@ public class ComputeShader extends GLSLShader {
      */
     private static String getComputeShaderSource() {
         // Entry point shader that includes all shared code and phase kernels
-        String entryPath = "src/main/resources/shaders/compute/bh_main.comp";
+        String entryPath = "compute/bh_main.comp";
         try {
             String source = hashtagIncludeShaders(entryPath);
             debug.addToDebugString(source);

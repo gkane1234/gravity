@@ -127,10 +127,10 @@ void mortonAABBRepopulateKernel() {
         if (laneHasBodies) {
             uint totalWorkGroups = gl_NumWorkGroups.x;
             if (wgId < totalWorkGroups)
-                internalNodes[wgId].aabb = packAABB(sharedAABB[0]);
+                internalNodesBottomHalf[wgId].aabb = packAABB(sharedAABB[0]);
         }
 
-            sim.floatDebug[13+wgId]=internalNodes[wgId].aabb[0];
+            sim.floatDebug[13+wgId]=internalNodesBottomHalf[wgId].aabb[0];
         
     }
 }
@@ -149,9 +149,9 @@ void mortonAABBCollapseKernel() {
     bool laneActive = regionStart < numWorkGroups;
     AABB laneAABB;
     if (laneActive) {
-        laneAABB = unpackAABB(internalNodes[regionStart].aabb);
+        laneAABB = unpackAABB(internalNodesBottomHalf[regionStart].aabb);
         for (uint i = regionStart+1; i < min(regionStart + regionSize, numWorkGroups); ++i) {
-            laneAABB = updateAABB(laneAABB, unpackAABB(internalNodes[i].aabb));
+            laneAABB = updateAABB(laneAABB, unpackAABB(internalNodesBottomHalf[i].aabb));
         }
     } else {
         laneAABB = AABB(vec3(1e9), vec3(-1e9));
