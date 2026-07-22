@@ -2,6 +2,8 @@
 A Barnes Hut Implementation of the N-Body problem capable of handling over 32 million objects in realtime.
 All calculations during the simulation are done using compute shaders in GLSL. The CPU side is written in Java using LWGL
 
+![Image](https://github.com/gkane1234/gravity/blob/master/Screenshot%202025-10-28%20153033.png)
+
 ## Features:
  1. Real-time n-body interaction with massive, highly parallelized simulations
  2. Fully custom graphical UI
@@ -148,8 +150,58 @@ Creates a global debugging object that can write debug files for easy debugging 
 
 Allows for the recording of the simulation by saving each individual frame as a png.
 
+**Hotkey:** `F6` toggles recording. Frames go to `captures/rec_<timestamp>/`.
 
+Encode a capture for the website:
 
+```powershell
+.\scripts\encode-capture.ps1 -CaptureDir captures\rec_YYYYMMDD_HHMMSS -Name hero
+```
+
+Output lands in `website/public/videos/` (see [`website/README.md`](website/README.md)).
+
+## Running locally
+
+Requirements: **JDK 17+**, **Maven**, **Windows**, **NVIDIA GPU** with recent drivers (OpenGL 4.3+ compute). CUDA Toolkit is not required.
+
+From the project root:
+
+```powershell
+mvn compile exec:java
+```
+
+Or package and run the shaded jar:
+
+```powershell
+mvn -DskipTests package
+java -Xmx8g -jar target\gravitychunk-1.0-SNAPSHOT.jar
+```
+
+Recording: press **F6** while the sim is running.
+
+## Windows installer
+
+Build an app-image (and Inno Setup installer if `iscc` is installed):
+
+```powershell
+.\scripts\build-installer.ps1
+# or app-image only:
+.\scripts\build-installer.ps1 -SkipInno
+```
+
+- App-image: `dist/app-image/GravityChunk/`
+- Setup exe (with Inno Setup 6): `dist/installer/GravityChunk-Setup-*.exe`
+
+Publish the setup exe as a GitHub Release asset. The website download button points at `https://github.com/gkane1234/gravity/releases/latest`.
+
+## Website showcase
+
+This sim does not run in a browser. Use recorded videos + a download link:
+
+1. Record with F6, encode with `scripts/encode-capture.ps1`
+2. Copy [`website/GravityShowcase.jsx`](website/GravityShowcase.jsx) into your React site
+3. Put videos under that site's `public/videos/`
+4. Ship the installer via GitHub Releases
 
 ## Features to implement:
 
@@ -174,10 +226,13 @@ Allows for the recording of the simulation by saving each individual frame as a 
  16. Have certain java or glsl values be auto generated so there is only one place to change them
  17. Add hotkey bindings
  18. Add ability to see information about an object in the simulation
+ 19. Distant LOD / aggregated glow for far star fields (see [ISSUES.md](ISSUES.md) #10)
 
 
 
 ## Issues:
+
+Tracked in detail in **[ISSUES.md](ISSUES.md)**. Short list:
 
  1.  galaxy generation seems to tear itself apart sometimes
  2. the name of fixed ssbo objects is overwritten by the swapping ssbos
@@ -188,10 +243,6 @@ Allows for the recording of the simulation by saving each individual frame as a 
  7. Camera is jumpy especially when far away
  8. There is a discrete change between glow and body rendering when moving towards a body
  9. Rename merge queue to merge tasks
-
-
-
- 
-
-
-
+ 10. Distant stars look like noise — need LOD / aggregated glow instead of many tiny points
+ 11. After some runtime, gravity seems to stop (bodies coast on velocity only) — possible NaN/tree/force bug
+ 12. Per-star glow does not fix distant visibility — need a different method (not more per-body glow)

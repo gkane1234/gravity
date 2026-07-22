@@ -10,6 +10,7 @@ in vec3 vCenterView;
 in float vCenterClipW;
 in float vNdcScaleX;
 in float vNdcScaleY;
+in float vProjectedTrueHalf;
 
 
 out vec4 fragColor;
@@ -18,9 +19,11 @@ out vec4 fragColor;
 // and as an additive glow when they are far.
 void main() {
     float r2 = dot(vMapping, vMapping);
-    const float bodyRenderDistance = 1000;
+    // Same depth basis as nodeGlowActivateDist: view-space -z after cameraScale.
+    float camDist = max(-vCenterView.z, 0.0);
+    bool tooFar = camDist > uBodyRenderDistance;
 
-    bool tooFar = length(vCenterView) > bodyRenderDistance;
+    if (tooFar) discard;
     if (r2 > 1.0) discard;
 
     float radius = sqrt(r2);
@@ -29,15 +32,13 @@ void main() {
         // --- Sphere interior pass ---
         if (radius > bodyToGlowRatio) discard;
 
-        if (tooFar) discard;
-
         // vec3 normal = vec3(vMapping, sqrt(max(0.0, 1.0 - r2)));
         // float diffuse = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
         // vec3 color = vec3(0.8 + 0.2 * diffuse);
         fragColor = vec4(color, 1.0);
     } else if (uPass == GLOW) {
-        // --- Glow pass ---
-        if (!tooFar && radius <= bodyToGlowRatio) discard;
+        // --- Per-star glow pass (impGlow and impNodeGlow body look) ---
+        if (radius <= bodyToGlowRatio) discard;
 
         // float glowRadius = 1 - bodyToGlowRatio;
         // float t = (radius - bodyToGlowRatio) / glowRadius;
@@ -52,7 +53,6 @@ void main() {
     float tanHalfFovY = 1.0 / uProj[1][1];
     float tanHalfFovX = 1.0 / uProj[0][0];
 
-    float camDist = length(vCenterView);
     float ndcScaleY = vNdcScaleY;
     float ndcScaleX = vNdcScaleX;
 

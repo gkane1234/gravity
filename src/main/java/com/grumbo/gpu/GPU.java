@@ -148,6 +148,12 @@ public class GPU {
     public static Uniform<Vector2i> UNIFORM_MIN_MAX_DEPTH;
     public static Uniform<Float> UNIFORM_MIN_IMPOSTOR_SIZE;
     public static Uniform<Integer> UNIFORM_RELATIVE_TO;
+    public static Uniform<Float> UNIFORM_NODE_GLOW_THETA_NDC;
+    public static Uniform<Float> UNIFORM_NODE_GLOW_ACTIVATE_DIST;
+    public static Uniform<Integer> UNIFORM_NODE_GLOW_MAX_DEPTH;
+    public static Uniform<Float> UNIFORM_NODE_GLOW_INTENSITY;
+    public static Uniform<Float> UNIFORM_BODY_DISAPPEAR_NDC;
+    public static Uniform<Float> UNIFORM_BODY_RENDER_DISTANCE;
 
 
     // Render Programs
@@ -155,6 +161,7 @@ public class GPU {
     public static RenderProgram RENDER_IMPOSTOR; // point-sprite impostor spheres
     public static RenderProgram RENDER_SPHERE;   // instanced mesh spheres
     public static RenderProgram RENDER_REGIONS; // regions
+    public static RenderProgram RENDER_NODE_GLOW; // hierarchical BH node glow
 
 
     
@@ -899,6 +906,46 @@ public class GPU {
             return Settings.getInstance().getMinImpostorSize();
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_MIN_IMPOSTOR_SIZE.getName(), UNIFORM_MIN_IMPOSTOR_SIZE);
+
+        // θ_r: max projected AABB extent (longest side) in NDC, where screen height == 2.
+        // pixelsAcross = projectedExtent * (height/2)  =>  ndc = 2 * nodeGlowThetaPx / height.
+        // Higher nodeGlowThetaPx ⇒ glow accepts larger clusters ⇒ aggregation starts earlier.
+        GPU.UNIFORM_NODE_GLOW_THETA_NDC = new Uniform<Float>("uNodeGlowThetaNdc", () -> {
+            float height = Math.max(1f, Settings.getInstance().getHeight());
+            return (2f * Settings.getInstance().getNodeGlowThetaPx()) / height;
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_THETA_NDC.getName(), UNIFORM_NODE_GLOW_THETA_NDC);
+
+        // View-space depth gate (-view.z after cameraScale); glow only if camDist >= this.
+        GPU.UNIFORM_NODE_GLOW_ACTIVATE_DIST = new Uniform<Float>("uNodeGlowActivateDist", () -> {
+            return Settings.getInstance().getNodeGlowActivateDist();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_ACTIVATE_DIST.getName(), UNIFORM_NODE_GLOW_ACTIVATE_DIST);
+
+        // Max post-propagate nodeDepth (height from furthest leaf) for hierarchical glow.
+        GPU.UNIFORM_NODE_GLOW_MAX_DEPTH = new Uniform<Integer>("uNodeGlowMaxDepth", () -> {
+            return Settings.getInstance().getNodeGlowMaxDepth();
+        }, VariableType.INT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_MAX_DEPTH.getName(), UNIFORM_NODE_GLOW_MAX_DEPTH);
+
+        // Live brightness scale for hierarchical node glow (before Reinhard).
+        GPU.UNIFORM_NODE_GLOW_INTENSITY = new Uniform<Float>("uNodeGlowIntensity", () -> {
+            return Settings.getInstance().getNodeGlowIntensity();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_INTENSITY.getName(), UNIFORM_NODE_GLOW_INTENSITY);
+
+        // Max view-space depth (-view.z after cameraScale) for per-body impostors.
+        GPU.UNIFORM_BODY_RENDER_DISTANCE = new Uniform<Float>("uBodyRenderDistance", () -> {
+            return Settings.getInstance().getBodyRenderDistance();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_BODY_RENDER_DISTANCE.getName(), UNIFORM_BODY_RENDER_DISTANCE);
+
+        // ~2px in NDC (reserved for body fade heuristics; sizing uses minImpostorSize)
+        GPU.UNIFORM_BODY_DISAPPEAR_NDC = new Uniform<Float>("uBodyDisappearNdc", () -> {
+            float height = Math.max(1f, Settings.getInstance().getHeight());
+            return (2f * 2f) / height;
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_BODY_DISAPPEAR_NDC.getName(), UNIFORM_BODY_DISAPPEAR_NDC);
     }
 
     private static void initRenderPrograms(Render render) {
@@ -935,6 +982,8 @@ public class GPU {
             GPU.UNIFORM_CAMERA_SCALE,
             GPU.UNIFORM_RELATIVE_TO,
             GPU.UNIFORM_MIN_IMPOSTOR_SIZE,
+            GPU.UNIFORM_BODY_RENDER_DISTANCE,
+            GPU.UNIFORM_BODY_DISAPPEAR_NDC,
         });
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
@@ -977,6 +1026,29 @@ public class GPU {
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_REGIONS.getProgramName(), GPU.RENDER_REGIONS);
         GPUSimulation.checkGLError("GPU.RENDER_REGIONS");
+
+        // Hierarchical node glow: impostor billboards instanced over internalNodes
+        GPU.RENDER_NODE_GLOW = new RenderProgram("nodeglow", GLSLMesh.MeshType.IMPOSTOR, Math.max(0, GPU.initialNumBodies - 1));
+        RenderProgram.checkProgram(GPU.RENDER_NODE_GLOW.getProgram());
+        GPU.RENDER_NODE_GLOW.setUniforms(new Uniform[] {
+            GPU.UNIFORM_FOV_Y,
+            GPU.UNIFORM_ASPECT,
+            GPU.UNIFORM_PROJ,
+            GPU.UNIFORM_MODEL_VIEW,
+            GPU.UNIFORM_CAMERA_SCALE,
+            GPU.UNIFORM_RELATIVE_TO,
+            GPU.UNIFORM_NODE_GLOW_THETA_NDC,
+            GPU.UNIFORM_NODE_GLOW_ACTIVATE_DIST,
+            GPU.UNIFORM_NODE_GLOW_MAX_DEPTH,
+            GPU.UNIFORM_NODE_GLOW_INTENSITY,
+        });
+        GPU.RENDER_NODE_GLOW.setSSBOs(new SSBO[] {
+            GPU.SSBO_INTERNAL_NODES,
+            GPU.SSBO_SIMULATION_VALUES,
+            GPU.SSBO_SWAPPING_BODIES_IN, // for relativeTo
+        });
+        GPU.RENDER_PROGRAMS.put(GPU.RENDER_NODE_GLOW.getProgramName(), GPU.RENDER_NODE_GLOW);
+        GPUSimulation.checkGLError("GPU.RENDER_NODE_GLOW");
 
         GPUSimulation.checkGLError("init");
     }

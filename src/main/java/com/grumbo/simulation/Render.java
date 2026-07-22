@@ -8,7 +8,8 @@ import com.grumbo.gpu.*;
 
 /**
  * The Render class is responsible for rendering the simulation.
- * The render mode for the bodies is either off, points, impostor spheres, impostor spheres with glow, or mesh spheres.
+ * The render mode for the bodies is either off, points, impostor spheres, impostor spheres with glow,
+ * impostor spheres with hierarchical node glow, or mesh spheres.
  * There is also rendering for regions
  */
 public class Render {
@@ -17,6 +18,7 @@ public class Render {
         POINTS,
         IMPOSTOR_SPHERES,
         IMPOSTOR_SPHERES_WITH_GLOW,
+        IMPOSTOR_WITH_NODE_GLOW,
         MESH_SPHERES;
 
 
@@ -26,6 +28,7 @@ public class Render {
                 case "points": return POINTS;
                 case "imp": return IMPOSTOR_SPHERES;
                 case "impGlow": return IMPOSTOR_SPHERES_WITH_GLOW;
+                case "impNodeGlow": return IMPOSTOR_WITH_NODE_GLOW;
                 case "mesh": return MESH_SPHERES;
             }
             return OFF;
@@ -70,11 +73,13 @@ public class Render {
         GPUSimulation.checkGLError("before render");
         
         // Get the camera view
-        switch (RenderMode.fromString(Settings.getInstance().getRenderMode())) {
+        renderMode = RenderMode.fromString(Settings.getInstance().getRenderMode());
+        switch (renderMode) {
             case OFF: return;
             case POINTS: renderPoints(); break;
-            case IMPOSTOR_SPHERES: renderImpostorSpheres(); break;
-            case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(); break;
+            case IMPOSTOR_SPHERES: renderImpostorSpheres(false); break;
+            case IMPOSTOR_SPHERES_WITH_GLOW: renderImpostorSpheres(true); break;
+            case IMPOSTOR_WITH_NODE_GLOW: renderImpostorWithNodeGlow(); break;
             case MESH_SPHERES: renderMeshSpheres(); break;
             default: break;
         }
@@ -92,9 +97,10 @@ public class Render {
     }
 
     /**
-     * Renders impostor spheres in two passes, one for the sphere and one for the glow.
+     * Renders impostor spheres; optionally a second additive per-star glow pass.
+     * @param withPerStarGlow whether to run the legacy impostor glow pass
      */
-    public void renderImpostorSpheres() {
+    public void renderImpostorSpheres(boolean withPerStarGlow) {
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // black background
         glClear(GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
@@ -104,7 +110,7 @@ public class Render {
         glowPass = false;
         GPU.RENDER_IMPOSTOR.run();
 
-        if (renderMode == RenderMode.IMPOSTOR_SPHERES_WITH_GLOW) {
+        if (withPerStarGlow) {
             //set up appropriate blending for additive glow
             glEnable(GL_DEPTH_TEST);
             glDepthMask(false);
@@ -115,6 +121,34 @@ public class Render {
             glDepthMask(true);
         }
 
+        glowPass = false;
+        glUseProgram(0);
+    }
+
+    /**
+     * impGlow body look (opaque + per-star glow) plus hierarchical BH-node glow
+     * for distant / small-on-screen clusters. Gates:
+     * Settings.nodeGlowActivateDist (view-space depth),
+     * Settings.nodeGlowThetaPx (projected AABB extent; open if larger),
+     * Settings.nodeGlowMaxDepth (max post-propagate nodeDepth / height from leaves),
+     * Settings.nodeGlowIntensity (brightness scale before Reinhard; color from Node.avgColor).
+     */
+    public void renderImpostorWithNodeGlow() {
+        // Bodies: identical path/appearance to impGlow
+        renderImpostorSpheres(true);
+
+        // Hierarchical aggregation glow on top (additive)
+        if (gpuSimulation.getSteps() > 0) {
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(false);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_ONE, GL_ONE);
+            GPU.RENDER_NODE_GLOW.setNumObjects(Math.max(0, GPU.numBodies() - 1));
+            GPU.RENDER_NODE_GLOW.run();
+            glDepthMask(true);
+        }
+
+        glowPass = false;
         glUseProgram(0);
     }
 

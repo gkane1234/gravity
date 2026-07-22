@@ -14,69 +14,11 @@ out float ndcDepth;
 out float worldRadius;
 out float vNdcScaleX;
 out float vNdcScaleY;
+out float vProjectedTrueHalf;
 
 
 const float GLOW_RADIUS_FACTOR = 10;
 const float BOX_CORRECTION = 1.5;
-
-// Calculates the temperature of a star
-// Input: mass and density
-// Output: temperature in Kelvin
-// source: https://www.quora.com/What-is-the-formula-between-the-temperature-and-mass-size-of-a-main-sequence-star
-// substitute r with 4/3*pi*r^3 = m/d
-float temp(float mass, float density) {
-
-    float constant = 5.95589e-19;
-    float temp = constant * pow(mass,0.875-1.0/6.0)* pow(density,1.0/6.0);
-
-    return temp;
-}
-
-// Converts temperature to RGB color
-// Input: temperature in Kelvin
-// Output: RGB values 0–255
-// Source: https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html
-vec3 tempToColor(float kelvin) {
-    float temp = kelvin / 100.0;
-    float r, g, b;
-
-    // Red
-    if (temp <= 66.0) {
-        r = 255.0;
-    }
-    else {
-        r = temp - 60.0;
-        r = 329.698727446 * pow(r, -0.1332047592);
-    }
-
-    // Green
-    if (temp <= 66.0) {
-        g = 99.4708025861 * log(temp) - 161.1195681661;
-    }
-    else {
-        g = temp;
-        g = 288.1221695283 * pow(g, -0.0755148492);
-    }
-
-    // Blue
-    if (temp >= 66.0) {
-        b = 255.0;
-    }
-    else {
-        b = temp - 10.0;
-        b = 138.5177312231 * log(b) - 305.0447927307;
-    }
-
-    return vec3(
-        clamp(r, 0.0, 255.0)/255.0,
-        clamp(g, 0.0, 255.0)/255.0,
-        clamp(b, 0.0, 255.0)/255.0
-    );
-}
-vec3 getStarColor(float mass, float density) {
-    float temp = temp(mass, density);
-    return tempToColor(temp);
-}
 
 // This vertex shader is used to render the impostor spheres.
 // They are created as a billboard quad that is scaled to the size of the body.
@@ -106,9 +48,12 @@ void main() {
   else if (vid == 2) vMapping = vec2( 1.0, -1.0) * BOX_CORRECTION;
   else               vMapping = vec2( 1.0,  1.0) * BOX_CORRECTION;
 
-  // Compute projected quad size
-  float camDist = length(vCenterView);
+  // Compute projected quad size (view-space depth for perspective size)
+  float camDist = max(-vCenterView.z, 1e-6);
   float tanHalfFov = tan(0.5 * uFovY);
+  vProjectedTrueHalf = trueRadius / max(camDist * tanHalfFov, 1e-12);
+  // Projected body size: true radius floored by minImpostorSize.
+  // Glow pass pads the billboard by GLOW_RADIUS_FACTOR (same for impGlow / impNodeGlow bodies).
   float minBodyRadius = uMinImpostorSize * camDist * tanHalfFov;
   float effectiveBodyRadius = max(trueRadius, minBodyRadius);
 

@@ -15,8 +15,38 @@
     "renderMode": {
       "type": "selector",
       "default": "impGlow",
-      "options": ["off", "points", "imp", "impGlow", "mesh"],
+      "options": ["off", "points", "imp", "impGlow", "impNodeGlow", "mesh"],
       "description": "Render mode",
+      "editable": true
+    },
+    "nodeGlowThetaPx": {
+      "type": "float",
+      "default": 16.0,
+      "description": "impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.",
+      "editable": true
+    },
+    "nodeGlowActivateDist": {
+      "type": "float",
+      "default": 0.0,
+      "description": "impNodeGlow distance gate: view-space depth (-view.z after cameraScale). Hierarchical glow only when the node COM is farther than this. Higher = glow only farther away. Lower (0) = no distance gate.",
+      "editable": true
+    },
+    "bodyRenderDistance": {
+      "type": "float",
+      "default": 1000.0,
+      "description": "Max view-space depth (-view.z after cameraScale) at which individual body impostors (imp / impGlow / impNodeGlow body pass) are drawn. Farther bodies are skipped; hierarchical node glow can still show distant structure. Higher = bodies visible farther. Lower = only nearby bodies.",
+      "editable": true
+    },
+    "nodeGlowMaxDepth": {
+      "type": "int",
+      "default": 8,
+      "description": "impNodeGlow tree reach: max post-propagate nodeDepth (height above furthest leaf). Glow only for nodes with 1 <= nodeDepth <= this. Lower = finer near-leaf substructure. Higher = also include coarser mid-level parents (more filled / blobbier). Root-scale heights stay culled so children cover.",
+      "editable": true
+    },
+    "nodeGlowIntensity": {
+      "type": "float",
+      "default": 0.003,
+      "description": "impNodeGlow brightness scale applied to hierarchical node-glow surface intensity (before Reinhard). Match body impGlow without crushing substructure. Lower = dimmer haze. Higher = brighter fills.",
       "editable": true
     },
     "showRegions": {

@@ -32,6 +32,61 @@ uint64_t mortonEncode3D(vec3 pNorm)
     uint zi = uint(floor(fz));
     return morton3D64(xi, yi, zi);
 }
+
+// Inlier window vs previous sim.bounds (center ± halfExtent * factor).
+// Only bodies inside this window contribute to the new Morton AABB.
+// CRITICAL: do NOT clamp outliers into this window and then use those
+// clamped positions for the AABB — that grew the box by EXPAND every frame.
+const float MORTON_AABB_GROW = 1.05;
+
+// Hard cap on new extent vs previous extent (belt-and-suspenders).
+const float MORTON_AABB_MAX_GROW = 1.1;
+
+bool isFiniteVec3(vec3 v) {
+    return !(any(isnan(v)) || any(isinf(v)));
+}
+
+// Allowed region for AABB contributors this frame.
+void mortonInlierWindow(out vec3 lo, out vec3 hi) {
+    AABB prev = sim.bounds;
+    vec3 center = 0.5 * (prev.minCorner + prev.maxCorner);
+    vec3 halfExt = max(0.5 * (prev.maxCorner - prev.minCorner) * MORTON_AABB_GROW, vec3(1e-9));
+    lo = center - halfExt;
+    hi = center + halfExt;
+}
+
+// Point AABB for finite inliers only; outliers / NaN / Inf → DEFAULT_AABB
+// so they cannot expand Morton bounds. Physics positions are unchanged.
+AABB mortonContributorAABB(vec3 pos) {
+    if (!isFiniteVec3(pos)) {
+        return DEFAULT_AABB;
+    }
+    AABB prev = sim.bounds;
+    if (emptyAABB(prev)) {
+        return AABB(pos, pos);
+    }
+    vec3 lo, hi;
+    mortonInlierWindow(lo, hi);
+    if (any(lessThan(pos, lo)) || any(greaterThan(pos, hi))) {
+        return DEFAULT_AABB;
+    }
+    return AABB(pos, pos);
+}
+
+// Cap how much the collapsed AABB may grow vs the previous frame.
+AABB clampAABBExtentGrowth(AABB neu, AABB prev) {
+    if (emptyAABB(prev) || emptyAABB(neu)) {
+        return neu;
+    }
+    vec3 prevExt = max(prev.maxCorner - prev.minCorner, vec3(1e-9));
+    vec3 maxExt = prevExt * MORTON_AABB_MAX_GROW;
+    vec3 neuCenter = 0.5 * (neu.minCorner + neu.maxCorner);
+    vec3 neuHalf = 0.5 * (neu.maxCorner - neu.minCorner);
+    vec3 maxHalf = 0.5 * maxExt;
+    neuHalf = min(neuHalf, maxHalf);
+    return AABB(neuCenter - neuHalf, neuCenter + neuHalf);
+}
+
 shared AABB sharedAABB[WG_SIZE];
 //Collapses the AABB's from shared memory into one AABB at sharedAABB[0]
 //Done in parallel for each workgroup
@@ -52,6 +107,8 @@ void collapseSharedAABB() {
 
 //Updates the AABB of the alive bodies in the simulation
 //Dispached with (numGroups,0,0) with workgroup size * numGroups = numBodies
+// Note: each lane folds two bodies, so ~half the dispatched WGs are empty;
+// those MUST still write DEFAULT_AABB or collapse reads stale tree AABBs.
 // Uniforms: None
 // SSBOs: BodiesIn, BodiesOut, IndexIn, IndexOut, InternalNodes
 void mortonAABBRepopulateKernel() {
@@ -63,22 +120,19 @@ void mortonAABBRepopulateKernel() {
     bool laneHasBodies = 2*gid < sim.numBodies;
 
     if (!laneHasBodies) {
-        sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+        sharedAABB[lid] = DEFAULT_AABB;
     }
     else {
-
-        //Load AABB's into the shared memory
-        //We combine two bodies into each AABB to save time
+        // Two bodies per lane. Only finite inliers contribute; outliers
+        // are skipped (DEFAULT) so edge-clamping cannot grow the box.
 
         leftBodyIdx = indexIn[2*gid];
 
         if (2*gid+1 >= sim.numBodies) {
-            // Only one body left
             if (isEmpty(srcB.bodies[leftBodyIdx])) {
-                sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+                sharedAABB[lid] = DEFAULT_AABB;
             } else {
-                vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
-                sharedAABB[lid] = AABB(pos, pos);
+                sharedAABB[lid] = mortonContributorAABB(srcB.bodies[leftBodyIdx].posMass.xyz);
             }
         } else {
             rightBodyIdx = indexIn[2*gid+1];
@@ -86,17 +140,15 @@ void mortonAABBRepopulateKernel() {
             bool rightEmpty = isEmpty(srcB.bodies[rightBodyIdx]);
 
             if (leftEmpty && rightEmpty) {
-                sharedAABB[lid] = AABB(vec3(1e9), vec3(-1e9));
+                sharedAABB[lid] = DEFAULT_AABB;
             } else if (rightEmpty) {
-                vec3 pos = srcB.bodies[leftBodyIdx].posMass.xyz;
-                sharedAABB[lid] = AABB(pos, pos);
+                sharedAABB[lid] = mortonContributorAABB(srcB.bodies[leftBodyIdx].posMass.xyz);
             } else if (leftEmpty) {
-                vec3 pos = srcB.bodies[rightBodyIdx].posMass.xyz;
-                sharedAABB[lid] = AABB(pos, pos);
+                sharedAABB[lid] = mortonContributorAABB(srcB.bodies[rightBodyIdx].posMass.xyz);
             } else {
-                vec3 pos0 = srcB.bodies[leftBodyIdx].posMass.xyz;
-                vec3 pos1 = srcB.bodies[rightBodyIdx].posMass.xyz;
-                sharedAABB[lid] = AABB(min(pos0, pos1), max(pos0, pos1));
+                sharedAABB[lid] = updateAABB(
+                    mortonContributorAABB(srcB.bodies[leftBodyIdx].posMass.xyz),
+                    mortonContributorAABB(srcB.bodies[rightBodyIdx].posMass.xyz));
             }
         }
     }
@@ -124,14 +176,15 @@ void mortonAABBRepopulateKernel() {
             sim.floatDebug[3]=0.0;
         }
         uint wgId = gl_WorkGroupID.x;
-        if (laneHasBodies) {
-            uint totalWorkGroups = gl_NumWorkGroups.x;
-            if (wgId < totalWorkGroups)
-                internalNodes[wgId].aabb = packAABB(sharedAABB[0]);
+        // Always write (including DEFAULT_AABB) so collapse never unions
+        // stale internal-node AABBs left by the previous tree pass.
+        // Repopulate dispatches ceil(N/WG) groups but only ~ceil(N/(2*WG))
+        // lanes have bodies; the rest must clear their slots.
+        if (wgId < gl_NumWorkGroups.x) {
+            internalNodes[wgId].aabb = packAABB(sharedAABB[0]);
         }
 
-            sim.floatDebug[13+wgId]=internalNodes[wgId].aabb[0];
-        
+        sim.floatDebug[13+wgId]=internalNodes[wgId].aabb[0];
     }
 }
 
@@ -154,7 +207,7 @@ void mortonAABBCollapseKernel() {
             laneAABB = updateAABB(laneAABB, unpackAABB(internalNodes[i].aabb));
         }
     } else {
-        laneAABB = AABB(vec3(1e9), vec3(-1e9));
+        laneAABB = DEFAULT_AABB;
     }
     sharedAABB[lid] = laneAABB;
 
@@ -163,7 +216,17 @@ void mortonAABBCollapseKernel() {
     collapseSharedAABB();
 
     if (lid == 0u) {
-        sim.bounds = sharedAABB[0];
+        AABB result = sharedAABB[0];
+        AABB prev = sim.bounds;
+        if (emptyAABB(result)) {
+            // No finite inliers this frame — keep previous working bounds
+            // so Morton encode does not collapse to a degenerate/empty box.
+            if (emptyAABB(prev)) {
+                sim.bounds = result;
+            }
+        } else {
+            sim.bounds = clampAABBExtentGrowth(result, prev);
+        }
     }
 }
 
@@ -185,10 +248,15 @@ void mortonEncodeKernel()
 
     AABB scene = sim.bounds;
     vec3 pos = srcB.bodies[bodyIdx].posMass.xyz;
+    // NaN/Inf must not produce garbage Morton codes; map to AABB center.
+    // Finite outliers clamp to the working AABB edge (physics pos unchanged).
+    if (!isFiniteVec3(pos) || emptyAABB(scene)) {
+        pos = 0.5 * (scene.minCorner + scene.maxCorner);
+    } else {
+        pos = clamp(pos, scene.minCorner, scene.maxCorner);
+    }
     vec3 extent = max(scene.maxCorner - scene.minCorner, vec3(1e-9));
     vec3 pNorm = (pos - scene.minCorner) / extent; //normalize the position to the range [0,1]^3
 
     mortonIn[gid] = mortonEncode3D(pNorm); //encode the normalized position into a 64-bit Morton code
 }
-
-

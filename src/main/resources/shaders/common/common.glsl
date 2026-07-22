@@ -53,6 +53,8 @@ struct Node {
     uint readyChildren;
     //parent of the node
     uint parentId;
+    //mass-weighted average star color (rgb); w unused (std430 vec4 pad)
+    vec4 avgColor;
 };
 
 
@@ -173,6 +175,12 @@ uniform float uRadiusScale; //Radius scale
 uniform ivec2 uMinMaxDepth; //Min and max depth for regions
 uniform uint uRelativeTo; //Relative to
 uniform float uMinImpostorSize; //Minimum impostor radius in NDC
+uniform float uNodeGlowThetaNdc; // nodeGlowThetaPx as NDC: 2 * px / height
+uniform float uNodeGlowActivateDist; // view-space depth (-view.z); glow only if camDist >= this
+uniform int uNodeGlowMaxDepth; // max post-propagate nodeDepth (height from furthest leaf) for glow
+uniform float uNodeGlowIntensity; // live brightness scale for hierarchical node glow
+uniform float uBodyDisappearNdc; // ~2px in NDC (reserved; body size uses minImpostorSize)
+uniform float uBodyRenderDistance; // max view-space depth (-z) for per-body impostors
 
 
 
@@ -219,6 +227,52 @@ float scaledMass(Node node) {
 //Calculates the radius of a body
 float radius(Body b) {
     return sim.units.bodyLengthInSimulationLengthsConstant * pow(b.posMass.w/b.velDensity.w,1.0/3.0);
+}
+
+// Main-sequence temperature from mass/density (Kelvin).
+// source: https://www.quora.com/What-is-the-formula-between-the-temperature-and-mass-size-of-a-main-sequence-star
+// substitute r with 4/3*pi*r^3 = m/d
+float starTemp(float mass, float density) {
+    float constant = 5.95589e-19;
+    return constant * pow(mass, 0.875 - 1.0/6.0) * pow(density, 1.0/6.0);
+}
+
+// Temperature (Kelvin) → RGB 0–1
+// Source: https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html
+vec3 tempToColor(float kelvin) {
+    float temp = kelvin / 100.0;
+    float r, g, b;
+
+    if (temp <= 66.0) {
+        r = 255.0;
+    } else {
+        r = temp - 60.0;
+        r = 329.698727446 * pow(r, -0.1332047592);
+    }
+
+    if (temp <= 66.0) {
+        g = 99.4708025861 * log(max(temp, 1e-3)) - 161.1195681661;
+    } else {
+        g = temp;
+        g = 288.1221695283 * pow(g, -0.0755148492);
+    }
+
+    if (temp >= 66.0) {
+        b = 255.0;
+    } else {
+        b = temp - 10.0;
+        b = 138.5177312231 * log(max(b, 1e-3)) - 305.0447927307;
+    }
+
+    return vec3(
+        clamp(r, 0.0, 255.0) / 255.0,
+        clamp(g, 0.0, 255.0) / 255.0,
+        clamp(b, 0.0, 255.0) / 255.0
+    );
+}
+
+vec3 getStarColor(float mass, float density) {
+    return tempToColor(starTemp(mass, density));
 }
 
 

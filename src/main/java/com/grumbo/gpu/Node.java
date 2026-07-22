@@ -6,7 +6,8 @@ import java.util.ArrayList;
 
 /**
  * Java Analog to the Node struct in the shader code:
- * struct Node { vec4 comMass; vec3 aabbMin; vec3 aabbMax; uint childA; uint childB; uint nodeDepth; uint bodiesContained; uint readyChildren; uint parentId; };
+ * struct Node { vec4 comMass; float[6] aabb; uint childA; uint childB; uint nodeDepth;
+ *               uint bodiesContained; uint readyChildren; uint parentId; vec4 avgColor; };
  * 
  * @author Grumbo
  * @version 1.0
@@ -23,6 +24,7 @@ public class Node {
     //     uint bodiesContained;    // number of bodies in leaf
     //     uint readyChildren; // atomic counter representing the number of ready children. It is set to 0xFFFFFFFF once the node has been processed.
     //     uint parentId;     // parent node index (0xFFFFFFFF for root)
+    //     vec4 avgColor;     // mass-weighted average star RGB (w unused)
     //   };
     // -----
 
@@ -34,8 +36,9 @@ public class Node {
     public static final int BODY_COUNT_OFFSET = 13;
     public static final int READY_CHILDREN_OFFSET = 14;
     public static final int PARENT_ID_OFFSET = 15;
+    public static final int AVG_COLOR_OFFSET = 16;
 
-    public static final int STRUCT_SIZE = 16;
+    public static final int STRUCT_SIZE = 20;
     public static final GLSLVariable comMassGLSL = new GLSLVariable(VariableType.FLOAT, "comMass", 4);
     public static final GLSLVariable aabbGLSL = new GLSLVariable(VariableType.FLOAT, "aabb", 6);
     public static final GLSLVariable childAGLSL = new GLSLVariable(VariableType.UINT, "childA", 1);
@@ -44,7 +47,8 @@ public class Node {
     public static final GLSLVariable bodiesContainedGLSL = new GLSLVariable(VariableType.UINT, "bodiesContained", 1);
     public static final GLSLVariable readyChildrenGLSL = new GLSLVariable(VariableType.UINT, "readyChildren", 1);
     public static final GLSLVariable parentIdGLSL = new GLSLVariable(VariableType.UINT, "parentId", 1);
-    public static final GLSLVariable nodeStruct = new GLSLVariable(new GLSLVariable[] {comMassGLSL, aabbGLSL, childAGLSL, childBGLSL, nodeDepthGLSL, bodiesContainedGLSL, readyChildrenGLSL, parentIdGLSL}, "Node");
+    public static final GLSLVariable avgColorGLSL = new GLSLVariable(VariableType.FLOAT, "avgColor", 4);
+    public static final GLSLVariable nodeStruct = new GLSLVariable(new GLSLVariable[] {comMassGLSL, aabbGLSL, childAGLSL, childBGLSL, nodeDepthGLSL, bodiesContainedGLSL, readyChildrenGLSL, parentIdGLSL, avgColorGLSL}, "Node");
 
     public float[] comMass;
     public float[] aabb;
@@ -54,21 +58,22 @@ public class Node {
     public int bodiesContained;
     public int readyChildren;
     public int parentId;
+    public float[] avgColor;
     public boolean isLeaf;
     /**
      * Constructor for the Node class.
      * @param comMass the center of mass of the node (x,y,z,mass)
-     * @param aabbMin the minimum point of the node's axis-aligned bounding box
-     * @param aabbMax the maximum point of the node's axis-aligned bounding box
+     * @param aabb the node's axis-aligned bounding box as float[6]
      * @param childA the index of the left child node
      * @param childB the index of the right child node
      * @param nodeDepth the height of the node in the tree (the distance from its furthest leaf node)
      * @param bodiesContained the number of bodies contained in the node
      * @param readyChildren the number of ready children of the node
      * @param parentId the index of the parent node
+     * @param avgColor mass-weighted average star color (rgb + pad)
      * @param isLeaf whether the node is a leaf node
      */
-    public Node(float[] comMass, float[] aabb, int childA, int childB, int nodeDepth, int bodiesContained, int readyChildren, int parentId, boolean isLeaf) {
+    public Node(float[] comMass, float[] aabb, int childA, int childB, int nodeDepth, int bodiesContained, int readyChildren, int parentId, float[] avgColor, boolean isLeaf) {
 
         this.comMass = comMass;
         this.aabb = aabb;
@@ -78,6 +83,7 @@ public class Node {
         this.bodiesContained = bodiesContained;
         this.readyChildren = readyChildren;
         this.parentId = parentId;
+        this.avgColor = avgColor;
         this.isLeaf = isLeaf;
     }
 
@@ -90,6 +96,7 @@ public class Node {
     public Node(IntBuffer buffer, int index) {
         this.comMass = new float[4];
         this.aabb = new float[6];
+        this.avgColor = new float[4];
 
         this.comMass[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET));
         this.comMass[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + COM_MASS_OFFSET + 1));
@@ -110,6 +117,11 @@ public class Node {
 
         this.readyChildren = buffer.get(index * STRUCT_SIZE + READY_CHILDREN_OFFSET);
         this.parentId = buffer.get(index * STRUCT_SIZE + PARENT_ID_OFFSET);
+
+        this.avgColor[0] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AVG_COLOR_OFFSET));
+        this.avgColor[1] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AVG_COLOR_OFFSET + 1));
+        this.avgColor[2] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AVG_COLOR_OFFSET + 2));
+        this.avgColor[3] = Float.intBitsToFloat(buffer.get(index * STRUCT_SIZE + AVG_COLOR_OFFSET + 3));
 
         this.isLeaf = index*STRUCT_SIZE<buffer.capacity()/2;
 
@@ -183,6 +195,7 @@ public class Node {
                 ", bodiesContained=" + bodiesContained +
                 ", readyChildren=" + readyChildren +
                 ", parentId=" + parentId +
+                ", avgColor=" + Arrays.toString(avgColor) +
                 '}' + marker;
     }
 

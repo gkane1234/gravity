@@ -61,7 +61,22 @@ public class Settings {
 		{ Property<Integer> p = Property.createIntProperty("height", 1000, 1000); p.setEditable(false); properties.put("height", p); }
 
 		// Render mode
-		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impGlow", "impGlow", new String[]{"off", "points", "imp", "impGlow", "mesh"}, true));
+		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impGlow", "impGlow", new String[]{"off", "points", "imp", "impGlow", "impNodeGlow", "mesh"}, true));
+
+		// impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowThetaPx", 16.0f, 16.0f); p.setEditable(true); properties.put("nodeGlowThetaPx", p); }
+
+		// impNodeGlow distance gate: view-space depth (-view.z after cameraScale). Hierarchical glow only when the node COM is farther than this. Higher = glow only farther away. Lower (0) = no distance gate.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowActivateDist", 0.0f, 0.0f); p.setEditable(true); properties.put("nodeGlowActivateDist", p); }
+
+		// Max view-space depth (-view.z after cameraScale) at which individual body impostors (imp / impGlow / impNodeGlow body pass) are drawn. Farther bodies are skipped; hierarchical node glow can still show distant structure. Higher = bodies visible farther. Lower = only nearby bodies.
+		{ Property<Float> p = Property.createFloatProperty("bodyRenderDistance", 1000.0f, 1000.0f); p.setEditable(true); properties.put("bodyRenderDistance", p); }
+
+		// impNodeGlow tree reach: max post-propagate nodeDepth (height above furthest leaf). Glow only for nodes with 1 <= nodeDepth <= this. Lower = finer near-leaf substructure. Higher = also include coarser mid-level parents (more filled / blobbier). Root-scale heights stay culled so children cover.
+		{ Property<Integer> p = Property.createIntProperty("nodeGlowMaxDepth", 8, 8); p.setEditable(true); properties.put("nodeGlowMaxDepth", p); }
+
+		// impNodeGlow brightness scale applied to hierarchical node-glow surface intensity (before Reinhard). Match body impGlow without crushing substructure. Lower = dimmer haze. Higher = brighter fills.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowIntensity", 0.003f, 0.003f); p.setEditable(true); properties.put("nodeGlowIntensity", p); }
 
 		// Show regions
 		properties.put("showRegions", Property.createBooleanProperty("showRegions", false, false, true));
@@ -242,6 +257,71 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public int getSelectedIndexRenderMode() { return getSelectedIndex("renderMode"); }
+
+	/**
+	 * Gets the value of thefloat property nodeGlowThetaPx.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowThetaPx() { return getValue("nodeGlowThetaPx"); }
+	/**
+	 * Sets the value of the float property nodeGlowThetaPx.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowThetaPx(float value) { setValue("nodeGlowThetaPx", value); }
+
+	/**
+	 * Gets the value of thefloat property nodeGlowActivateDist.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowActivateDist() { return getValue("nodeGlowActivateDist"); }
+	/**
+	 * Sets the value of the float property nodeGlowActivateDist.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowActivateDist(float value) { setValue("nodeGlowActivateDist", value); }
+
+	/**
+	 * Gets the value of thefloat property bodyRenderDistance.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getBodyRenderDistance() { return getValue("bodyRenderDistance"); }
+	/**
+	 * Sets the value of the float property bodyRenderDistance.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setBodyRenderDistance(float value) { setValue("bodyRenderDistance", value); }
+
+	/**
+	 * Gets the value of theint property nodeGlowMaxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getNodeGlowMaxDepth() { return getValue("nodeGlowMaxDepth"); }
+	/**
+	 * Sets the value of the int property nodeGlowMaxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowMaxDepth(int value) { setValue("nodeGlowMaxDepth", value); }
+
+	/**
+	 * Gets the value of thefloat property nodeGlowIntensity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowIntensity() { return getValue("nodeGlowIntensity"); }
+	/**
+	 * Sets the value of the float property nodeGlowIntensity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowIntensity(float value) { setValue("nodeGlowIntensity", value); }
 
 	/**
 	 * Gets the value of theboolean property showRegions.
@@ -690,7 +770,9 @@ public class Settings {
 		return properties.get(name);
 	}
 	/**
-	 * Loads the settings file.
+	 * Resolves the writable settings file path.
+	 * Dev builds (Maven project with pom.xml) write under src/main/resources.
+	 * Packaged / installed builds write under the user config directory.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
@@ -698,30 +780,31 @@ public class Settings {
 		try {
 			java.net.URL loc = Settings.class.getProtectionDomain().getCodeSource().getLocation();
 			java.nio.file.Path p = java.nio.file.Paths.get(loc.toURI());
-			java.nio.file.Path moduleRoot;
+			java.nio.file.Path moduleRoot = null;
 			if (java.nio.file.Files.isDirectory(p) && p.getFileName().toString().equals("classes") && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
 				moduleRoot = p.getParent().getParent();
 			} else if (java.nio.file.Files.isRegularFile(p) && p.getParent() != null && p.getParent().getFileName().toString().equals("target")) {
 				moduleRoot = p.getParent().getParent();
 			} else {
 				java.nio.file.Path q = p;
-				java.nio.file.Path found = null;
 				while (q != null) {
-					if (java.nio.file.Files.exists(q.resolve("pom.xml"))) { found = q; break; }
+					if (java.nio.file.Files.exists(q.resolve("pom.xml"))) { moduleRoot = q; break; }
 					q = q.getParent();
 				}
-				moduleRoot = found != null ? found : java.nio.file.Paths.get(System.getProperty("user.dir"));
 			}
-			java.nio.file.Path settingsPath = moduleRoot.resolve("src/main/resources/settings/settings.json");
-			return settingsPath.toFile();
-		} catch (Exception e) {
-			java.nio.file.Path userDir = java.nio.file.Paths.get(System.getProperty("user.dir"));
-			java.nio.file.Path candidate = userDir.resolve("gravitychunk/src/main/resources/settings/settings.json");
-			if (!java.nio.file.Files.exists(candidate.getParent())) {
-				candidate = userDir.resolve("src/main/resources/settings/settings.json");
+			if (moduleRoot != null && java.nio.file.Files.exists(moduleRoot.resolve("pom.xml"))) {
+				return moduleRoot.resolve("src/main/resources/settings/settings.json").toFile();
 			}
-			return candidate.toFile();
+		} catch (Exception ignored) {
 		}
+		String appData = System.getenv("APPDATA");
+		java.nio.file.Path configDir;
+		if (appData != null && !appData.isBlank()) {
+			configDir = java.nio.file.Paths.get(appData, "GravityChunk");
+		} else {
+			configDir = java.nio.file.Paths.get(System.getProperty("user.home"), ".gravitychunk");
+		}
+		return configDir.resolve("settings.json").toFile();
 	}
 	/**
 	 * Loads the settings from the settings file.
@@ -734,6 +817,15 @@ public class Settings {
 			try {
 				ObjectMapper mapper = new ObjectMapper();
 				Map<String, Object> jsonData = mapper.readValue(file, Map.class);
+				boolean migrated = false;
+				// One-shot: old nodeGlowActivatePx was a rename of theta; map to nodeGlowThetaPx then drop.
+				if (jsonData.containsKey("nodeGlowActivatePx")) {
+					if (!jsonData.containsKey("nodeGlowThetaPx")) {
+						jsonData.put("nodeGlowThetaPx", jsonData.get("nodeGlowActivatePx"));
+					}
+					jsonData.remove("nodeGlowActivatePx");
+					migrated = true;
+				}
 				
 				for (Map.Entry<String, Object> entry : jsonData.entrySet()) {
 					String key = entry.getKey();
@@ -784,6 +876,9 @@ public class Settings {
 				}
 				
 				System.out.println("Settings loaded from " + file.getAbsolutePath());
+				if (migrated) {
+					saveSettings();
+				}
 			} catch (IOException e) {
 				System.err.println("Failed to load settings: " + e.getMessage());
 				System.out.println("Using default settings");

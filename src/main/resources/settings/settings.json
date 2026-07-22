@@ -1,17 +1,22 @@
 {
   "width" : 1000,
   "height" : 1000,
-  "renderMode" : "impGlow",
-  "showRegions" : true,
+  "renderMode" : "impNodeGlow",
+  "nodeGlowThetaPx" : 16.0,
+  "nodeGlowActivateDist" : 0.0,
+  "bodyRenderDistance" : 1000.0,
+  "nodeGlowMaxDepth" : 8,
+  "nodeGlowIntensity" : 0.003,
+  "showRegions" : false,
   "wrapAround" : false,
   "mergingCollisionOrNeither" : "none",
   "dynamic" : "dynamic",
-  "dt" : 100.0,
+  "dt" : 1000000.0,
   "theta" : 0.77,
   "relativeTo" : -1,
-  "cameraScale" : 10.0,
+  "cameraScale" : 0.22094907,
   "minImpostorSize" : 1.0E-5,
-  "fov" : 102.487,
+  "fov" : 70.0,
   "mass" : 1.989E30,
   "density" : 1408.0,
   "length" : 1.496E11,
@@ -19,8 +24,8 @@
   "softening" : 1.0E-12,
   "elasticity" : 1.0,
   "sphereSegments" : 12,
-  "minDepth" : 11,
-  "maxDepth" : 12,
+  "minDepth" : 0,
+  "maxDepth" : 100,
   "nearPlane" : 0.1,
   "farPlane" : 1.0E8,
   "cameraMoveSpeed" : 1.0,
@@ -29,15 +34,15 @@
   "mouseRotationSensitivity" : 0.04,
   "shift" : [ 0.0, 0.0, 0.0 ],
   "cameraPos" : {
-    "x" : -40251.625,
-    "y" : 32656.695,
-    "z" : -36977.68,
+    "x" : 268.67932,
+    "y" : 1786.6459,
+    "z" : 3978.8132,
     "finite" : true
   },
   "cameraFront" : {
-    "x" : 0.5477638,
-    "y" : -0.5545532,
-    "z" : 0.62643874,
+    "x" : -0.03263442,
+    "y" : -0.4377436,
+    "z" : -0.8985074,
     "finite" : true
   },
   "cameraUp" : {
@@ -46,6 +51,6 @@
     "z" : 0.0,
     "finite" : true
   },
-  "yaw" : 48.833252,
-  "pitch" : -33.679947
+  "yaw" : -92.08011,
+  "pitch" : -25.960003
 }

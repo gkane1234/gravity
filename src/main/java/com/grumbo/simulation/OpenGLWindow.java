@@ -101,12 +101,15 @@ public class OpenGLWindow {
      */
     public void step() {
 
+        if (window == 0) {
+            return;
+        }
+
         if (glfwWindowShouldClose(window)) {
-
             System.out.println("Render loop ended");
-
             gpuSimulation.stop();
             cleanup();
+            return;
         }
         
         // Update FPS calculation
@@ -135,25 +138,23 @@ public class OpenGLWindow {
         info += "OpenGL Vendor: " + glGetString(GL_VENDOR) + "\n";
         info += "OpenGL Renderer: " + glGetString(GL_RENDERER) + "\n";
         info += "=== CONTROLS ===" + "\n";
-        info += "Mouse: Look around (FPS-style)" + "\n";
-        info += "WASD: Move camera (relative to view direction)" + "\n";
-        info += "QE: Move up/down" + "\n";
-        info += "Mouse wheel: Zoom in/out" + "\n";
-        info += "ESC: Toggle mouse cursor (press to release/capture mouse)" + "\n";
-        info += "F1: Toggle FPS display" + "\n";
-        info += "F2: Toggle frame advance mode" + "\n";
-        info += "F3: Show FPS limiting information" + "\n";
-        info += "Enter: Advance one frame (when in frame advance mode)" + "\n";
-        info += "P: Toggle performance stats" + "\n";
-        info += "I: Print detailed performance info" + "\n";
-        info += "B: Toggle chunk borders" + "\n";
-        info += "T: Toggle planet trails" + "\n";
-        info += "F: Toggle follow mode" + "\n";
-        info += "R: Reset performance counters" + "\n";
-        info += "Up/Down arrows: Change chunk size" + "\n";
-        info += "[/]: Change simulation speed" + "\n";
-        info += "+/-: Zoom in/out" + "\n";
-        info += "FPS Limiting: Use setMaxFPS(int) method to set GPU-based frame rate limit" + "\n";
+        info += "Mouse: Look around (when captured)" + "\n";
+        info += "WASD / QE: Move camera" + "\n";
+        info += "IJKL: Move in world axes" + "\n";
+        info += "ESC: Toggle mouse capture" + "\n";
+        info += "F1: Pause / resume" + "\n";
+        info += "ENTER: Advance one frame while paused" + "\n";
+        info += "F2: Toggle tree regions" + "\n";
+        info += "F3: Toggle debug overlay" + "\n";
+        info += "F4: Toggle stats" + "\n";
+        info += "F5: Toggle crosshair" + "\n";
+        info += "F6: Toggle recording (PNG frames)" + "\n";
+        info += "`: Settings pane" + "\n";
+        info += "+/-: Camera scale" + "\n";
+        info += "Up/Down: Time step (dt)" + "\n";
+        info += "Left/Right: Barnes-Hut theta" + "\n";
+        info += "[/]: Softening" + "\n";
+        info += "Close window: Return to setup menu" + "\n";
         info += "==================" + "\n";
         info += "Initial camera position: " + Settings.getInstance().getCameraPos().x + ", " + Settings.getInstance().getCameraPos().y + ", " + Settings.getInstance().getCameraPos().z + "\n";
         info += "Initial camera scale: " + Settings.getInstance().getCameraScale() + "\n";
@@ -167,14 +168,22 @@ public class OpenGLWindow {
      * Cleans up the OpenGL window.
      */
     private void cleanup() {
+        if (window == 0) {
+            return;
+        }
         // Free the window callbacks and destroy the window
         glfwFreeCallbacks(window);
         glfwDestroyWindow(window);
+        window = 0;
 
-        // Terminate GLFW and free the error callback
+        // Tear down GPU resources. Leave GLFW so the setup menu can open again
+        // (Main loops SetupScreen -> simulation -> SetupScreen).
         gpuSimulation.cleanup();
         glfwTerminate();
-        glfwSetErrorCallback(null).free();
+        var cb = glfwSetErrorCallback(null);
+        if (cb != null) {
+            cb.free();
+        }
     }
 
     // Setters and Getters

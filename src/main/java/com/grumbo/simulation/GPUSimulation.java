@@ -54,6 +54,7 @@ public class GPUSimulation {
     public State state = State.PAUSED;
     @SuppressWarnings("unused")
     private boolean debug;
+    private boolean cleanedUp = false;
 
     // Recording
     private Recording recording;
@@ -587,13 +588,15 @@ public class GPUSimulation {
      * Cleans up the simulation.
      */
     public void cleanup() {
+        if (cleanedUp) {
+            return;
+        }
+        cleanedUp = true;
 
         GPU.cleanup();
         if (isRecording) {
             stopRecording();
         }
-
-        
     }
 
     // public ArrayList<Planet> getPlanets() {

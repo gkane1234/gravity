@@ -2,10 +2,6 @@ package com.grumbo.gpu;
 
 import static org.lwjgl.opengl.GL43C.*;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
 
 /**
  * GLSLShader is a class that represents a GLSL shader.
@@ -14,14 +10,11 @@ import java.nio.file.Paths;
  * @version 1.0
  * @since 1.0
  */
-
 public abstract class GLSLShader {
+    private static final String SHADERS_ROOT = "shaders/";
+
     private int shader;
     private String shaderName;
-
-
-    
-
 
     /**
      * ShaderType is an enum that represents the type of shader.
@@ -54,18 +47,13 @@ public abstract class GLSLShader {
      * @param shaderType the type of the shader
      */
     public GLSLShader(String shaderName, ShaderType shaderType) {
-        //creates the shader
         this.shader = glCreateShader(shaderType.getShaderType());
         String source = getSource(shaderName);
         glShaderSource(shader, source);
-        //compiles the shader
         glCompileShader(shader);
         checkShader(shader);
-        //sets the shader name
         this.shaderName = shaderName;
-        
     }
-
 
     /**
      * Gets the shader.
@@ -82,7 +70,6 @@ public abstract class GLSLShader {
      */
     public abstract String getSource(String kernelName);
 
-    
     /**
      * Gets the name of the shader.
      * @return the name of the shader
@@ -95,33 +82,35 @@ public abstract class GLSLShader {
      * Checks if the shader compiled successfully.
      * @param shader the shader to check if it compiled successfully
      */
-    public static  void checkShader(int shader) {
+    public static void checkShader(int shader) {
         if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
-            System.err.println("Shader compilation failed: " + glGetShaderInfoLog(shader));
+            String log = glGetShaderInfoLog(shader);
+            System.err.println("Shader compilation failed: " + log);
+            throw new RuntimeException("Shader compilation failed: " + log);
         }
     }
 
-
     /**
-     * Used by getSource() to add the appropriate #include source code.
-     * @param filePath the path to the shader
-     * @return the shader with the appropriate #include source code
+     * Loads a shader and recursively expands {@code #include "path"} directives.
+     * Paths are relative to the classpath {@code shaders/} root
+     * (e.g. {@code compute/bh_main.comp} or {@code common/common.glsl}).
+     *
+     * @param shaderRelativePath path under {@code shaders/}
+     * @return the shader with includes expanded
      * @throws IOException if the shader cannot be read
      */
-    protected static String hashtagIncludeShaders(String filePath) throws IOException {
-        // preprocessor supporting lines of the form: #include "compute/path.comp" or #include "render/impostor/path.vert"
-        Path path = Paths.get(filePath);
-        Path shaderFolder = getShaderFolder(path);
+    protected static String hashtagIncludeShaders(String shaderRelativePath) throws IOException {
+        String relative = normalizeShaderRelative(shaderRelativePath);
+        String content = ResourceLoader.readText(SHADERS_ROOT + relative);
         StringBuilder out = new StringBuilder();
-        for (String line : Files.readAllLines(path)) {
+        for (String line : content.split("\n", -1)) {
             String trimmed = line.trim();
             if (trimmed.startsWith("#include\"") || trimmed.startsWith("#include \"")) {
                 int start = trimmed.indexOf('"');
                 int end = trimmed.lastIndexOf('"');
                 if (start >= 0 && end > start) {
                     String includeRel = trimmed.substring(start + 1, end);
-                    Path includePath = shaderFolder.resolve(includeRel);
-                    out.append(hashtagIncludeShaders(includePath.toString()));
+                    out.append(hashtagIncludeShaders(includeRel));
                     out.append('\n');
                     continue;
                 }
@@ -131,15 +120,16 @@ public abstract class GLSLShader {
         return out.toString();
     }
 
-
-    /**
-     * Gets the shader folder.
-     * @param filePath the path to the shader
-     * @return the shader folder
-     */
-    private static Path getShaderFolder(Path filePath) {
-        return filePath.endsWith("shaders") ? filePath : getShaderFolder(filePath.getParent());
+    private static String normalizeShaderRelative(String path) {
+        String p = path.replace('\\', '/');
+        while (p.startsWith("/")) {
+            p = p.substring(1);
+        }
+        if (p.startsWith("src/main/resources/shaders/")) {
+            p = p.substring("src/main/resources/shaders/".length());
+        } else if (p.startsWith("shaders/")) {
+            p = p.substring("shaders/".length());
+        }
+        return p;
     }
-
-
 }

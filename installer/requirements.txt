@@ -1,0 +1,17 @@
+GravityChunk — System Requirements
+==================================
+
+This application runs on Windows only and needs a capable NVIDIA GPU.
+
+Required:
+  - Windows 10 or 11 (64-bit)
+  - NVIDIA GPU with recent Game Ready / Studio drivers
+  - OpenGL 4.3+ compute shader support (standard on modern NVIDIA cards)
+  - Several GB of free RAM (default heap is up to 8 GB; huge simulations need more)
+
+Not required:
+  - CUDA Toolkit
+  - A separate Java install (the installer bundles a runtime)
+
+If the app fails to start or the window stays black, update your NVIDIA drivers
+and confirm OpenGL compute is available on your machine.

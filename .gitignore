@@ -21,3 +21,12 @@ src/main/resources/planet_data/planet_data_bsp/
 *.jar
 *.war
 *.ear
+
+# Installer / packaging output
+dist/
+
+# Large showcase videos (encode locally; host on site or Releases)
+website/public/videos/*.mp4
+website/public/videos/*.webm
+website/public/videos/*.jpg
+!website/public/videos/README.md
