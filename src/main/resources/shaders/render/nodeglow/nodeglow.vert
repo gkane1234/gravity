@@ -8,7 +8,7 @@
 //   3) 1 <= nodeDepth <= nodeGlowMaxDepth
 //      nodeDepth = height above furthest leaf (set in treePropagate)
 // θ_r from Settings.nodeGlowThetaPx (pixels → NDC on CPU).
-// Color: mass-weighted avg star RGB aggregated onto Node.avgColor.
+// Color: luminosity-weighted avg star RGB aggregated onto Node.avgColor (w = subtree L).
 // Intensity: mass luminosity with 1/r² (camDist), spread over AABB splat,
 // then MASS_GLOW_SCALE * Settings.nodeGlowIntensity, then Reinhard.
 // =============================================================

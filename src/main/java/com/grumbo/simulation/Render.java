@@ -71,6 +71,7 @@ public class Render {
      */
     public void render(GPUSimulation.State state) {
         GPUSimulation.checkGLError("before render");
+        syncAliveBodyDrawCount();
         
         // Get the camera view
         renderMode = RenderMode.fromString(Settings.getInstance().getRenderMode());
@@ -88,6 +89,25 @@ public class Render {
         GPUSimulation.checkGLError("after render");
     }
 
+
+    /**
+     * Live alive count from GPU (after dead partition / OOB kills).
+     */
+    private static int aliveBodyCount() {
+        Integer n = GPU.SSBO_SIMULATION_VALUES.getIntegerData("numBodies");
+        if (n == null || n <= 0) {
+            return GPU.numBodies();
+        }
+        return n;
+    }
+
+    /** Draw only alive bodies — dead/OOB slots are skipped in the vertex shader too. */
+    private static void syncAliveBodyDrawCount() {
+        int alive = aliveBodyCount();
+        GPU.RENDER_IMPOSTOR.setNumObjects(alive);
+        GPU.RENDER_POINTS.setNumObjects(alive);
+        GPU.RENDER_SPHERE.setNumObjects(alive);
+    }
 
     /**
      * Renders the points.
@@ -143,7 +163,7 @@ public class Render {
             glDepthMask(false);
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE);
-            GPU.RENDER_NODE_GLOW.setNumObjects(Math.max(0, GPU.numBodies() - 1));
+            GPU.RENDER_NODE_GLOW.setNumObjects(Math.max(0, aliveBodyCount() - 1));
             GPU.RENDER_NODE_GLOW.run();
             glDepthMask(true);
         }

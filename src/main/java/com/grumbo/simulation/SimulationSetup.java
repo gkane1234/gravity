@@ -76,6 +76,11 @@ public class SimulationSetup {
 
     private final List<SceneItem> items = new ArrayList<>();
     private UnitSet unitSet = UnitSet.SOLAR_SYSTEM_SECOND;
+    private Preset lastPreset;
+
+    public Preset getLastPreset() {
+        return lastPreset;
+    }
 
     public List<SceneItem> getItems() {
         return items;
@@ -91,6 +96,7 @@ public class SimulationSetup {
 
     public void clear() {
         items.clear();
+        lastPreset = null;
     }
 
     public void remove(int index) {
@@ -109,6 +115,7 @@ public class SimulationSetup {
 
     public void applyPreset(Preset preset) {
         clear();
+        lastPreset = preset;
         switch (preset) {
             case EMPTY -> { }
             case SOLAR_SYSTEM -> {
@@ -260,6 +267,10 @@ public class SimulationSetup {
      * minimum period over satellite centers made galaxy/merger dt far too small.
      */
     public SuggestedSettings suggestSettings() {
+        if (lastPreset == Preset.MERGER_SCALED || lastPreset == Preset.MERGER_FULL) {
+            return SuggestedSettings.mergerDefaults();
+        }
+
         final float theta = 0.7f;
         final float bounds = suggestedSquareBounds();
         // Keep solar-system-sized scenes near the historical cameraScale≈10 look.
@@ -345,22 +356,60 @@ public class SimulationSetup {
         public final float dt;
         public final float theta;
         public final float cameraScale;
+        public final Float nodeGlowIntensity;
+        public final Float bodyRenderDistance;
+        public final String renderMode;
 
         public SuggestedSettings(float dt, float theta, float cameraScale) {
+            this(dt, theta, cameraScale, null, null, null);
+        }
+
+        public SuggestedSettings(float dt, float theta, float cameraScale,
+                                 Float nodeGlowIntensity, Float bodyRenderDistance, String renderMode) {
             this.dt = dt;
             this.theta = theta;
             this.cameraScale = cameraScale;
+            this.nodeGlowIntensity = nodeGlowIntensity;
+            this.bodyRenderDistance = bodyRenderDistance;
+            this.renderMode = renderMode;
+        }
+
+        /** Tuned defaults for galaxy merger presets (scaled and full). */
+        public static SuggestedSettings mergerDefaults() {
+            return new SuggestedSettings(
+                500_000f, 0.77f, 0.2f,
+                0.001f, 50f, "impNodeGlow"
+            );
         }
 
         public void apply(Settings settings) {
             settings.setDt(dt);
             settings.setTheta(theta);
             settings.setCameraScale(cameraScale);
+            if (nodeGlowIntensity != null) {
+                settings.setNodeGlowIntensity(nodeGlowIntensity);
+            }
+            if (bodyRenderDistance != null) {
+                settings.setBodyRenderDistance(bodyRenderDistance);
+            }
+            if (renderMode != null) {
+                settings.setRenderMode(renderMode);
+            }
         }
 
         @Override
         public String toString() {
-            return String.format("dt=%.4g theta=%.2f cameraScale=%.4g", dt, theta, cameraScale);
+            String base = String.format("dt=%.4g theta=%.2f cameraScale=%.4g", dt, theta, cameraScale);
+            if (renderMode != null) {
+                base += " renderMode=" + renderMode;
+            }
+            if (nodeGlowIntensity != null) {
+                base += String.format(" nodeGlowIntensity=%.4g", nodeGlowIntensity);
+            }
+            if (bodyRenderDistance != null) {
+                base += String.format(" bodyRenderDist=%.4g", bodyRenderDistance);
+            }
+            return base;
         }
     }
 

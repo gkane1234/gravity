@@ -204,11 +204,16 @@ bool isEmpty(Body b) {
     return b.posMass.w == 0.0;
 }
 
+//Checks if a position is out of bounds
+bool outOfBoundsPos(vec3 pos) {
+    return pos.x < sim.bounds.minCorner.x || pos.x > sim.bounds.maxCorner.x ||
+           pos.y < sim.bounds.minCorner.y || pos.y > sim.bounds.maxCorner.y ||
+           pos.z < sim.bounds.minCorner.z || pos.z > sim.bounds.maxCorner.z;
+}
+
 //Checks if a body is out of bounds
 bool outOfBounds(Body b) {
-    return b.posMass.x < sim.bounds.minCorner.x || b.posMass.x > sim.bounds.maxCorner.x ||
-           b.posMass.y < sim.bounds.minCorner.y || b.posMass.y > sim.bounds.maxCorner.y ||
-           b.posMass.z < sim.bounds.minCorner.z || b.posMass.z > sim.bounds.maxCorner.z;
+    return outOfBoundsPos(b.posMass.xyz);
 }
 
 float scaledDensity(Body b) {
@@ -273,6 +278,14 @@ vec3 tempToColor(float kelvin) {
 
 vec3 getStarColor(float mass, float density) {
     return tempToColor(starTemp(mass, density));
+}
+
+// Relative stellar luminosity (Stefan–Boltzmann ∝ R²T⁴) for color aggregation weights.
+// mass/density in SI (kg, kg/m³); only ratios matter for weighting.
+float starLuminosity(float mass, float density) {
+    float T = starTemp(mass, density);
+    float r = THREE_OVER_FOUR_PI_TO_THE_ONE_THIRD * pow(max(mass, 1e-30) / max(density, 1e-30), 1.0 / 3.0);
+    return r * r * pow(max(T, 1.0), 4.0);
 }
 
 

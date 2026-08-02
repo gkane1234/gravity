@@ -19,13 +19,20 @@ float cbrt(float x)
 // This vertex shader is used to render the sphere.
 // It is done by rendering a sphere at the position of the body.
 void main() {
-  if (isEmpty(srcB.bodies[gl_InstanceID])) {
+  if (gl_InstanceID >= int(sim.numBodies)) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    return;
+  }
+
+  uint bodyIdx = indexIn[gl_InstanceID];
+  if (isEmpty(srcB.bodies[bodyIdx])) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
     gl_PointSize = 0.0;
     return;
   }
-  vec3 center = scaledDist(relativeLocation(srcB.bodies[gl_InstanceID], uRelativeTo));
-  float radius = max(MIN_RADIUS, RADIUS_SCALE*radius(srcB.bodies[gl_InstanceID]));
+  vec3 center = scaledDist(relativeLocation(srcB.bodies[bodyIdx], uRelativeTo));
+  float radius = max(MIN_RADIUS, RADIUS_SCALE*radius(srcB.bodies[bodyIdx]));
   vec3 worldPos = center + aPos * radius;
   vWorldPos = worldPos;
   gl_Position = uMVP * vec4(worldPos, 1.0);

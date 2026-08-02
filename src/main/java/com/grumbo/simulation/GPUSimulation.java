@@ -54,7 +54,13 @@ public class GPUSimulation {
     public State state = State.PAUSED;
     @SuppressWarnings("unused")
     private boolean debug;
+    private final SimulationSetup.SuggestedSettings launchSettings;
     private boolean cleanedUp = false;
+
+    private static final float DT_WARMUP_VALUE = 100f;
+    private static final float DT_WARMUP_SECONDS = 10f;
+    private Float dtWarmUpTarget = null;
+    private long dtWarmUpEndNanos = 0L;
 
     // Recording
     private Recording recording;
@@ -228,14 +234,31 @@ public class GPUSimulation {
         return new GPUSimulation(new PlanetGenerator(newPlanets), 10, Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW, true);
     }
 
+    public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode, boolean debug) {
+        this(planetGenerator, squareBounds, renderMode, debug, null);
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode,
+                         boolean debug, SimulationSetup.SuggestedSettings launchSettings) {
+        this(planetGenerator,
+            new float[][] {{-squareBounds, -squareBounds, -squareBounds}, {squareBounds, squareBounds, squareBounds}},
+            renderMode, debug, launchSettings);
+    }
+
     public GPUSimulation(PlanetGenerator planetGenerator, float[][] bounds, Render.RenderMode renderMode, boolean debug) {
+        this(planetGenerator, bounds, renderMode, debug, null);
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float[][] bounds, Render.RenderMode renderMode,
+                         boolean debug, SimulationSetup.SuggestedSettings launchSettings) {
 
         this.planetGenerator = planetGenerator;
         this.initialbodiesContained = planetGenerator.getNumPlanets();
         this.openGlWindow = new OpenGLWindow(this);
-        this.barnesHut = new BarnesHut(this,debug,bounds);
-        this.render = new Render(this,renderMode,debug);
+        this.barnesHut = new BarnesHut(this, debug, bounds);
+        this.render = new Render(this, renderMode, debug);
         this.debug = debug;
+        this.launchSettings = launchSettings;
 
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
@@ -256,10 +279,6 @@ public class GPUSimulation {
             //"COMPUTE_MERGE",
             //"COMPUTE_DEBUG",
         });
-    }
-
-    public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode, boolean debug) {
-        this(planetGenerator, new float[][] {{-squareBounds, -squareBounds, -squareBounds}, {squareBounds, squareBounds, squareBounds}}, renderMode, debug);
     }
 
     public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, boolean debug) {
@@ -287,9 +306,36 @@ public class GPUSimulation {
 
     private void init() {
         openGlWindow.init();
+        if (launchSettings != null) {
+            launchSettings.apply(Settings.getInstance());
+            startDtWarmUpIfNeeded(launchSettings.dt);
+            Settings.getInstance().saveSettings();
+            System.out.println("Launch settings applied: " + launchSettings);
+        }
         GPU.initGPU(this);
         barnesHut.init();
         render.init();
+    }
+
+    private void startDtWarmUpIfNeeded(float configuredDt) {
+        if (configuredDt <= DT_WARMUP_VALUE) {
+            return;
+        }
+        dtWarmUpTarget = configuredDt;
+        dtWarmUpEndNanos = System.nanoTime() + (long) (DT_WARMUP_SECONDS * 1_000_000_000L);
+        Settings.getInstance().setDt(DT_WARMUP_VALUE);
+        System.out.println("dt warm-up: " + DT_WARMUP_VALUE + " for " + (int) DT_WARMUP_SECONDS
+            + "s, then " + configuredDt);
+    }
+
+    private void tickDtWarmUp() {
+        if (dtWarmUpTarget == null || System.nanoTime() < dtWarmUpEndNanos) {
+            return;
+        }
+        Settings.getInstance().setDt(dtWarmUpTarget);
+        System.out.println("dt warm-up complete: dt=" + dtWarmUpTarget);
+        dtWarmUpTarget = null;
+        dtWarmUpEndNanos = 0L;
     }
 
     /**
@@ -328,6 +374,7 @@ public class GPUSimulation {
      */
     public void step() {
         checkGLError("before step");
+        tickDtWarmUp();
         processCommands();
         checkGLError("after processCommands");
         if (state == State.RUNNING) {

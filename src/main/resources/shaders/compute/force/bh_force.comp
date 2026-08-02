@@ -123,7 +123,7 @@ void forceComputeKernel()
         if (wrapAround) {
             newPos = mod(newPos-sim.bounds.minCorner, sim.bounds.maxCorner - sim.bounds.minCorner) + sim.bounds.minCorner;
         } else {
-            if (outOfBounds(body)) {
+            if (outOfBoundsPos(newPos)) {
                 dstB.bodies[bodyIdx] = EMPTY_BODY;
                 atomicAdd(sim.outOfBounds, 1u);
                 return;

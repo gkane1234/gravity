@@ -62,7 +62,7 @@ public final class SetupScreen {
 
     private SimulationSetup.LaunchConfig loop() {
         initWindow();
-        setup.applyPreset(Preset.SMALL_GALAXY);
+        setup.applyPreset(Preset.MERGER_FULL);
         rebuildUi();
 
         while (!finished && !glfwWindowShouldClose(window)) {
@@ -376,8 +376,8 @@ public final class SetupScreen {
         if (n <= 0) return "Add a preset or object, then LAUNCH.";
         SimulationSetup.SuggestedSettings s = setup.suggestSettings();
         String base = "Ready ~" + n + " | bounds ~" + (int) setup.suggestedSquareBounds()
-            + " | dt~" + formatSuggest(s.dt) + " theta=" + s.theta;
-        if (n > 2_000_000) return "WARN ~" + n + " bodies | " + base;
+            + " | dt~" + formatSuggest(s.dt) + " theta=" + s.theta + " cameraScale=" + s.cameraScale;
+        if (n > 2_000_000) return "WARN ~" + n + " bodies (heavy GPU) | " + base;
         return base + " | paused; F1 runs";
     }
 

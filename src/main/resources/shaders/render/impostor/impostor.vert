@@ -26,7 +26,17 @@ const float BOX_CORRECTION = 1.5;
 // The depth is then used to determine if the sphere is close enough to be rendered as opaque,
 // or far enough to be rendered as a glow.
 void main() {
-  Body b = srcB.bodies[gl_InstanceID];
+  if (gl_InstanceID >= int(sim.numBodies)) {
+    gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+    return;
+  }
+
+  uint bodyIdx = indexIn[gl_InstanceID];
+  Body b = srcB.bodies[bodyIdx];
+  if (isEmpty(b)) {
+    gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+    return;
+  }
 
   vec3 center = relativeLocation(b, uRelativeTo)*cameraScale;
   color = getStarColor(scaledMass(b), scaledDensity(b));
@@ -36,6 +46,13 @@ void main() {
   // Transform center to view space
   vec4 centerView4 = uModelView * vec4(center, 1.0);
   vCenterView = centerView4.xyz;
+
+  // Skip rasterization when beyond body draw distance (same test as impostor.frag).
+  float camDistEarly = max(-vCenterView.z, 0.0);
+  if (camDistEarly > uBodyRenderDistance) {
+    gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+    return;
+  }
 
   // Project to clip
   vec4 centerClip = uProj * centerView4;

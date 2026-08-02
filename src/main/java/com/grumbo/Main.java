@@ -21,14 +21,17 @@ public class Main {
                 return;
             }
 
-            config.suggestedSettings.apply(Settings.getInstance());
-            System.out.println("Suggested settings: " + config.suggestedSettings);
+            System.out.println("Launch: " + config.bodyCount + " bodies, " + config.squareBounds + " bounds");
+            if (config.suggestedSettings != null) {
+                System.out.println("Preset: " + config.suggestedSettings);
+            }
 
             GPUSimulation gpuSimulation = new GPUSimulation(
                 config.generator,
                 config.squareBounds,
-                Render.RenderMode.IMPOSTOR_SPHERES_WITH_GLOW,
-                false
+                Render.RenderMode.fromString(Settings.getInstance().getRenderMode()),
+                false,
+                config.suggestedSettings
             );
             System.out.println("Bodies: " + config.bodyCount + ", squareBounds: " + config.squareBounds);
             gpuSimulation.run();

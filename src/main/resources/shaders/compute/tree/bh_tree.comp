@@ -158,9 +158,12 @@ void treeInitLeafNodesKernel()
     leafNodes[gid].childB = 0xFFFFFFFFu;
     leafNodes[gid].readyChildren = 0xFFFFFFFFu;
     leafNodes[gid].nodeDepth = 0u;
-    // Same star RGB as impostor bodies (mass/density → temp → color)
+    // Star RGB + luminosity (avgColor.w) for luminosity-weighted aggregation up the tree
     if (body.posMass.w > 0.0 && body.velDensity.w > 0.0) {
-        leafNodes[gid].avgColor = vec4(getStarColor(scaledMass(body), scaledDensity(body)), 0.0);
+        float m = scaledMass(body);
+        float d = scaledDensity(body);
+        float L = starLuminosity(m, d);
+        leafNodes[gid].avgColor = vec4(getStarColor(m, d), L);
     } else {
         leafNodes[gid].avgColor = vec4(0.0);
     }
@@ -223,17 +226,23 @@ void treePropagateNodesKernel()
         Node leftChild = getNode(internalNodes[internalNodeIdx].childA);
         Node rightChild = getNode(internalNodes[internalNodeIdx].childB);
         
-        //update the COM, AABB, and mass-weighted avg star color
+        //update the COM, AABB, and luminosity-weighted avg star color
         vec4 leftCOM = leftChild.comMass;
         vec4 rightCOM = rightChild.comMass;
         float totalMass = leftCOM.w + rightCOM.w;
+        float L_left = leftChild.avgColor.w;
+        float L_right = rightChild.avgColor.w;
+        float totalL = L_left + L_right;
         vec3 centerOfMass;
         vec3 avgColor;
         if (totalMass > 0.0) {
             centerOfMass = (leftCOM.w * leftCOM.xyz + rightCOM.w * rightCOM.xyz) / totalMass;
-            avgColor = (leftCOM.w * leftChild.avgColor.rgb + rightCOM.w * rightChild.avgColor.rgb) / totalMass;
         } else {
             centerOfMass = (leftCOM.xyz + rightCOM.xyz) * 0.5;
+        }
+        if (totalL > 0.0) {
+            avgColor = (L_left * leftChild.avgColor.rgb + L_right * rightChild.avgColor.rgb) / totalL;
+        } else {
             avgColor = (leftChild.avgColor.rgb + rightChild.avgColor.rgb) * 0.5;
         }
         AABB leftAABB = unpackAABB(leftChild.aabb);
@@ -242,7 +251,7 @@ void treePropagateNodesKernel()
         //Set the values for the internal node
         internalNodes[internalNodeIdx].comMass = vec4(centerOfMass, totalMass);
         internalNodes[internalNodeIdx].aabb = packAABB(newAABB);
-        internalNodes[internalNodeIdx].avgColor = vec4(avgColor, 0.0);
+        internalNodes[internalNodeIdx].avgColor = vec4(avgColor, totalL);
         internalNodes[internalNodeIdx].readyChildren = 0xFFFFFFFFu;
         internalNodes[internalNodeIdx].nodeDepth = 1u+max(leftChild.nodeDepth, rightChild.nodeDepth);
         uint parentIdx = internalNodes[internalNodeIdx].parentId;

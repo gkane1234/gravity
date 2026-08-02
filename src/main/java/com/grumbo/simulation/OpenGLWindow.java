@@ -62,9 +62,6 @@ public class OpenGLWindow {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
 
-        // Restore default settings on startup
-        Settings.getInstance().restoreDefaults();
-
         // Create the window
         window = glfwCreateWindow(Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), "Gravity Simulator 3D", NULL, NULL);
         if (window == NULL)

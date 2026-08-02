@@ -962,6 +962,7 @@ public class GPU {
         });
         GPU.RENDER_POINTS.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_SIMULATION_VALUES
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_POINTS.getProgramName(), GPU.RENDER_POINTS);
@@ -987,6 +988,7 @@ public class GPU {
         });
         GPU.RENDER_IMPOSTOR.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_SWAPPING_INDEX_IN,
             GPU.SSBO_SIMULATION_VALUES
 
         });
@@ -1004,6 +1006,8 @@ public class GPU {
         });
         GPU.RENDER_SPHERE.setSSBOs(new SSBO[] {
             GPU.SSBO_SWAPPING_BODIES_IN,
+            GPU.SSBO_SWAPPING_INDEX_IN,
+            GPU.SSBO_SIMULATION_VALUES,
         });
         GPU.RENDER_PROGRAMS.put(GPU.RENDER_SPHERE.getProgramName(), GPU.RENDER_SPHERE);
         GPUSimulation.checkGLError("GPU.RENDER_SPHERE");
