@@ -16,6 +16,20 @@
         <lwjgl.natives>natives-windows</lwjgl.natives>
     </properties>
 
+    <profiles>
+        <profile>
+            <id>linux-natives</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                </os>
+            </activation>
+            <properties>
+                <lwjgl.natives>natives-linux</lwjgl.natives>
+            </properties>
+        </profile>
+    </profiles>
+
     <dependencyManagement>
         <dependencies>
             <dependency>

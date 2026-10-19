@@ -9,7 +9,7 @@ const uint WG_SIZE = 256u; // Must match local_size_x above and WORK_GROUP_SIZE 
 
 //For render shaders:
 #version 430
-#extension GL_NV_gpu_shader5 : enable
+#extension GL_ARB_gpu_shader_int64 : enable
 #extension GL_ARB_shading_language_include : enable
 //End for render shaders
 
