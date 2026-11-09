@@ -14,7 +14,7 @@
     },
     "renderMode": {
       "type": "selector",
-      "default": "impGlow",
+      "default": "impNodeGlow",
       "options": ["off", "points", "imp", "impGlow", "impNodeGlow", "mesh"],
       "description": "Render mode",
       "editable": true

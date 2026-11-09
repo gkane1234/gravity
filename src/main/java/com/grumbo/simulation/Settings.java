@@ -61,7 +61,7 @@ public class Settings {
 		{ Property<Integer> p = Property.createIntProperty("height", 1000, 1000); p.setEditable(false); properties.put("height", p); }
 
 		// Render mode
-		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impGlow", "impGlow", new String[]{"off", "points", "imp", "impGlow", "impNodeGlow", "mesh"}, true));
+		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impNodeGlow", "impNodeGlow", new String[]{"off", "points", "imp", "impGlow", "impNodeGlow", "mesh"}, true));
 
 		// impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.
 		{ Property<Float> p = Property.createFloatProperty("nodeGlowThetaPx", 16.0f, 16.0f); p.setEditable(true); properties.put("nodeGlowThetaPx", p); }
