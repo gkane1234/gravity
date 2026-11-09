@@ -1,4 +1,5 @@
-# Encode a FrameRecorder PNG sequence into MP4 and WebM for the website.
+# Encode a FrameRecorder PNG sequence into MP4 and WebM.
+# The landing page does not embed these files.
 #
 # FrameRecorder names files like: frame_20260721_103045_000000.png
 #

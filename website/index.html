@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GravityChunk — Barnes–Hut n-body on the GPU</title>
+  <meta name="description" content="GravityChunk is a Barnes–Hut n-body simulation. GLSL compute shaders sort, build the tree, integrate forces, and merge. Java opens the window and builds the starting scene.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='3' fill='%23e4b15a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header>
+    <div class="wrap bar">
+      <a class="brand" href="#top">GravityChunk</a>
+      <nav aria-label="Page">
+        <a href="#frame">Frame</a>
+        <a href="#scene">Scene</a>
+        <a href="#run">Run</a>
+        <a href="https://github.com/gkane1234/gravity">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="content">
+    <div class="wrap">
+      <p class="kicker" id="top">GLSL compute · Java / LWJGL · OpenGL 4.6</p>
+      <h1>Barnes–Hut, one frame on the GPU.</h1>
+      <p class="lede">GravityChunk is an n-body simulation. Compute shaders sort the bodies, build the tree, integrate the forces, and merge. Java opens the window and builds the starting scene.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/gkane1234/gravity">View source</a>
+        <a class="btn" href="https://github.com/gkane1234/gravity/releases">Windows releases</a>
+      </div>
+
+      <ul class="facts" aria-label="Capacity, GPU pipeline, and rendering">
+        <li><span>&gt;32 million</span> bodies, realtime</li>
+        <li><span>GPU only</span> compute shaders, every step</li>
+        <li><span>Sort and walk</span> on the GPU</li>
+        <li><span>Cluster glow</span> one splat per distant group</li>
+      </ul>
+
+      <figure class="plate">
+        <img src="images/capture.png" width="722" height="693" alt="GravityChunk window showing a dense amber field of stars from a galaxy run, with an FPS readout of 21.6 in the corner.">
+        <figcaption>
+          <span>Fig. 01 — Desktop capture</span>
+          <span>The simulation runs in this window.</span>
+        </figcaption>
+      </figure>
+
+      <section id="frame">
+        <h2>What a frame does</h2>
+        <p>Bodies are one list of nodes. Empty slots are packed to the end before the tree is built. A body is empty when it left the bounds, or when a merge consumed it. The pack is a radix pass with two buckets, alive and dead (<code>bh_dead.comp</code>).</p>
+
+        <ol class="steps">
+          <li>
+            <div>
+              <div class="step-head">
+                <h3>Morton encode</h3>
+                <code>bh_morton.comp</code>
+              </div>
+              <p>Positions are normalized into the simulation’s axis-aligned bounding box. Each axis is quantized into 2<sup>21</sup> bins, from 0 to 2,097,151, and those bits are interleaved into a 63-bit code. Nearby codes are usually nearby in space. An unbounded run rebuilds the box every step from inlier bodies, and the box may grow by at most 5% in one step.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="step-head">
+                <h3>Radix sort</h3>
+                <code>bh_radix.comp</code>
+              </div>
+              <p>One thread per body. The 63-bit key is sorted four bits at a time, sixteen buckets. Each digit is four kernels: a histogram per workgroup, an inclusive scan of those histograms, a scan that finds where each bucket starts in the output, and a scatter. A body’s destination is the bucket base, plus that bucket’s running sum across earlier workgroups, plus its index inside its own workgroup.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="step-head">
+                <h3>Binary tree</h3>
+                <code>bh_tree.comp</code>
+              </div>
+              <p>Sorted Morton codes become a binary radix tree by the <a href="https://research.nvidia.com/sites/default/files/pubs/2012-06_Maximizing-Parallelism-in/karras2012hpg_paper.pdf">Karras 2012</a> construction. The tree is binary. Leaves are the bodies. Internal nodes then receive mass, center of mass, and a bounding box. A parent is queued when both children have checked in. Propagation runs for 64 passes. The dispatch halves each pass, with a floor of four workgroups.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="step-head">
+                <h3>Force</h3>
+                <code>bh_force.comp</code>
+              </div>
+              <p>Each body walks from the root on an explicit stack of 64 nodes. An internal node is treated as one mass when</p>
+              <p class="formula"><code>halfLongestSide / distance &lt; θ</code></p>
+              <p><code>halfLongestSide</code> is half the longest edge of that node’s box. If the test fails, both children are pushed. A leaf always contributes, except the body itself. Overlapping leaves either collide — an impulse and a position correction — or append a merge task, depending on the mode. Acceleration is <code>G M r / dist³</code>, with <code>dist² = |r|² + softening</code>. <code>G</code> comes from the unit set. Velocity is updated first, then position.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="step-head">
+                <h3>Merge</h3>
+                <code>bh_merge.comp</code>
+              </div>
+              <p>Merge tasks run in parallel. The kernel does not follow a merge created by another merge, and tasks can race. A large timestep is not deterministic. A small timestep is.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section id="kernels">
+        <h2>Kernel order</h2>
+        <p><code>bh_main.comp</code> is the entry point. Shared structs and the workgroup size live in <code>common.glsl</code>.</p>
+        <div class="table-scroll">
+          <table>
+            <caption>Compute shaders, in dispatch order</caption>
+            <thead>
+              <tr>
+                <th scope="col">File</th>
+                <th scope="col">Work</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>bh_init.comp</code></td>
+                <td>Initial buffers</td>
+              </tr>
+              <tr>
+                <td><code>bh_update.comp</code></td>
+                <td>Reset queues and refresh the body count</td>
+              </tr>
+              <tr>
+                <td><code>bh_dead.comp</code></td>
+                <td>Count, exclusive scan, scatter the empty slots</td>
+              </tr>
+              <tr>
+                <td><code>bh_morton.comp</code></td>
+                <td>Rebuild the box, then encode</td>
+              </tr>
+              <tr>
+                <td><code>bh_radix.comp</code></td>
+                <td>Histogram, bucket scan, global scan, scatter</td>
+              </tr>
+              <tr>
+                <td><code>bh_tree.comp</code></td>
+                <td>Build the tree, init leaves, propagate mass</td>
+              </tr>
+              <tr>
+                <td><code>bh_force.comp</code></td>
+                <td>Walk the tree, accelerate, write the new state</td>
+              </tr>
+              <tr>
+                <td><code>bh_merge.comp</code></td>
+                <td>Apply merge tasks</td>
+              </tr>
+              <tr>
+                <td><code>bh_debug.comp</code></td>
+                <td>Readback for debugging</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="scene">
+        <h2>Starting scene</h2>
+        <p>A setup window runs before GPU buffers are allocated. It builds a <code>PlanetGenerator</code>, which emits bodies in chunks of 100,000 so the full list is not held in one Java array. The same screen can place disks, boxes, single bodies, and the solar system by hand.</p>
+        <div class="table-scroll">
+          <table>
+            <caption>Presets from the setup screen</caption>
+            <thead>
+              <tr>
+                <th scope="col">Preset</th>
+                <th scope="col">What it builds</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Empty</td>
+                <td>No objects. Add some before launch.</td>
+              </tr>
+              <tr>
+                <td>Solar System</td>
+                <td><code>solar_system.json</code>, 24 bodies. Time unit is hours.</td>
+              </tr>
+              <tr>
+                <td>Small Galaxy</td>
+                <td>One disk of 50,000 bodies. Time unit is seconds.</td>
+              </tr>
+              <tr>
+                <td>Merger, scaled</td>
+                <td>Center disk of 80,000 plus four satellites of 25,000.</td>
+              </tr>
+              <tr>
+                <td>Merger, full</td>
+                <td>Center disk of 600,000 plus thirteen satellites of 250,000. About 3.8 million bodies.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Mass, density, and length for those galaxy presets are solar masses, a stellar density, and astronomical units. The gravitational constant uploaded to the GPU is the one that matches the chosen unit set.</p>
+      </section>
+
+      <section id="code">
+        <h2>Java side</h2>
+        <dl class="packages">
+          <div>
+            <dt>simulation</dt>
+            <dd>Dispatch, rendering, the planet generator, and unit sets.</dd>
+          </div>
+          <div>
+            <dt>gpu</dt>
+            <dd>Compute programs, SSBOs, and packing data to the device.</dd>
+          </div>
+          <div>
+            <dt>ui</dt>
+            <dd>Setup screen, and a settings pane that edits Java and GPU values while the sim runs.</dd>
+          </div>
+          <div>
+            <dt>debug</dt>
+            <dd>Dumps of buffer and uniform state.</dd>
+          </div>
+          <div>
+            <dt>record</dt>
+            <dd>F6 writes PNG frames to <code>captures/</code>.</dd>
+          </div>
+        </dl>
+        <p>The <code>gpu</code> package is how the CPU names the buffers and reads them back while debugging the kernels. LWJGL only supplies the raw buffer calls.</p>
+      </section>
+
+      <section id="run">
+        <h2>Run it</h2>
+        <ul class="reqs">
+          <li>Windows 10 or 11, 64-bit</li>
+          <li>NVIDIA GPU and a current driver</li>
+          <li>The window requests an OpenGL 4.6 compatibility context</li>
+          <li>JDK 17 or newer, and Maven, to build from source</li>
+        </ul>
+        <p>The compute shaders are GLSL 4.30 and enable <code>GL_NV_gpu_shader5</code> so Morton codes can be 64-bit integers. CUDA is not part of the build. LWJGL natives in the project are the Windows set.</p>
+        <pre><code>mvn compile exec:java
+
+mvn -DskipTests package
+java -Xmx8g -jar target\gravitychunk-1.0-SNAPSHOT.jar</code></pre>
+        <p>The Windows installer is the setup exe attached to a <a href="https://github.com/gkane1234/gravity/releases">GitHub Release</a>. <code>scripts/build-installer.ps1</code> produces it. F6 records a PNG sequence while the desktop app is running.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap bar">
+      <span>GravityChunk</span>
+      <a href="https://github.com/gkane1234/gravity">github.com/gkane1234/gravity</a>
+    </div>
+  </footer>
+</body>
+</html>
