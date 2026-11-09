@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GravityChunk — Barnes–Hut n-body on the GPU</title>
-  <meta name="description" content="GravityChunk is a Barnes–Hut n-body simulation. Java opens the window. GLSL compute shaders sort, build the tree, integrate forces, and merge.">
+  <meta name="description" content="GravityChunk is a Barnes–Hut n-body simulation. GLSL compute shaders sort, build the tree, integrate forces, and merge. Java opens the window and builds the starting scene.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='3' fill='%23e4b15a'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -24,9 +24,9 @@
 
   <main id="content">
     <div class="wrap">
-      <p class="kicker" id="top">Java / LWJGL · GLSL compute · OpenGL 4.6</p>
+      <p class="kicker" id="top">GLSL compute · Java / LWJGL · OpenGL 4.6</p>
       <h1>Barnes–Hut, one frame on the GPU.</h1>
-      <p class="lede">GravityChunk is an n-body simulation. The Java program creates the window and the starting scene. Sorting, the spatial tree, forces, and merges then run as compute shaders.</p>
+      <p class="lede">GravityChunk is an n-body simulation. Compute shaders sort the bodies, build the tree, integrate the forces, and merge. Java opens the window and builds the starting scene.</p>
       <div class="actions">
         <a class="btn primary" href="https://github.com/gkane1234/gravity">View source</a>
         <a class="btn" href="https://github.com/gkane1234/gravity/releases">Windows releases</a>
@@ -219,6 +219,7 @@
             <dd>F6 writes PNG frames to <code>captures/</code>.</dd>
           </div>
         </dl>
+        <p>The <code>gpu</code> package is how the CPU names the buffers and reads them back while debugging the kernels. LWJGL only supplies the raw buffer calls.</p>
       </section>
 
       <section id="run">
