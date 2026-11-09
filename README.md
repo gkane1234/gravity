@@ -152,13 +152,13 @@ Allows for the recording of the simulation by saving each individual frame as a 
 
 **Hotkey:** `F6` toggles recording. Frames go to `captures/rec_<timestamp>/`.
 
-Encode a capture for the website:
+Encode a capture to mp4/webm:
 
 ```powershell
 .\scripts\encode-capture.ps1 -CaptureDir captures\rec_YYYYMMDD_HHMMSS -Name hero
 ```
 
-Output lands in `website/public/videos/` (see [`website/README.md`](website/README.md)).
+Output lands in `website/public/videos/`. The landing page does not embed these files.
 
 ## Running locally
 
@@ -192,16 +192,21 @@ Build an app-image (and Inno Setup installer if `iscc` is installed):
 - App-image: `dist/app-image/GravityChunk/`
 - Setup exe (with Inno Setup 6): `dist/installer/GravityChunk-Setup-*.exe`
 
-Publish the setup exe as a GitHub Release asset. The website download button points at `https://github.com/gkane1234/gravity/releases/latest`.
+Publish the setup exe as a GitHub Release asset. The landing page links to `https://github.com/gkane1234/gravity/releases`.
 
-## Website showcase
+## Landing page
 
-This sim does not run in a browser. Use recorded videos + a download link:
+Static page in [`website/`](website/README.md). It describes the GPU pipeline, the setup presets, and how to build or install the desktop app. The simulation runs in the Windows window, not in the browser.
 
-1. Record with F6, encode with `scripts/encode-capture.ps1`
-2. Copy [`website/GravityShowcase.jsx`](website/GravityShowcase.jsx) into your React site
-3. Put videos under that site's `public/videos/`
-4. Ship the installer via GitHub Releases
+Preview from `website/`:
+
+```powershell
+python -m http.server 8000
+```
+
+GitHub Pages publishes that folder from `main` via [`.github/workflows/pages.yml`](.github/workflows/pages.yml). Set the repository Pages source to GitHub Actions once. The site is then `https://gkane1234.github.io/gravity/`.
+
+Ship the setup exe as a GitHub Release asset. The page links to `https://github.com/gkane1234/gravity/releases`.
 
 ## Features to implement:
 
