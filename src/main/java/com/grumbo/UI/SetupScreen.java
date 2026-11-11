@@ -1,11 +1,17 @@
 package com.grumbo.ui;
 
 import com.grumbo.simulation.SimulationSetup;
+import com.grumbo.simulation.SpiceKernel;
 import com.grumbo.simulation.SimulationSetup.ObjectType;
 import com.grumbo.simulation.SimulationSetup.Preset;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 
+import java.awt.FileDialog;
+import java.awt.Frame;
+import java.awt.GraphicsEnvironment;
+import java.awt.HeadlessException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +53,7 @@ public final class SetupScreen {
     private UITextField fieldCount, fieldRadius, fieldMass;
     private UITextField fieldDensity, fieldCenterMass, fieldExtent;
     private UIText statusText;
+    private String lastNote = "";
 
     private double mouseX;
     private double mouseY;
@@ -254,8 +261,10 @@ public final class SetupScreen {
 
         UIRow actionRow = new UIRow();
         actionRow.getElements().add(btn("Add", this::addCurrentObject));
+        actionRow.getElements().add(btn("Load BSP", this::loadBsp));
         actionRow.getElements().add(btn("Clear", () -> {
             snapshotFields();
+            lastNote = "";
             setup.clear();
             rebuildUi();
         }));
@@ -349,6 +358,7 @@ public final class SetupScreen {
     private void addPreset(UIRow row, Preset preset, String shortLabel) {
         UIButton b = btn(shortLabel, () -> {
             snapshotFields();
+            lastNote = "";
             setup.applyPreset(preset);
             rebuildUi();
         });
@@ -373,12 +383,23 @@ public final class SetupScreen {
 
     private String statusMessage() {
         int n = setup.totalBodies();
-        if (n <= 0) return "Add a preset or object, then LAUNCH.";
-        SimulationSetup.SuggestedSettings s = setup.suggestSettings();
-        String base = "Ready ~" + n + " | bounds ~" + (int) setup.suggestedSquareBounds()
-            + " | dt~" + formatSuggest(s.dt) + " theta=" + s.theta + " cameraScale=" + s.cameraScale;
-        if (n > 2_000_000) return "WARN ~" + n + " bodies (heavy GPU) | " + base;
-        return base + " | paused; F1 runs";
+        String ready;
+        if (n <= 0) {
+            ready = "Add a preset or object, then LAUNCH.";
+        } else {
+            SimulationSetup.SuggestedSettings s = setup.suggestSettings();
+            String base = "Ready ~" + n + " | bounds ~" + (int) setup.suggestedSquareBounds()
+                + " | dt~" + formatSuggest(s.dt) + " theta=" + s.theta + " cameraScale=" + s.cameraScale;
+            if (n > 2_000_000) {
+                ready = "WARN ~" + n + " bodies (heavy GPU) | " + base;
+            } else {
+                ready = base + " | paused; F1 runs";
+            }
+        }
+        if (lastNote.isEmpty()) {
+            return ready;
+        }
+        return lastNote + " | " + ready;
     }
 
     private static String formatSuggest(float v) {
@@ -391,8 +412,57 @@ public final class SetupScreen {
         return String.format("%.2f", v);
     }
 
+    private void loadBsp() {
+        snapshotFields();
+        String chosen;
+        try {
+            chosen = chooseBspPath();
+        } catch (HeadlessException e) {
+            lastNote = "BSP upload needs a desktop file dialog.";
+            rebuildUi();
+            return;
+        }
+        if (chosen == null) {
+            return;
+        }
+        try {
+            SpiceKernel.LoadResult loaded = SpiceKernel.load(Path.of(chosen));
+            System.out.println(loaded.summary);
+            if (loaded.planets.isEmpty()) {
+                lastNote = loaded.summary;
+            } else {
+                setup.addSpiceBodies(loaded.planets, Path.of(chosen).getFileName().toString());
+                lastNote = loaded.summary;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            lastNote = e.getMessage() == null ? "Could not read that BSP." : e.getMessage();
+        }
+        rebuildUi();
+    }
+
+    /** Native open dialog. Returns null when the user cancels. */
+    private static String chooseBspPath() {
+        if (GraphicsEnvironment.isHeadless()) {
+            throw new HeadlessException("BSP upload needs a desktop file dialog.");
+        }
+        Frame frame = new Frame();
+        try {
+            FileDialog dialog = new FileDialog(frame, "SPICE kernel (.bsp)", FileDialog.LOAD);
+            dialog.setFile("*.bsp");
+            dialog.setVisible(true);
+            if (dialog.getFile() == null || dialog.getDirectory() == null) {
+                return null;
+            }
+            return dialog.getDirectory() + dialog.getFile();
+        } finally {
+            frame.dispose();
+        }
+    }
+
     private void addCurrentObject() {
         snapshotFields();
+        lastNote = "";
         float cx = parseFloat(vCx, 0);
         float cy = parseFloat(vCy, 0);
         float cz = parseFloat(vCz, 0);

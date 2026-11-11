@@ -13,7 +13,8 @@ public class SimulationSetup {
         DISK,
         BOX,
         SINGLE,
-        SOLAR_SYSTEM
+        SOLAR_SYSTEM,
+        SPICE_KERNEL
     }
 
     public enum Preset {
@@ -37,11 +38,20 @@ public class SimulationSetup {
         public final float density;
         public final float centerMass;
         public final float halfExtent; // box half-size
+        /** Planets loaded from a SPICE kernel. Empty for every other object type. */
+        public final List<Planet> planets;
 
         public SceneItem(ObjectType type, String label, int bodyCount,
                          float cx, float cy, float cz,
                          float radius, float mass, float density,
                          float centerMass, float halfExtent) {
+            this(type, label, bodyCount, cx, cy, cz, radius, mass, density, centerMass, halfExtent, List.of());
+        }
+
+        public SceneItem(ObjectType type, String label, int bodyCount,
+                         float cx, float cy, float cz,
+                         float radius, float mass, float density,
+                         float centerMass, float halfExtent, List<Planet> planets) {
             this.type = type;
             this.label = label;
             this.bodyCount = bodyCount;
@@ -53,6 +63,7 @@ public class SimulationSetup {
             this.density = density;
             this.centerMass = centerMass;
             this.halfExtent = halfExtent;
+            this.planets = planets == null ? List.of() : planets;
         }
 
         public int estimatedBodies() {
@@ -60,6 +71,7 @@ public class SimulationSetup {
                 case DISK -> bodyCount + 1; // disk particles + center
                 case BOX, SINGLE -> bodyCount;
                 case SOLAR_SYSTEM -> 24; // solar_system.json size
+                case SPICE_KERNEL -> planets.size();
             };
         }
 
@@ -70,6 +82,7 @@ public class SimulationSetup {
                 case BOX -> String.format("Box n=%d extent=%.0f @ (%.0f,%.0f,%.0f)", bodyCount, halfExtent, cx, cy, cz);
                 case SINGLE -> String.format("Body m=%.3g @ (%.0f,%.0f,%.0f)", mass, cx, cy, cz);
                 case SOLAR_SYSTEM -> "Solar System (JSON)";
+                case SPICE_KERNEL -> "BSP " + label + " n=" + planets.size();
             };
         }
     }
@@ -169,6 +182,34 @@ public class SimulationSetup {
         items.add(new SceneItem(ObjectType.SOLAR_SYSTEM, "Solar System", 0, 0, 0, 0, 0, 0, 0, 0, 0));
     }
 
+    /**
+     * Adds bodies read from a SPICE kernel. Positions are in {@link UnitSet#METRIC}
+     * and are converted to the scene unit set when the generator is built.
+     * {@code mass} on the scene item is the total mass in the current unit set, used for the timestep hint.
+     * A sun-dominated kernel (total mass above half a solar mass, in solar-mass unit sets) uses an Earth-scale
+     * radius for that hint so the outer planets do not push the timestep out to decades.
+     */
+    public void addSpiceBodies(List<Planet> planets, String fileName) {
+        if (planets == null || planets.isEmpty()) {
+            return;
+        }
+        double len = unitSet.len();
+        double massUnit = unitSet.mass();
+        double maxR = 1.0;
+        double totalM = 0.0;
+        for (Planet planet : planets) {
+            double x = planet.position.x;
+            double y = planet.position.y;
+            double z = planet.position.z;
+            maxR = Math.max(maxR, Math.sqrt(x * x + y * y + z * z) / len);
+            totalM += planet.mass / massUnit;
+        }
+        items.add(new SceneItem(
+            ObjectType.SPICE_KERNEL, fileName, planets.size(),
+            0, 0, 0, (float) maxR, (float) totalM, 0, 0, 0, planets
+        ));
+    }
+
     private static SceneItem disk(String label, int n, float cx, float cy, float cz,
                                   float radius, float mass, float density, float centerMass) {
         return new SceneItem(ObjectType.DISK, label, n, cx, cy, cz, radius, mass, density, centerMass, 0);
@@ -239,6 +280,7 @@ public class SimulationSetup {
                 pg.changeUnitSet(UnitSet.SOLAR_SYSTEM_HOUR);
                 yield pg;
             }
+            case SPICE_KERNEL -> new PlanetGenerator(item.planets, UnitSet.METRIC);
         };
     }
 
@@ -253,6 +295,7 @@ public class SimulationSetup {
                 case BOX -> Math.max(Math.abs(item.cx), Math.max(Math.abs(item.cy), Math.abs(item.cz))) + item.halfExtent * 1.5f;
                 case SINGLE -> Math.max(Math.abs(item.cx), Math.max(Math.abs(item.cy), Math.abs(item.cz))) + 10f;
                 case SOLAR_SYSTEM -> 50f;
+                case SPICE_KERNEL -> item.radius;
             };
             maxR = Math.max(maxR, reach);
         }
@@ -341,6 +384,11 @@ public class SimulationSetup {
                 yield new double[] { R, M };
             }
             case SOLAR_SYSTEM -> new double[] { 1.0, 1.0 };
+            case SPICE_KERNEL -> {
+                // Sun-dominated: time the inner system, not Neptune. A moon kernel keeps its own radius and mass.
+                double sunLike = item.mass > 0.5 ? 1.0 : Math.max(1e-6, item.radius);
+                yield new double[] { sunLike, Math.max(1e-12, item.mass) };
+            }
         };
     }
 
