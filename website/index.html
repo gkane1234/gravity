@@ -32,11 +32,11 @@
         <a class="btn" href="https://github.com/gkane1234/gravity/releases">Windows releases</a>
       </div>
 
-      <ul class="facts" aria-label="Capacity, GPU pipeline, and rendering">
+      <ul class="facts" aria-label="Capacity, GPU steps, the tree, and SPICE kernels">
         <li><span>&gt;32 million</span> bodies, realtime</li>
         <li><span>GPU only</span> compute shaders, every step</li>
-        <li><span>Sort and walk</span> on the GPU</li>
-        <li><span>Cluster glow</span> one splat per distant group</li>
+        <li><span>Barnes–Hut</span> on a binary tree</li>
+        <li><span>BSP upload</span> SPICE kernel support</li>
       </ul>
 
       <figure class="plate">
@@ -159,6 +159,7 @@
       <section id="scene">
         <h2>Starting scene</h2>
         <p>A setup window runs before GPU buffers are allocated. It builds a <code>PlanetGenerator</code>, which emits bodies in chunks of 100,000 so the full list is not held in one Java array. The same screen can place disks, boxes, single bodies, and the solar system by hand.</p>
+        <p>Load BSP opens a SPICE kernel you pick. Type 2, type 3, and type 9 (degree 1) segments are evaluated, masses come from <code>naif_gm.json</code>, and those bodies are added. Other SPK types are skipped. NAIF ids 0–9 stay centers and are not drawn as bodies.</p>
         <div class="table-scroll">
           <table>
             <caption>Presets from the setup screen</caption>
