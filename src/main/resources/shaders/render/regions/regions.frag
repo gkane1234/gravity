@@ -22,6 +22,6 @@ vec3[] colors = {red, green, blue, purple, yellow, cyan, magenta, orange, brown}
 // Color is chosen based on the depth of the node.
 void main() {
 	// Constant translucent color for regions
-	fragColor = vec4(colors[uTreeDepth%colors.length], 0.1);
+	fragColor = vec4(colors[uTreeDepth%colors.length()], 0.1);
 }
 

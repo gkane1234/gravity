@@ -55,9 +55,10 @@ public class OpenGLWindow {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        // Set the OpenGL context version to 4.6
+        // Shaders are GLSL 430. 4.5 is the highest compatibility profile llvmpipe exposes,
+        // and NVIDIA drivers that can do 4.6 also provide 4.5.
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
         // Set the OpenGL profile to COMPAT to allow for legacy OpenGL features.
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
@@ -159,6 +160,13 @@ public class OpenGLWindow {
         info += "Camera front: " + Settings.getInstance().getCameraFront().x + ", " + Settings.getInstance().getCameraFront().y + ", " + Settings.getInstance().getCameraFront().z + "\n";
         return info;
 
+    }
+
+    /**
+     * Destroys the window and tears down GLFW. Safe to call once.
+     */
+    public void close() {
+        cleanup();
     }
 
     /**

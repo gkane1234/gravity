@@ -422,11 +422,14 @@ public class SimulationSetup {
             this.renderMode = renderMode;
         }
 
-        /** Tuned defaults for galaxy merger presets (scaled and full). */
+        /**
+         * Merger preset glow: intensity 0.003, body draw distance 1000.
+         * A wide shot of the scaled merger keeps star grain at these values.
+         */
         public static SuggestedSettings mergerDefaults() {
             return new SuggestedSettings(
                 500_000f, 0.77f, 0.2f,
-                0.001f, 50f, "impNodeGlow"
+                0.003f, 1000f, "impNodeGlow"
             );
         }
 
