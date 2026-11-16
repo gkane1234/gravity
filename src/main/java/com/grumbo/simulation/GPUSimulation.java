@@ -13,10 +13,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.grumbo.debug.Debug;
+import com.grumbo.record.GLFrameCapture;
 import com.grumbo.record.Recording;
 import com.grumbo.gpu.SSBO;
 import com.grumbo.gpu.GPUCommands;
+import static org.lwjgl.glfw.GLFW.glfwPollEvents;
 import static org.lwjgl.opengl.GL43.*;
+
+import java.nio.ByteBuffer;
 import com.grumbo.gpu.GPU;
 /**
  * GPUSimulation class for the GPU simulation.
@@ -649,6 +653,62 @@ public class GPUSimulation {
     // public ArrayList<Planet> getPlanets() {
     //     return planets;
     // }
+
+    /**
+     * Opens the window, uploads bodies, and integrates {@code physicsSteps} steps.
+     * Leaves the simulation paused so later frames can change render settings
+     * without moving the bodies. The caller must {@link #endCapture()}.
+     */
+    public void beginCapture(int physicsSteps) {
+        init();
+        glfwPollEvents();
+        state = State.RUNNING;
+        for (int i = 0; i < physicsSteps; i++) {
+            long t0 = System.nanoTime();
+            glClearColor(0f, 0f, 0f, 1f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            step();
+            glFinish();
+            System.out.println("capture physics step " + (i + 1) + " in "
+                + ((System.nanoTime() - t0) / 1_000_000L) + " ms, simSteps=" + getSteps());
+        }
+        state = State.PAUSED;
+    }
+
+    /**
+     * Draws the current frame with no UI and returns tightly packed RGBA, origin at the bottom left.
+     */
+    public ByteBuffer renderStillRgba() {
+        int[] viewport = new int[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        glClearColor(0f, 0f, 0f, 1f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        step();
+        glFinish();
+        ByteBuffer rgba = GLFrameCapture.readBackbufferRGBA(0, 0, viewport[2], viewport[3]);
+        rgba.rewind();
+        return rgba;
+    }
+
+    public int captureWidth() {
+        int[] viewport = new int[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        return viewport[2];
+    }
+
+    public int captureHeight() {
+        int[] viewport = new int[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        return viewport[3];
+    }
+
+    /**
+     * Destroys the capture window. GLFW is terminated.
+     */
+    public void endCapture() {
+        stop();
+        openGlWindow.close();
+    }
 
     /* --------- Recording control --------- */
     /**

@@ -24,7 +24,7 @@
 
   <main id="content">
     <div class="wrap">
-      <p class="kicker" id="top">GLSL compute · Java / LWJGL · OpenGL 4.6</p>
+      <p class="kicker" id="top">GLSL compute · Java / LWJGL · OpenGL 4.5</p>
       <h1>Barnes–Hut, one frame on the GPU.</h1>
       <p class="lede">GravityChunk is an n-body simulation. Compute shaders sort the bodies, build the tree, integrate the forces, and merge. Java opens the window and builds the starting scene.</p>
       <div class="actions">
@@ -40,10 +40,10 @@
       </ul>
 
       <figure class="plate">
-        <img src="images/capture.png" width="722" height="693" alt="GravityChunk window showing a dense amber field of stars from a galaxy run, with an FPS readout of 21.6 in the corner.">
+        <img src="images/capture.png" width="762" height="710" alt="Scaled galaxy merger: one large amber disk and four smaller companions, rendered with hierarchical node glow on a black background.">
         <figcaption>
-          <span>Fig. 01 — Desktop capture</span>
-          <span>The simulation runs in this window.</span>
+          <span>Fig. 01 — Scaled merger</span>
+          <span>Hierarchical node glow, scaled merger preset.</span>
         </figcaption>
       </figure>
 
@@ -228,7 +228,7 @@
         <ul class="reqs">
           <li>Windows 10 or 11, 64-bit</li>
           <li>NVIDIA GPU and a current driver</li>
-          <li>The window requests an OpenGL 4.6 compatibility context</li>
+          <li>The window requests an OpenGL 4.5 compatibility context</li>
           <li>JDK 17 or newer, and Maven, to build from source</li>
         </ul>
         <p>The compute shaders are GLSL 4.30 and enable <code>GL_NV_gpu_shader5</code> so Morton codes can be 64-bit integers. CUDA is not part of the build. LWJGL natives in the project are the Windows set.</p>
