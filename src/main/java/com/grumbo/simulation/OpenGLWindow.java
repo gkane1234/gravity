@@ -130,7 +130,6 @@ public class OpenGLWindow {
 
     /**
      * Covers the monitor at its own resolution, then returns to the previous window.
-     * This stays a normal undecorated window. Exclusive fullscreen is invisible to OBS.
      * Vertical field of view stays the same, so objects keep their angular size.
      */
     public void toggleFullscreen() {
@@ -138,10 +137,7 @@ public class OpenGLWindow {
             return;
         }
         if (fullscreen) {
-            glfwSetWindowAttrib(window, GLFW_FLOATING, GLFW_FALSE);
-            glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
-            glfwSetWindowPos(window, windowedX, windowedY);
-            glfwSetWindowSize(window, windowedW, windowedH);
+            glfwSetWindowMonitor(window, NULL, windowedX, windowedY, windowedW, windowedH, GLFW_DONT_CARE);
             fullscreen = false;
         } else {
             int[] x = new int[1];
@@ -159,13 +155,7 @@ public class OpenGLWindow {
             if (mode == null) {
                 return;
             }
-            int[] mx = new int[1];
-            int[] my = new int[1];
-            glfwGetMonitorPos(monitor, mx, my);
-            glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
-            glfwSetWindowAttrib(window, GLFW_FLOATING, GLFW_TRUE);
-            glfwSetWindowPos(window, mx[0], my[0]);
-            glfwSetWindowSize(window, mode.width(), mode.height());
+            glfwSetWindowMonitor(window, monitor, 0, 0, mode.width(), mode.height(), mode.refreshRate());
             fullscreen = true;
         }
         applyFramebufferSize();
