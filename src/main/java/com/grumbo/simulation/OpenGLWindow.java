@@ -1,5 +1,7 @@
 package com.grumbo.simulation;
-import org.lwjgl.glfw.*;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.*;
 
 import static org.lwjgl.glfw.Callbacks.*;
@@ -32,6 +34,13 @@ public class OpenGLWindow {
 
     // FPS limiting using GPU swap interval
     private int maxFPS = -1; // Default max FPS
+    private int framebufferWidth = 1;
+    private int framebufferHeight = 1;
+    private int windowedX;
+    private int windowedY;
+    private int windowedW;
+    private int windowedH;
+    private boolean fullscreen;
     /**
      * Constructor for the OpenGLWindow class.
      * @param gpuSimulation the GPU simulation.
@@ -99,12 +108,122 @@ public class OpenGLWindow {
     }
 
     /**
-     * Sets the viewport to the settings width and height.
-     * The UI is laid out in that same pixel space. A framebuffer-sized viewport
-     * stretches it to the screen.
+     * Sets the viewport to the real framebuffer size, in pixels.
+     * The saved window width and height are left alone, so a larger window
+     * shows more of the scene instead of stretching the old image.
      */
     public void applyFramebufferSize() {
-        glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
+        if (window == 0) {
+            return;
+        }
+        int[] width = new int[1];
+        int[] height = new int[1];
+        glfwGetFramebufferSize(window, width, height);
+        if (width[0] < 1 || height[0] < 1) {
+            return;
+        }
+        framebufferWidth = width[0];
+        framebufferHeight = height[0];
+        Settings.getInstance().setDrawableSize(framebufferWidth, framebufferHeight);
+        glViewport(0, 0, framebufferWidth, framebufferHeight);
+    }
+
+    /**
+     * Covers the monitor at its own resolution, then returns to the previous window.
+     * This stays a normal undecorated window. Exclusive fullscreen is invisible to OBS.
+     * Vertical field of view stays the same, so objects keep their angular size.
+     */
+    public void toggleFullscreen() {
+        if (window == 0) {
+            return;
+        }
+        if (fullscreen) {
+            glfwSetWindowAttrib(window, GLFW_FLOATING, GLFW_FALSE);
+            glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+            glfwSetWindowPos(window, windowedX, windowedY);
+            glfwSetWindowSize(window, windowedW, windowedH);
+            fullscreen = false;
+        } else {
+            int[] x = new int[1];
+            int[] y = new int[1];
+            int[] width = new int[1];
+            int[] height = new int[1];
+            glfwGetWindowPos(window, x, y);
+            glfwGetWindowSize(window, width, height);
+            windowedX = x[0];
+            windowedY = y[0];
+            windowedW = Math.max(1, width[0]);
+            windowedH = Math.max(1, height[0]);
+            long monitor = monitorForWindow();
+            GLFWVidMode mode = glfwGetVideoMode(monitor);
+            if (mode == null) {
+                return;
+            }
+            int[] mx = new int[1];
+            int[] my = new int[1];
+            glfwGetMonitorPos(monitor, mx, my);
+            glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
+            glfwSetWindowAttrib(window, GLFW_FLOATING, GLFW_TRUE);
+            glfwSetWindowPos(window, mx[0], my[0]);
+            glfwSetWindowSize(window, mode.width(), mode.height());
+            fullscreen = true;
+        }
+        applyFramebufferSize();
+    }
+
+    /**
+     * Maps a cursor position from window coordinates into framebuffer pixels.
+     */
+    public double toFramebufferX(double windowX) {
+        int[] width = new int[1];
+        int[] height = new int[1];
+        glfwGetWindowSize(window, width, height);
+        if (width[0] < 1) {
+            return windowX;
+        }
+        return windowX * framebufferWidth / (double) width[0];
+    }
+
+    /**
+     * Maps a cursor position from window coordinates into framebuffer pixels.
+     */
+    public double toFramebufferY(double windowY) {
+        int[] width = new int[1];
+        int[] height = new int[1];
+        glfwGetWindowSize(window, width, height);
+        if (height[0] < 1) {
+            return windowY;
+        }
+        return windowY * framebufferHeight / (double) height[0];
+    }
+
+    private long monitorForWindow() {
+        int[] x = new int[1];
+        int[] y = new int[1];
+        int[] width = new int[1];
+        int[] height = new int[1];
+        glfwGetWindowPos(window, x, y);
+        glfwGetWindowSize(window, width, height);
+        int centerX = x[0] + width[0] / 2;
+        int centerY = y[0] + height[0] / 2;
+        PointerBuffer monitors = glfwGetMonitors();
+        long primary = glfwGetPrimaryMonitor();
+        if (monitors == null) {
+            return primary;
+        }
+        for (int i = 0; i < monitors.limit(); i++) {
+            long monitor = monitors.get(i);
+            GLFWVidMode mode = glfwGetVideoMode(monitor);
+            int[] mx = new int[1];
+            int[] my = new int[1];
+            glfwGetMonitorPos(monitor, mx, my);
+            if (mode != null
+                    && centerX >= mx[0] && centerX < mx[0] + mode.width()
+                    && centerY >= my[0] && centerY < my[0] + mode.height()) {
+                return monitor;
+            }
+        }
+        return primary;
     }
     /**
      * Steps the OpenGL window.
@@ -158,6 +277,7 @@ public class OpenGLWindow {
         info += "F4: Toggle stats" + "\n";
         info += "F5: Toggle crosshair" + "\n";
         info += "F6: Toggle recording (PNG frames)" + "\n";
+        info += "F11: Full screen" + "\n";
         info += "`: Settings window" + "\n";
         info += "+/-: Camera scale" + "\n";
         info += "Arrows: Rotate camera" + "\n";

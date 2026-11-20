@@ -868,7 +868,7 @@ public class GPU {
         GPU.UNIFORMS.put(UNIFORM_FOV_Y.getName(), UNIFORM_FOV_Y);
 
         GPU.UNIFORM_ASPECT = new Uniform<Float>("uAspect", () -> {
-            return (float)Settings.getInstance().getWidth() / (float)Settings.getInstance().getHeight();
+            return (float)Settings.getInstance().getDrawableWidth() / (float)Settings.getInstance().getDrawableHeight();
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_ASPECT.getName(), UNIFORM_ASPECT);
 
@@ -921,7 +921,7 @@ public class GPU {
         // pixelsAcross = projectedExtent * (height/2)  =>  ndc = 2 * nodeGlowThetaPx / height.
         // Higher nodeGlowThetaPx ⇒ glow accepts larger clusters ⇒ aggregation starts earlier.
         GPU.UNIFORM_NODE_GLOW_THETA_NDC = new Uniform<Float>("uNodeGlowThetaNdc", () -> {
-            float height = Math.max(1f, Settings.getInstance().getHeight());
+            float height = Math.max(1f, Settings.getInstance().getDrawableHeight());
             return (2f * Settings.getInstance().getNodeGlowThetaPx()) / height;
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_THETA_NDC.getName(), UNIFORM_NODE_GLOW_THETA_NDC);
@@ -997,7 +997,7 @@ public class GPU {
 
         // ~2px in NDC (reserved for body fade heuristics; sizing uses minImpostorSize)
         GPU.UNIFORM_BODY_DISAPPEAR_NDC = new Uniform<Float>("uBodyDisappearNdc", () -> {
-            float height = Math.max(1f, Settings.getInstance().getHeight());
+            float height = Math.max(1f, Settings.getInstance().getDrawableHeight());
             return (2f * 2f) / height;
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_BODY_DISAPPEAR_NDC.getName(), UNIFORM_BODY_DISAPPEAR_NDC);

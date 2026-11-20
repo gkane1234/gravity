@@ -196,7 +196,7 @@ public class SettingsPane {
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
         glLoadIdentity();
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        glOrtho(0, Settings.getInstance().getDrawableWidth(), Settings.getInstance().getDrawableHeight(), 0, -1, 1);
 
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
@@ -210,7 +210,7 @@ public class SettingsPane {
         float yPos = 100.0f;
         float xOffset = 20.0f;
         float bottomSpace = 80.0f;
-        float bottomY = Settings.getInstance().getHeight() - bottomSpace;
+        float bottomY = Settings.getInstance().getDrawableHeight() - bottomSpace;
         float verticalPadding = 10.0f;
 
         // Title (update existing element text and draw)

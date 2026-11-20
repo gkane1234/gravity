@@ -225,7 +225,7 @@ public class Render {
      */
     public Matrix4f projMatrix() {
         float fov = Settings.getInstance().getFov();
-        float aspect = (float) Settings.getInstance().getWidth() / (float) Settings.getInstance().getHeight();
+        float aspect = (float) Settings.getInstance().getDrawableWidth() / (float) Settings.getInstance().getDrawableHeight();
         float near = Settings.getInstance().getNearPlane();
         float far = Settings.getInstance().getFarPlane();
 
