@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.grumbo.debug.Debug;
+import com.grumbo.ui.LiveSettingsWindow;
 import com.grumbo.record.Recording;
 import com.grumbo.gpu.SSBO;
 import com.grumbo.gpu.GPUCommands;
@@ -55,12 +56,9 @@ public class GPUSimulation {
     @SuppressWarnings("unused")
     private boolean debug;
     private final SimulationSetup.SuggestedSettings launchSettings;
+    /** Euclidean scene radius about the origin, in simulation length units. */
+    private final float viewRadius;
     private boolean cleanedUp = false;
-
-    private static final float DT_WARMUP_VALUE = 100f;
-    private static final float DT_WARMUP_SECONDS = 10f;
-    private Float dtWarmUpTarget = null;
-    private long dtWarmUpEndNanos = 0L;
 
     // Recording
     private Recording recording;
@@ -240,9 +238,14 @@ public class GPUSimulation {
 
     public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode,
                          boolean debug, SimulationSetup.SuggestedSettings launchSettings) {
+        this(planetGenerator, squareBounds, renderMode, debug, launchSettings, 0f);
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float squareBounds, Render.RenderMode renderMode,
+                         boolean debug, SimulationSetup.SuggestedSettings launchSettings, float viewRadius) {
         this(planetGenerator,
             new float[][] {{-squareBounds, -squareBounds, -squareBounds}, {squareBounds, squareBounds, squareBounds}},
-            renderMode, debug, launchSettings);
+            renderMode, debug, launchSettings, viewRadius);
     }
 
     public GPUSimulation(PlanetGenerator planetGenerator, float[][] bounds, Render.RenderMode renderMode, boolean debug) {
@@ -251,6 +254,11 @@ public class GPUSimulation {
 
     public GPUSimulation(PlanetGenerator planetGenerator, float[][] bounds, Render.RenderMode renderMode,
                          boolean debug, SimulationSetup.SuggestedSettings launchSettings) {
+        this(planetGenerator, bounds, renderMode, debug, launchSettings, 0f);
+    }
+
+    public GPUSimulation(PlanetGenerator planetGenerator, float[][] bounds, Render.RenderMode renderMode,
+                         boolean debug, SimulationSetup.SuggestedSettings launchSettings, float viewRadius) {
 
         this.planetGenerator = planetGenerator;
         this.initialbodiesContained = planetGenerator.getNumPlanets();
@@ -259,6 +267,7 @@ public class GPUSimulation {
         this.render = new Render(this, renderMode, debug);
         this.debug = debug;
         this.launchSettings = launchSettings;
+        this.viewRadius = viewRadius > 0f ? viewRadius : boundsHalfExtent(bounds) * (float) Math.sqrt(3.0);
 
         Debug.setDebugsSelected(new String[] {
             "ComputeShaderCode",
@@ -306,36 +315,41 @@ public class GPUSimulation {
 
     private void init() {
         openGlWindow.init();
+        Settings settings = Settings.getInstance();
+        settings.captureActiveRenderProfile();
         if (launchSettings != null) {
-            launchSettings.apply(Settings.getInstance());
-            startDtWarmUpIfNeeded(launchSettings.dt);
-            Settings.getInstance().saveSettings();
+            launchSettings.apply(settings);
             System.out.println("Launch settings applied: " + launchSettings);
         }
+        float aspect = settings.getWidth() / (float) Math.max(1, settings.getHeight());
+        LaunchView.Frame frame = LaunchView.frame(viewRadius, settings.getCameraScale(), settings.getFov(), aspect);
+        settings.setCameraPos(frame.position);
+        settings.setCameraFront(frame.front);
+        settings.setCameraUp(frame.up);
+        settings.setYaw(frame.yaw);
+        settings.setPitch(frame.pitch);
+        settings.adoptLaunchRenderMode(frame.bodyCoverDistance);
+        settings.saveSettings();
+        System.out.println("Camera " + frame.position + " looking toward the origin, body cover " + frame.bodyCoverDistance);
         GPU.initGPU(this);
         barnesHut.init();
         render.init();
     }
 
-    private void startDtWarmUpIfNeeded(float configuredDt) {
-        if (configuredDt <= DT_WARMUP_VALUE) {
-            return;
+    private static float boundsHalfExtent(float[][] bounds) {
+        float reach = 1f;
+        if (bounds == null) {
+            return reach;
         }
-        dtWarmUpTarget = configuredDt;
-        dtWarmUpEndNanos = System.nanoTime() + (long) (DT_WARMUP_SECONDS * 1_000_000_000L);
-        Settings.getInstance().setDt(DT_WARMUP_VALUE);
-        System.out.println("dt warm-up: " + DT_WARMUP_VALUE + " for " + (int) DT_WARMUP_SECONDS
-            + "s, then " + configuredDt);
-    }
-
-    private void tickDtWarmUp() {
-        if (dtWarmUpTarget == null || System.nanoTime() < dtWarmUpEndNanos) {
-            return;
+        for (float[] corner : bounds) {
+            if (corner == null) {
+                continue;
+            }
+            for (float value : corner) {
+                reach = Math.max(reach, Math.abs(value));
+            }
         }
-        Settings.getInstance().setDt(dtWarmUpTarget);
-        System.out.println("dt warm-up complete: dt=" + dtWarmUpTarget);
-        dtWarmUpTarget = null;
-        dtWarmUpEndNanos = 0L;
+        return reach;
     }
 
     /**
@@ -356,17 +370,21 @@ public class GPUSimulation {
      */
     public void run() {
         init();
+        LiveSettingsWindow.open();
         System.out.println("Debugs connected:");
         Debug.outputAllConnectedDebugs();
-        
-        while (state != State.STOPPED) {
-            step();
-            openGlWindow.step();
-            checkGLError("after openGlWindow.step");
-            Debug.addDebugToFile(frame);
-            frame++;
+        try {
+            while (state != State.STOPPED) {
+                step();
+                openGlWindow.step();
+                checkGLError("after openGlWindow.step");
+                Debug.addDebugToFile(frame);
+                frame++;
+            }
+        } finally {
+            LiveSettingsWindow.close();
+            cleanup();
         }
-        cleanup();
     }
 
     /**
@@ -374,7 +392,6 @@ public class GPUSimulation {
      */
     public void step() {
         checkGLError("before step");
-        tickDtWarmUp();
         processCommands();
         checkGLError("after processCommands");
         if (state == State.RUNNING) {

@@ -1,5 +1,6 @@
 # Maven build directory
 target/
+src/main/resources/settings/renderModeSettings.json
 captures/
 src/main/java/com/grumbo/debug/debug_output/
 src/main/resources/planet_data/planet_data_bsp/

@@ -170,11 +170,11 @@ From the project root:
 mvn compile exec:java
 ```
 
-Or package and run the shaded jar:
+Or package and run the shaded jar. JavaFX stays in `target\lib` (its native libraries have to remain in the original jars), so the classpath includes that folder:
 
 ```powershell
 mvn -DskipTests package
-java -Xmx8g -jar target\gravitychunk-1.0-SNAPSHOT.jar
+java -Xmx8g -Dprism.order=d3d -cp "target\gravitychunk-1.0-SNAPSHOT.jar;target\lib\*" com.grumbo.Main
 ```
 
 Recording: press **F6** while the sim is running.

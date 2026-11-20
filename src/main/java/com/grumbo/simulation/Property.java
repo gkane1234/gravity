@@ -243,6 +243,11 @@ public class Property<T> {
      * @return the type name of the property
      */
     public String getTypeName() { return typeName.name(); }
+
+    /** Selector or boolean option labels. Empty when this property has none. */
+    public String[] getOptions() {
+        return options == null ? new String[0] : options.clone();
+    }
     /**
      * Sets the type name of the property.
      * @param typeName the type name of the property
@@ -786,6 +791,7 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tf = new UITextField(String.valueOf((Object) value));
+        tf.setFixedWidth(true);
         tf.setOnCommit(() -> {
             try {
                 int parsed = Integer.parseInt(tf.getText().trim());
@@ -832,6 +838,7 @@ public class Property<T> {
         UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setNumericalRounding(numericalRounding);
         tf.setMinWidth(10);
+        tf.setFixedWidth(true);
         tf.setTextFromValue(value);
         tf.setOnCommit(() -> {
             try {
@@ -879,6 +886,7 @@ public class Property<T> {
         UITextField tf = new UITextField(String.valueOf((Object) value));
         tf.setNumericalRounding(numericalRounding);
         tf.setMinWidth(10);
+        tf.setFixedWidth(true);
         tf.setOnCommit(() -> {
             try {
                 float parsed = Float.parseFloat(tf.getText().trim());
@@ -984,6 +992,7 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tfRed = new UITextField(String.valueOf(((Color) Settings.getInstance().getValue(name)).getRed()));
+        tfRed.setFixedWidth(true);
         tfRed.setOnCommit(() -> {
             try {
                 int red = Integer.parseInt(tfRed.getText().trim());
@@ -1000,6 +1009,7 @@ public class Property<T> {
         });
 
         UITextField tfGreen = new UITextField(String.valueOf(((Color) Settings.getInstance().getValue(name)).getGreen()));
+        tfGreen.setFixedWidth(true);
         tfGreen.setOnCommit(() -> {
             try {
                 int green = Integer.parseInt(tfGreen.getText().trim());
@@ -1016,6 +1026,7 @@ public class Property<T> {
         });
 
         UITextField tfBlue = new UITextField(String.valueOf(((Color) Settings.getInstance().getValue(name)).getBlue()));
+        tfBlue.setFixedWidth(true);
         tfBlue.setOnCommit(() -> {
             try {
                 int blue = Integer.parseInt(tfBlue.getText().trim());
@@ -1045,6 +1056,7 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tf = new UITextField(String.valueOf((Object) value));
+        tf.setFixedWidth(true);
         tf.setOnCommit(() -> {
             try {
                 String[] parts = tf.getText().trim().split("[,\n\t\r ]+");
@@ -1071,6 +1083,7 @@ public class Property<T> {
         ArrayList<UIElement> elements = new ArrayList<>();
         elements.add(new UIText(name + ":"));
         UITextField tf = new UITextField(String.valueOf((Object) value));
+        tf.setFixedWidth(true);
         tf.setOnCommit(() -> {
             try {
                 String[] parts = tf.getText().trim().split(",");

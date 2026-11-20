@@ -417,7 +417,21 @@ public class PlanetGenerator {
      */
 	public static PlanetGenerator makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, float phi,  float centerMass, float centerDensity, float adherenceToPlane,float orbitalFactor,boolean ccw, boolean giveOrbitalVelocity, UnitSet unitSet) {
 		// Disk normal tilted from +z by phi around the x-axis
-		final Vector3f normal = new Vector3f(0f, (float)(Math.sin(phi)), (float)Math.cos(phi));
+		Vector3f normal = new Vector3f(0f, (float)(Math.sin(phi)), (float)Math.cos(phi));
+		return makeNewRandomDisk(num, radius, mass, density, center, relativeVelocity, normal, centerMass, centerDensity, adherenceToPlane, orbitalFactor, ccw, giveOrbitalVelocity, unitSet);
+	}
+
+	/**
+	 * Same disk as {@link #makeNewRandomDisk(int, float[], float[], float[], float[], float[], float, float, float, float, float, boolean, boolean, UnitSet)},
+	 * with an explicit unit normal. A zero normal falls back to +Y, the phi = π/2 disk.
+	 */
+	public static PlanetGenerator makeNewRandomDisk(int num, float[] radius, float[] mass, float[] density, float[] center, float[] relativeVelocity, Vector3f diskNormal, float centerMass, float centerDensity, float adherenceToPlane, float orbitalFactor, boolean ccw, boolean giveOrbitalVelocity, UnitSet unitSet) {
+		final Vector3f normal = new Vector3f(diskNormal);
+		if (normal.lengthSquared() < 1e-12f) {
+			normal.set(0f, 1f, 0f);
+		} else {
+			normal.normalize();
+		}
 
 		// Build an orthonormal basis (u, v) in the plane perpendicular to n (i.e in the disk)
 		// Choose a helper axis not colinear with n

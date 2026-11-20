@@ -562,7 +562,7 @@ public class SettingsGenerator {
                 \t * This method is automatically generated from defaultProperties.json
                 \t * Any changes made here will be overwritten when regenerating
                 \t */
-                \tpublic void saveSettings() {
+                \tpublic synchronized void saveSettings() {
                 \t\ttry {
                 \t\t\tObjectMapper mapper = new ObjectMapper();
                 \t\t\tMap<String, Object> jsonData = new LinkedHashMap<>();

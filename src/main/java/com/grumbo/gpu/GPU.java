@@ -142,6 +142,8 @@ public class GPU {
     public static Uniform<Float> UNIFORM_FOV_Y;
     public static Uniform<Float> UNIFORM_ASPECT;
     public static Uniform<Integer> UNIFORM_PASS;
+    /** 0 = rectangle depth range, 1 = circle depth range. Render sets this before each node-glow draw. */
+    public static int nodeGlowShapePass = 0;
     public static Uniform<Matrix4f> UNIFORM_PROJ;
     public static Uniform<Matrix4f> UNIFORM_MODEL_VIEW;
     public static Uniform<Float> UNIFORM_RADIUS_SCALE;
@@ -150,8 +152,16 @@ public class GPU {
     public static Uniform<Integer> UNIFORM_RELATIVE_TO;
     public static Uniform<Float> UNIFORM_NODE_GLOW_THETA_NDC;
     public static Uniform<Float> UNIFORM_NODE_GLOW_ACTIVATE_DIST;
+    public static Uniform<Float> UNIFORM_NODE_GLOW_RECT_MIN_DIST;
+    public static Uniform<Integer> UNIFORM_NODE_GLOW_MIN_DEPTH;
     public static Uniform<Integer> UNIFORM_NODE_GLOW_MAX_DEPTH;
     public static Uniform<Float> UNIFORM_NODE_GLOW_INTENSITY;
+    public static Uniform<Float> UNIFORM_NODE_GLOW_MIN_FRAC;
+    public static Uniform<Integer> UNIFORM_NODE_GLOW_SHAPE;
+    public static Uniform<Float> UNIFORM_NODE_GLOW_RECT_SCALE;
+    public static Uniform<Integer> UNIFORM_NODE_GLOW_PROJECT_BOX;
+    public static Uniform<Integer> UNIFORM_NODE_GLOW_WRITE_DEPTH;
+    public static Uniform<Integer> UNIFORM_NODE_GLOW_ONE_LEVEL;
     public static Uniform<Float> UNIFORM_BODY_DISAPPEAR_NDC;
     public static Uniform<Float> UNIFORM_BODY_RENDER_DISTANCE;
 
@@ -922,9 +932,24 @@ public class GPU {
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_ACTIVATE_DIST.getName(), UNIFORM_NODE_GLOW_ACTIVATE_DIST);
 
-        // Max post-propagate nodeDepth (height from furthest leaf) for hierarchical glow.
+        // Square near cutoff. 0 disables it. Circles do not read this.
+        GPU.UNIFORM_NODE_GLOW_RECT_MIN_DIST = new Uniform<Float>("uNodeGlowRectMinDist", () -> {
+            return Settings.getInstance().getNodeGlowRectMinDist();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_RECT_MIN_DIST.getName(), UNIFORM_NODE_GLOW_RECT_MIN_DIST);
+
+        // Min post-propagate nodeDepth for the pass Render is about to draw.
+        GPU.UNIFORM_NODE_GLOW_MIN_DEPTH = new Uniform<Integer>("uNodeGlowMinDepth", () -> {
+            Settings settings = Settings.getInstance();
+            int depth = GPU.nodeGlowShapePass == 1 ? settings.getNodeGlowCircleMinDepth() : settings.getNodeGlowMinDepth();
+            return Math.max(0, depth);
+        }, VariableType.INT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_MIN_DEPTH.getName(), UNIFORM_NODE_GLOW_MIN_DEPTH);
+
+        // Max post-propagate nodeDepth for the pass Render is about to draw.
         GPU.UNIFORM_NODE_GLOW_MAX_DEPTH = new Uniform<Integer>("uNodeGlowMaxDepth", () -> {
-            return Settings.getInstance().getNodeGlowMaxDepth();
+            Settings settings = Settings.getInstance();
+            return GPU.nodeGlowShapePass == 1 ? settings.getNodeGlowCircleMaxDepth() : settings.getNodeGlowMaxDepth();
         }, VariableType.INT);
         GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_MAX_DEPTH.getName(), UNIFORM_NODE_GLOW_MAX_DEPTH);
 
@@ -933,6 +958,36 @@ public class GPU {
             return Settings.getInstance().getNodeGlowIntensity();
         }, VariableType.FLOAT);
         GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_INTENSITY.getName(), UNIFORM_NODE_GLOW_INTENSITY);
+
+        GPU.UNIFORM_NODE_GLOW_MIN_FRAC = new Uniform<Float>("uNodeGlowMinFrac", () -> {
+            return Settings.getInstance().getNodeGlowMinFrac();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_MIN_FRAC.getName(), UNIFORM_NODE_GLOW_MIN_FRAC);
+
+        GPU.UNIFORM_NODE_GLOW_SHAPE = new Uniform<Integer>("uNodeGlowShape", () -> {
+            return GPU.nodeGlowShapePass;
+        }, VariableType.INT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_SHAPE.getName(), UNIFORM_NODE_GLOW_SHAPE);
+
+        GPU.UNIFORM_NODE_GLOW_RECT_SCALE = new Uniform<Float>("uNodeGlowRectScale", () -> {
+            return Settings.getInstance().getNodeGlowRectScale();
+        }, VariableType.FLOAT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_RECT_SCALE.getName(), UNIFORM_NODE_GLOW_RECT_SCALE);
+
+        GPU.UNIFORM_NODE_GLOW_PROJECT_BOX = new Uniform<Integer>("uNodeGlowProjectBox", () -> {
+            return Settings.getInstance().isNodeGlowProjectBox() ? 1 : 0;
+        }, VariableType.INT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_PROJECT_BOX.getName(), UNIFORM_NODE_GLOW_PROJECT_BOX);
+
+        GPU.UNIFORM_NODE_GLOW_WRITE_DEPTH = new Uniform<Integer>("uNodeGlowWriteDepth", () -> {
+            return Settings.getInstance().isNodeGlowWriteDepth() ? 1 : 0;
+        }, VariableType.INT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_WRITE_DEPTH.getName(), UNIFORM_NODE_GLOW_WRITE_DEPTH);
+
+        GPU.UNIFORM_NODE_GLOW_ONE_LEVEL = new Uniform<Integer>("uNodeGlowOneLevel", () -> {
+            return Settings.getInstance().isNodeGlowOneLevel() ? 1 : 0;
+        }, VariableType.INT);
+        GPU.UNIFORMS.put(UNIFORM_NODE_GLOW_ONE_LEVEL.getName(), UNIFORM_NODE_GLOW_ONE_LEVEL);
 
         // Max view-space depth (-view.z after cameraScale) for per-body impostors.
         GPU.UNIFORM_BODY_RENDER_DISTANCE = new Uniform<Float>("uBodyRenderDistance", () -> {
@@ -1043,8 +1098,17 @@ public class GPU {
             GPU.UNIFORM_RELATIVE_TO,
             GPU.UNIFORM_NODE_GLOW_THETA_NDC,
             GPU.UNIFORM_NODE_GLOW_ACTIVATE_DIST,
+            GPU.UNIFORM_NODE_GLOW_RECT_MIN_DIST,
+            GPU.UNIFORM_NODE_GLOW_MIN_DEPTH,
             GPU.UNIFORM_NODE_GLOW_MAX_DEPTH,
             GPU.UNIFORM_NODE_GLOW_INTENSITY,
+            GPU.UNIFORM_NODE_GLOW_MIN_FRAC,
+            GPU.UNIFORM_NODE_GLOW_SHAPE,
+            GPU.UNIFORM_NODE_GLOW_RECT_SCALE,
+            GPU.UNIFORM_NODE_GLOW_PROJECT_BOX,
+            GPU.UNIFORM_BODY_DISAPPEAR_NDC,
+            GPU.UNIFORM_NODE_GLOW_WRITE_DEPTH,
+            GPU.UNIFORM_NODE_GLOW_ONE_LEVEL,
         });
         GPU.RENDER_NODE_GLOW.setSSBOs(new SSBO[] {
             GPU.SSBO_INTERNAL_NODES,

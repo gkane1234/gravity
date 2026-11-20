@@ -14,6 +14,15 @@ import com.grumbo.ui.SetupScreen;
  */
 public class Main {
     public static void main(String[] args) {
+        try {
+            SetupScreen.startToolkit();
+            runLoop();
+        } finally {
+            SetupScreen.stopToolkit();
+        }
+    }
+
+    private static void runLoop() {
         while (true) {
             SimulationSetup.LaunchConfig config = SetupScreen.run();
             if (config == null) {
@@ -31,11 +40,13 @@ public class Main {
                 config.squareBounds,
                 Render.RenderMode.fromString(Settings.getInstance().getRenderMode()),
                 false,
-                config.suggestedSettings
+                config.suggestedSettings,
+                config.viewRadius
             );
             System.out.println("Bodies: " + config.bodyCount + ", squareBounds: " + config.squareBounds);
             gpuSimulation.run();
             System.out.println("Returned to setup menu.");
         }
     }
+    
 }

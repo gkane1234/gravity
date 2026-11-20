@@ -23,12 +23,13 @@ public class SettingsPane {
     private ArrayList<UIRow> titleAndPageButtons = new ArrayList<>();
 
     private UISlider activeSlider = null;
+    private UITextField activeTextField = null;
     private double mouseX = 0.0;
     private double mouseY = 0.0;
 
     private int currentPage = 0;
     private double pageHeight = 0.0;
-    private int maxPage = 1; // make this dynamic
+    private int maxPage = 0;
 
     public boolean textFieldFocused = false;
 
@@ -72,6 +73,9 @@ public class SettingsPane {
         if (activeSlider != null) {
             activeSlider.handleMouseDrag(mouseX, mouseY);
         }
+        if (activeTextField != null) {
+            activeTextField.handleMouseDrag(mouseX, mouseY);
+        }
     }
 
     /**
@@ -85,17 +89,21 @@ public class SettingsPane {
         if (action == GLFW_PRESS) {
 
             activeSlider = null;
+            activeTextField = null;
             textFieldFocused = false;
             for (UIRow row : renderedRows) {
                 for (UIElement element : row.getElements()) {
-                    if (element.handleMousePress(mouseX, mouseY)) {
-                        if (element instanceof UISlider) {
-                            activeSlider = (UISlider) element;
+                    boolean handled = element.handleMousePress(mouseX, mouseY);
+                    if (handled && element instanceof UISlider) {
+                        activeSlider = (UISlider) element;
+                    }
+                    if (element instanceof UITextField) {
+                        UITextField field = (UITextField) element;
+                        if (field.isFocused()) {
+                            textFieldFocused = true;
                         }
-                        else if (element instanceof UITextField) {
-                            if (((UITextField) element).isFocused()) {
-                                textFieldFocused = true;
-                            }
+                        if (field.isScrollDragging()) {
+                            activeTextField = field;
                         }
                     }
                 }
@@ -110,6 +118,7 @@ public class SettingsPane {
                 activeSlider.handleMouseRelease();
                 activeSlider = null;
             }
+            activeTextField = null;
         }
     }
 
@@ -150,6 +159,29 @@ public class SettingsPane {
             }
         }
         return charPressed;
+    }
+
+    /**
+     * Scrolls a numeric field under the cursor.
+     * @param x The cursor x coordinate.
+     * @param y The cursor y coordinate.
+     * @param xoffset The horizontal wheel offset.
+     * @param yoffset The vertical wheel offset.
+     * @return True if a field consumed the scroll.
+     */
+    public boolean onScroll(double x, double y, double xoffset, double yoffset) {
+        mouseX = x;
+        mouseY = y;
+        for (UIRow row : renderedRows) {
+            for (UIElement element : row.getElements()) {
+                if (element instanceof UITextField && element.hitTest(x, y)) {
+                    if (((UITextField) element).handleScroll(xoffset, yoffset)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     // -------- Rendering --------
@@ -215,6 +247,15 @@ public class SettingsPane {
             }
             yPos += row.height+verticalPadding;
         }
+
+        // Last page index from the stacked rows. The old cap was 1, so Next stopped on page 2.
+        float contentEnd = yPos - pageYstart - verticalPadding;
+        if (pageHeight > 1.0 && contentEnd > 0.0f) {
+            maxPage = Math.max(0, (int) Math.ceil(contentEnd / pageHeight) - 1);
+        } else {
+            maxPage = 0;
+        }
+        if (currentPage > maxPage) currentPage = maxPage;
 
         titleAndPageButtons.get(1).calculateSize(font);
         titleAndPageButtons.get(1).setPosition(xOffset, bottomY);

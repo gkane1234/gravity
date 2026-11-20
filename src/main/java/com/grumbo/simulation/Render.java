@@ -71,6 +71,11 @@ public class Render {
      */
     public void render(GPUSimulation.State state) {
         GPUSimulation.checkGLError("before render");
+        // Clear before drawing. Clearing after the swap races the present and drops the first frame.
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(true);
         syncAliveBodyDrawCount();
         
         // Get the camera view
@@ -150,7 +155,9 @@ public class Render {
      * for distant / small-on-screen clusters. Gates:
      * Settings.nodeGlowActivateDist (view-space depth),
      * Settings.nodeGlowThetaPx (projected AABB extent; open if larger),
-     * Settings.nodeGlowMaxDepth (max post-propagate nodeDepth / height from leaves),
+     * Settings.nodeGlowMinDepth / nodeGlowMaxDepth (rectangle nodeDepth window),
+     * Settings.nodeGlowCircleMinDepth / nodeGlowCircleMaxDepth (circle nodeDepth window),
+     * Settings.nodeGlowDrawRect / nodeGlowDrawCircle (skip a pass),
      * Settings.nodeGlowIntensity (brightness scale before Reinhard; color from Node.avgColor).
      */
     public void renderImpostorWithNodeGlow() {
@@ -164,7 +171,15 @@ public class Render {
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE);
             GPU.RENDER_NODE_GLOW.setNumObjects(Math.max(0, aliveBodyCount() - 1));
-            GPU.RENDER_NODE_GLOW.run();
+            Settings settings = Settings.getInstance();
+            if (settings.isNodeGlowDrawRect()) {
+                GPU.nodeGlowShapePass = 0;
+                GPU.RENDER_NODE_GLOW.run();
+            }
+            if (settings.isNodeGlowDrawCircle()) {
+                GPU.nodeGlowShapePass = 1;
+                GPU.RENDER_NODE_GLOW.run();
+            }
             glDepthMask(true);
         }
 
