@@ -81,17 +81,30 @@ public class OpenGLWindow {
 
         GL.createCapabilities();
 
-        glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
-        glfwSetFramebufferSizeCallback(window, (win, w, h) -> glViewport(0, 0, w, h));
         // Enable point size and point sprite.
         glEnable(GL_PROGRAM_POINT_SIZE);
         glEnable(GL_POINT_SPRITE);
         glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, GL_LOWER_LEFT);
 
-        // Create the OpenGLUI.
+        // Create the OpenGLUI. Its callbacks replace the framebuffer-size callback,
+        // so the initial size event has to be drained after that.
         openGlUI = new OpenGLUI(this);
-        
+        // The first framebuffer size event recreates the swapchain. Drain it before
+        // any scene is drawn, or that event arrives after the first present and the
+        // first frame is discarded.
+        glfwPollEvents();
+        applyFramebufferSize();
+
         System.out.println(getStartupInfo());
+    }
+
+    /**
+     * Sets the viewport to the settings width and height.
+     * The UI is laid out in that same pixel space. A framebuffer-sized viewport
+     * stretches it to the screen.
+     */
+    public void applyFramebufferSize() {
+        glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
     }
     /**
      * Steps the OpenGL window.
@@ -114,7 +127,6 @@ public class OpenGLWindow {
         openGlUI.drawUI();
         GPUSimulation.checkGLError("after openGlUI.drawUI");
         glfwSwapBuffers(window);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glfwPollEvents();
         GPUSimulation.checkGLError("after glfwPollEvents");
     }
@@ -146,10 +158,11 @@ public class OpenGLWindow {
         info += "F4: Toggle stats" + "\n";
         info += "F5: Toggle crosshair" + "\n";
         info += "F6: Toggle recording (PNG frames)" + "\n";
-        info += "`: Settings pane" + "\n";
+        info += "`: Settings window" + "\n";
         info += "+/-: Camera scale" + "\n";
-        info += "Up/Down: Time step (dt)" + "\n";
-        info += "Left/Right: Barnes-Hut theta" + "\n";
+        info += "Arrows: Rotate camera" + "\n";
+        info += "Shift+Up/Down: Time step (dt)" + "\n";
+        info += "Shift+Left/Right: Barnes-Hut theta" + "\n";
         info += "[/]: Softening" + "\n";
         info += "Close window: Return to setup menu" + "\n";
         info += "==================" + "\n";

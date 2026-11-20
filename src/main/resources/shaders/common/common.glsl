@@ -177,8 +177,16 @@ uniform uint uRelativeTo; //Relative to
 uniform float uMinImpostorSize; //Minimum impostor radius in NDC
 uniform float uNodeGlowThetaNdc; // nodeGlowThetaPx as NDC: 2 * px / height
 uniform float uNodeGlowActivateDist; // view-space depth (-view.z); glow only if camDist >= this
+uniform float uNodeGlowRectMinDist; // rect near cutoff in the same units. 0 = none. Circles ignore it.
+uniform int uNodeGlowMinDepth; // min post-propagate nodeDepth (height from furthest leaf) for glow
 uniform int uNodeGlowMaxDepth; // max post-propagate nodeDepth (height from furthest leaf) for glow
 uniform float uNodeGlowIntensity; // live brightness scale for hierarchical node glow
+uniform float uNodeGlowMinFrac; // fine edge of the size band, as a fraction of theta
+uniform int uNodeGlowShape; // 0 = flat rect, 1 = soft circle
+uniform float uNodeGlowRectScale; // rect size / normal square. 1 = unchanged. Circle ignores this.
+uniform int uNodeGlowProjectBox; // 1 = quad is the projected AABB screen rectangle
+uniform int uNodeGlowWriteDepth; // 1 = write gl_FragDepth at the box center
+uniform int uNodeGlowOneLevel; // 1 = only the coarsest node under theta on each branch
 uniform float uBodyDisappearNdc; // ~2px in NDC (reserved; body size uses minImpostorSize)
 uniform float uBodyRenderDistance; // max view-space depth (-z) for per-body impostors
 
@@ -357,7 +365,14 @@ bool isInternalNode(Node node) {
 
 //For compute shaders:
 void setScaledGravitationalConstant(UnitSet units) {
-    sim.units.gravitationalConstant = GRAVITATIONAL_CONSTANT* pow(sim.units.len, -3)* pow(sim.units.time, 2)* pow(sim.units.mass, 1);
+    // G_SI * len^-3 is ~1e-44 for AU and solar-mass units. That product flushes to 0
+    // in float32, so folding mass in afterwards leaves gravity at 0. Scale mass first.
+    float g = GRAVITATIONAL_CONSTANT * sim.units.mass;
+    g *= sim.units.time * sim.units.time;
+    g /= sim.units.len;
+    g /= sim.units.len;
+    g /= sim.units.len;
+    sim.units.gravitationalConstant = g;
 }
 
 void setScaledBodyLengthInSimulationLengthsConstant(UnitSet units) {

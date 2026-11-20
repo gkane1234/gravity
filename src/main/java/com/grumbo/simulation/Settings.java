@@ -63,20 +63,8 @@ public class Settings {
 		// Render mode
 		properties.put("renderMode", Property.createSelectorProperty("renderMode", "impNodeGlow", "impNodeGlow", new String[]{"off", "points", "imp", "impGlow", "impNodeGlow", "mesh"}, true));
 
-		// impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.
-		{ Property<Float> p = Property.createFloatProperty("nodeGlowThetaPx", 16.0f, 16.0f); p.setEditable(true); properties.put("nodeGlowThetaPx", p); }
-
-		// impNodeGlow distance gate: view-space depth (-view.z after cameraScale). Hierarchical glow only when the node COM is farther than this. Higher = glow only farther away. Lower (0) = no distance gate.
-		{ Property<Float> p = Property.createFloatProperty("nodeGlowActivateDist", 0.0f, 0.0f); p.setEditable(true); properties.put("nodeGlowActivateDist", p); }
-
 		// Max view-space depth (-view.z after cameraScale) at which individual body impostors (imp / impGlow / impNodeGlow body pass) are drawn. Farther bodies are skipped; hierarchical node glow can still show distant structure. Higher = bodies visible farther. Lower = only nearby bodies.
 		{ Property<Float> p = Property.createFloatProperty("bodyRenderDistance", 1000.0f, 1000.0f); p.setEditable(true); properties.put("bodyRenderDistance", p); }
-
-		// impNodeGlow tree reach: max post-propagate nodeDepth (height above furthest leaf). Glow only for nodes with 1 <= nodeDepth <= this. Lower = finer near-leaf substructure. Higher = also include coarser mid-level parents (more filled / blobbier). Root-scale heights stay culled so children cover.
-		{ Property<Integer> p = Property.createIntProperty("nodeGlowMaxDepth", 8, 8); p.setEditable(true); properties.put("nodeGlowMaxDepth", p); }
-
-		// impNodeGlow brightness scale applied to hierarchical node-glow surface intensity (before Reinhard). Match body impGlow without crushing substructure. Lower = dimmer haze. Higher = brighter fills.
-		{ Property<Float> p = Property.createFloatProperty("nodeGlowIntensity", 0.003f, 0.003f); p.setEditable(true); properties.put("nodeGlowIntensity", p); }
 
 		// Show regions
 		properties.put("showRegions", Property.createBooleanProperty("showRegions", false, false, true));
@@ -171,6 +159,54 @@ public class Settings {
 		// Camera pitch
 		{ Property<Float> p = Property.createFloatProperty("pitch", 0.0f, 0.0f); p.setEditable(true); properties.put("pitch", p); }
 
+		// impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowThetaPx", 16.0f, 16.0f); p.setEditable(true); properties.put("nodeGlowThetaPx", p); }
+
+		// impNodeGlow distance gate: view-space depth (-view.z after cameraScale). Hierarchical glow only when the node is farther than this. Higher = glow only farther away. Lower (0) = no near gate. Applies to both rectangles and circles.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowActivateDist", 0.0f, 0.0f); p.setEditable(true); properties.put("nodeGlowActivateDist", p); }
+
+		// Square renderer near cutoff: view-space depth (-view.z after cameraScale), same units as nodeGlowActivateDist. Rectangles are drawn only farther than this. 0 = no extra near cutoff. Circles ignore it.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowRectMinDist", 0.0f, 0.0f); p.setEditable(true); properties.put("nodeGlowRectMinDist", p); }
+
+		// Rectangle glow floor: min post-propagate nodeDepth (height above furthest leaf). Leaves are 0, the root is tall. Rects draw for nodeGlowMinDepth <= nodeDepth <= nodeGlowMaxDepth.
+		{ Property<Integer> p = Property.createIntProperty("nodeGlowMinDepth", 1, 1); p.setEditable(true); properties.put("nodeGlowMinDepth", p); }
+
+		// Rectangle glow ceiling: max post-propagate nodeDepth (height above furthest leaf). Rects draw for nodeGlowMinDepth <= nodeDepth <= this.
+		{ Property<Integer> p = Property.createIntProperty("nodeGlowMaxDepth", 8, 8); p.setEditable(true); properties.put("nodeGlowMaxDepth", p); }
+
+		// Circle glow floor: min post-propagate nodeDepth. Circles draw for nodeGlowCircleMinDepth <= nodeDepth <= nodeGlowCircleMaxDepth.
+		{ Property<Integer> p = Property.createIntProperty("nodeGlowCircleMinDepth", 1, 1); p.setEditable(true); properties.put("nodeGlowCircleMinDepth", p); }
+
+		// Circle glow ceiling: max post-propagate nodeDepth. Circles draw for nodeGlowCircleMinDepth <= nodeDepth <= this.
+		{ Property<Integer> p = Property.createIntProperty("nodeGlowCircleMaxDepth", 8, 8); p.setEditable(true); properties.put("nodeGlowCircleMaxDepth", p); }
+
+		// Draw the rectangle node glow. Off skips that pass.
+		properties.put("nodeGlowDrawRect", Property.createBooleanProperty("nodeGlowDrawRect", true, true, true));
+
+		// Draw the circle node glow. Off skips that pass. A node inside both depth ranges is drawn twice.
+		properties.put("nodeGlowDrawCircle", Property.createBooleanProperty("nodeGlowDrawCircle", false, false, true));
+
+		// impNodeGlow brightness scale applied to hierarchical node-glow surface intensity (before Reinhard). Match body impGlow without crushing substructure. Lower = dimmer haze. Higher = brighter fills.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowIntensity", 0.003f, 0.003f); p.setEditable(true); properties.put("nodeGlowIntensity", p); }
+
+		// Kept so older settings files still load. The draw booleans choose which passes run.
+		properties.put("nodeGlowShape", Property.createSelectorProperty("nodeGlowShape", "rect", "rect", new String[]{"rect", "circle"}, false));
+
+		// impNodeGlow rect size relative to the normal square (longest side, or the projected union when project box is on). 1 = that size. 1.2 = 20% longer on each side. Circle mode ignores this.
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowRectScale", 1.0f, 1.0f); p.setEditable(true); properties.put("nodeGlowRectScale", p); }
+
+		// impNodeGlow option 1: keep the longest-side square and grow it to cover any of the projected AABB that sticks past it, plus a 1px overlap. Off = the square only. The projected rect alone is smaller than the square when the long axis points at the camera, which opens gaps.
+		properties.put("nodeGlowProjectBox", Property.createBooleanProperty("nodeGlowProjectBox", false, false, true));
+
+		// impNodeGlow option 2: write gl_FragDepth at the box center. Off = the quad's interpolated depth. Depth mask stays off either way.
+		properties.put("nodeGlowWriteDepth", Property.createBooleanProperty("nodeGlowWriteDepth", false, false, true));
+
+		// impNodeGlow option 3: draw only the coarsest node under theta on each branch. Off = every node in the size band (several generations).
+		properties.put("nodeGlowOneLevel", Property.createBooleanProperty("nodeGlowOneLevel", true, true, true));
+
+		// impNodeGlow fine edge of the size band, as a fraction of nodeGlowThetaPx. 0.04 draws nodes down to 4% of theta. 0.5 keeps only the octave just under theta (can hide the glow if those nodes are past nodeGlowMaxDepth).
+		{ Property<Float> p = Property.createFloatProperty("nodeGlowMinFrac", 0.04f, 0.04f); p.setEditable(true); properties.put("nodeGlowMinFrac", p); }
+
 	}
 	/**
 	 * Gets the value of a given property.
@@ -259,32 +295,6 @@ public class Settings {
 	public int getSelectedIndexRenderMode() { return getSelectedIndex("renderMode"); }
 
 	/**
-	 * Gets the value of thefloat property nodeGlowThetaPx.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getNodeGlowThetaPx() { return getValue("nodeGlowThetaPx"); }
-	/**
-	 * Sets the value of the float property nodeGlowThetaPx.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setNodeGlowThetaPx(float value) { setValue("nodeGlowThetaPx", value); }
-
-	/**
-	 * Gets the value of thefloat property nodeGlowActivateDist.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getNodeGlowActivateDist() { return getValue("nodeGlowActivateDist"); }
-	/**
-	 * Sets the value of the float property nodeGlowActivateDist.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setNodeGlowActivateDist(float value) { setValue("nodeGlowActivateDist", value); }
-
-	/**
 	 * Gets the value of thefloat property bodyRenderDistance.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
@@ -296,32 +306,6 @@ public class Settings {
 	 * Any changes made here will be overwritten when regenerating
 	 */
 	public void setBodyRenderDistance(float value) { setValue("bodyRenderDistance", value); }
-
-	/**
-	 * Gets the value of theint property nodeGlowMaxDepth.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public int getNodeGlowMaxDepth() { return getValue("nodeGlowMaxDepth"); }
-	/**
-	 * Sets the value of the int property nodeGlowMaxDepth.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setNodeGlowMaxDepth(int value) { setValue("nodeGlowMaxDepth", value); }
-
-	/**
-	 * Gets the value of thefloat property nodeGlowIntensity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public float getNodeGlowIntensity() { return getValue("nodeGlowIntensity"); }
-	/**
-	 * Sets the value of the float property nodeGlowIntensity.
-	 * This method is automatically generated from defaultProperties.json
-	 * Any changes made here will be overwritten when regenerating
-	 */
-	public void setNodeGlowIntensity(float value) { setValue("nodeGlowIntensity", value); }
 
 	/**
 	 * Gets the value of theboolean property showRegions.
@@ -753,6 +737,251 @@ public class Settings {
 	public void setPitch(float value) { setValue("pitch", value); }
 
 	/**
+	 * Gets the value of thefloat property nodeGlowThetaPx.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowThetaPx() { return getValue("nodeGlowThetaPx"); }
+	/**
+	 * Sets the value of the float property nodeGlowThetaPx.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowThetaPx(float value) { setValue("nodeGlowThetaPx", value); }
+
+	/**
+	 * Gets the value of thefloat property nodeGlowActivateDist.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowActivateDist() { return getValue("nodeGlowActivateDist"); }
+	/**
+	 * Sets the value of the float property nodeGlowActivateDist.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowActivateDist(float value) { setValue("nodeGlowActivateDist", value); }
+
+	/**
+	 * Gets the value of thefloat property nodeGlowRectMinDist.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowRectMinDist() { return getValue("nodeGlowRectMinDist"); }
+	/**
+	 * Sets the value of the float property nodeGlowRectMinDist.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowRectMinDist(float value) { setValue("nodeGlowRectMinDist", value); }
+
+	/**
+	 * Gets the value of theint property nodeGlowMinDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getNodeGlowMinDepth() { return getValue("nodeGlowMinDepth"); }
+	/**
+	 * Sets the value of the int property nodeGlowMinDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowMinDepth(int value) { setValue("nodeGlowMinDepth", value); }
+
+	/**
+	 * Gets the value of theint property nodeGlowMaxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getNodeGlowMaxDepth() { return getValue("nodeGlowMaxDepth"); }
+	/**
+	 * Sets the value of the int property nodeGlowMaxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowMaxDepth(int value) { setValue("nodeGlowMaxDepth", value); }
+
+	/**
+	 * Gets the value of theint property nodeGlowCircleMinDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getNodeGlowCircleMinDepth() { return getValue("nodeGlowCircleMinDepth"); }
+	/**
+	 * Sets the value of the int property nodeGlowCircleMinDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowCircleMinDepth(int value) { setValue("nodeGlowCircleMinDepth", value); }
+
+	/**
+	 * Gets the value of theint property nodeGlowCircleMaxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getNodeGlowCircleMaxDepth() { return getValue("nodeGlowCircleMaxDepth"); }
+	/**
+	 * Sets the value of the int property nodeGlowCircleMaxDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowCircleMaxDepth(int value) { setValue("nodeGlowCircleMaxDepth", value); }
+
+	/**
+	 * Gets the value of theboolean property nodeGlowDrawRect.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public boolean isNodeGlowDrawRect() { return getValue("nodeGlowDrawRect"); }
+	/**
+	 * Sets the value of the boolean property nodeGlowDrawRect.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowDrawRect(boolean value) { setValue("nodeGlowDrawRect", value); }
+
+	/**
+	 * Toggles the value of the boolean property nodeGlowDrawRect.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void toggleNodeGlowDrawRect() { setNodeGlowDrawRect(!isNodeGlowDrawRect()); }
+	/**
+	 * Gets the value of theboolean property nodeGlowDrawCircle.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public boolean isNodeGlowDrawCircle() { return getValue("nodeGlowDrawCircle"); }
+	/**
+	 * Sets the value of the boolean property nodeGlowDrawCircle.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowDrawCircle(boolean value) { setValue("nodeGlowDrawCircle", value); }
+
+	/**
+	 * Toggles the value of the boolean property nodeGlowDrawCircle.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void toggleNodeGlowDrawCircle() { setNodeGlowDrawCircle(!isNodeGlowDrawCircle()); }
+	/**
+	 * Gets the value of thefloat property nodeGlowIntensity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowIntensity() { return getValue("nodeGlowIntensity"); }
+	/**
+	 * Sets the value of the float property nodeGlowIntensity.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowIntensity(float value) { setValue("nodeGlowIntensity", value); }
+
+	/**
+	 * Gets the value of theselector property nodeGlowShape.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public String getNodeGlowShape() { return getValue("nodeGlowShape"); }
+	/**
+	 * Sets the value of the selector property nodeGlowShape.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowShape(String value) { setValue("nodeGlowShape", value); }
+
+	/**
+	 * Gets the selected index of the selector property nodeGlowShape.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public int getSelectedIndexNodeGlowShape() { return getSelectedIndex("nodeGlowShape"); }
+
+	/**
+	 * Gets the value of thefloat property nodeGlowRectScale.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowRectScale() { return getValue("nodeGlowRectScale"); }
+	/**
+	 * Sets the value of the float property nodeGlowRectScale.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowRectScale(float value) { setValue("nodeGlowRectScale", value); }
+
+	/**
+	 * Gets the value of theboolean property nodeGlowProjectBox.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public boolean isNodeGlowProjectBox() { return getValue("nodeGlowProjectBox"); }
+	/**
+	 * Sets the value of the boolean property nodeGlowProjectBox.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowProjectBox(boolean value) { setValue("nodeGlowProjectBox", value); }
+
+	/**
+	 * Toggles the value of the boolean property nodeGlowProjectBox.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void toggleNodeGlowProjectBox() { setNodeGlowProjectBox(!isNodeGlowProjectBox()); }
+	/**
+	 * Gets the value of theboolean property nodeGlowWriteDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public boolean isNodeGlowWriteDepth() { return getValue("nodeGlowWriteDepth"); }
+	/**
+	 * Sets the value of the boolean property nodeGlowWriteDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowWriteDepth(boolean value) { setValue("nodeGlowWriteDepth", value); }
+
+	/**
+	 * Toggles the value of the boolean property nodeGlowWriteDepth.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void toggleNodeGlowWriteDepth() { setNodeGlowWriteDepth(!isNodeGlowWriteDepth()); }
+	/**
+	 * Gets the value of theboolean property nodeGlowOneLevel.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public boolean isNodeGlowOneLevel() { return getValue("nodeGlowOneLevel"); }
+	/**
+	 * Sets the value of the boolean property nodeGlowOneLevel.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowOneLevel(boolean value) { setValue("nodeGlowOneLevel", value); }
+
+	/**
+	 * Toggles the value of the boolean property nodeGlowOneLevel.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void toggleNodeGlowOneLevel() { setNodeGlowOneLevel(!isNodeGlowOneLevel()); }
+	/**
+	 * Gets the value of thefloat property nodeGlowMinFrac.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public float getNodeGlowMinFrac() { return getValue("nodeGlowMinFrac"); }
+	/**
+	 * Sets the value of the float property nodeGlowMinFrac.
+	 * This method is automatically generated from defaultProperties.json
+	 * Any changes made here will be overwritten when regenerating
+	 */
+	public void setNodeGlowMinFrac(float value) { setValue("nodeGlowMinFrac", value); }
+
+	/**
 	 * Adds a property to the Settings class.
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
@@ -894,7 +1123,7 @@ public class Settings {
 	 * This method is automatically generated from defaultProperties.json
 	 * Any changes made here will be overwritten when regenerating
 	 */
-	public void saveSettings() {
+	public synchronized void saveSettings() {
 		try {
 			ObjectMapper mapper = new ObjectMapper();
 			Map<String, Object> jsonData = new LinkedHashMap<>();
@@ -923,7 +1152,80 @@ public class Settings {
 	// ===== PRESERVED METHODS =====
 	// These methods are preserved across regenerations of the file
 
+	private final RenderModeProfiles renderProfiles = new RenderModeProfiles();
 
+	private File renderProfileFile() {
+		File settings = getSettingsFile();
+		File parent = settings.getParentFile();
+		return new File(parent == null ? new File(".") : parent, "renderModeSettings.json");
+	}
+
+	private Map<String, Number> snapshotRenderProfile() {
+		Map<String, Number> values = new java.util.LinkedHashMap<>();
+		values.put("bodyRenderDistance", getBodyRenderDistance());
+		values.put("nodeGlowThetaPx", getNodeGlowThetaPx());
+		values.put("nodeGlowActivateDist", getNodeGlowActivateDist());
+		values.put("nodeGlowMaxDepth", getNodeGlowMaxDepth());
+		values.put("nodeGlowIntensity", getNodeGlowIntensity());
+		values.put("minImpostorSize", getMinImpostorSize());
+		return values;
+	}
+
+	private void applyRenderProfile(Map<String, Number> values) {
+		setBodyRenderDistance(values.get("bodyRenderDistance").floatValue());
+		setNodeGlowThetaPx(values.get("nodeGlowThetaPx").floatValue());
+		setNodeGlowActivateDist(values.get("nodeGlowActivateDist").floatValue());
+		setNodeGlowMaxDepth(values.get("nodeGlowMaxDepth").intValue());
+		setNodeGlowIntensity(values.get("nodeGlowIntensity").floatValue());
+		setMinImpostorSize(values.get("minImpostorSize").floatValue());
+	}
+
+	/**
+	 * Stores the live visual settings under the current render mode before a launch preset overwrites them.
+	 */
+	public void captureActiveRenderProfile() {
+		File file = renderProfileFile();
+		renderProfiles.load(file);
+		renderProfiles.remember(getRenderMode(), snapshotRenderProfile());
+		renderProfiles.save(file);
+	}
+
+	/**
+	 * After launch settings and the camera frame are applied, restore this mode's saved look.
+	 * imp and impGlow draw bodies at least as far as {@code bodyCover}.
+	 */
+	public void adoptLaunchRenderMode(float bodyCover) {
+		File file = renderProfileFile();
+		renderProfiles.load(file);
+		renderProfiles.setBodyCover(bodyCover);
+		String mode = getRenderMode();
+		if (renderProfiles.has(mode)) {
+			applyRenderProfile(renderProfiles.stored(mode));
+			setRenderMode(mode);
+		}
+		if (RenderModeProfiles.needsBodyCover(mode) && getBodyRenderDistance() < bodyCover) {
+			setBodyRenderDistance(bodyCover);
+		}
+		renderProfiles.remember(mode, snapshotRenderProfile());
+		renderProfiles.save(file);
+	}
+
+	/**
+	 * Switches render mode and loads the settings saved for it.
+	 * The mode being left keeps whatever values are on screen now.
+	 */
+	public void selectRenderMode(String mode) {
+		File file = renderProfileFile();
+		renderProfiles.load(file);
+		renderProfiles.remember(getRenderMode(), snapshotRenderProfile());
+		if (!mode.equals(getRenderMode())) {
+			setRenderMode(mode);
+			applyRenderProfile(renderProfiles.valuesFor(mode));
+		}
+		renderProfiles.remember(getRenderMode(), snapshotRenderProfile());
+		renderProfiles.save(file);
+		saveSettings();
+	}
 
 	public void moveCamera(double[] ds) {
 		double[] currentShift = getShift();

@@ -19,34 +19,10 @@
       "description": "Render mode",
       "editable": true
     },
-    "nodeGlowThetaPx": {
-      "type": "float",
-      "default": 16.0,
-      "description": "impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.",
-      "editable": true
-    },
-    "nodeGlowActivateDist": {
-      "type": "float",
-      "default": 0.0,
-      "description": "impNodeGlow distance gate: view-space depth (-view.z after cameraScale). Hierarchical glow only when the node COM is farther than this. Higher = glow only farther away. Lower (0) = no distance gate.",
-      "editable": true
-    },
     "bodyRenderDistance": {
       "type": "float",
       "default": 1000.0,
       "description": "Max view-space depth (-view.z after cameraScale) at which individual body impostors (imp / impGlow / impNodeGlow body pass) are drawn. Farther bodies are skipped; hierarchical node glow can still show distant structure. Higher = bodies visible farther. Lower = only nearby bodies.",
-      "editable": true
-    },
-    "nodeGlowMaxDepth": {
-      "type": "int",
-      "default": 8,
-      "description": "impNodeGlow tree reach: max post-propagate nodeDepth (height above furthest leaf). Glow only for nodes with 1 <= nodeDepth <= this. Lower = finer near-leaf substructure. Higher = also include coarser mid-level parents (more filled / blobbier). Root-scale heights stay culled so children cover.",
-      "editable": true
-    },
-    "nodeGlowIntensity": {
-      "type": "float",
-      "default": 0.003,
-      "description": "impNodeGlow brightness scale applied to hierarchical node-glow surface intensity (before Reinhard). Match body impGlow without crushing substructure. Lower = dimmer haze. Higher = brighter fills.",
       "editable": true
     },
     "showRegions": {
@@ -237,6 +213,103 @@
       "type": "float",
       "default": 0.0,
       "description": "Camera pitch",
+      "editable": true
+    },
+    "nodeGlowThetaPx": {
+      "type": "float",
+      "default": 16.0,
+      "description": "impNodeGlow structure LOD: projected BH AABB size in screen pixels. Glow only for clusters smaller than this (accept band). Higher = glow larger/closer clusters. Lower = wait until clusters are tinier on screen.",
+      "editable": true
+    },
+    "nodeGlowActivateDist": {
+      "type": "float",
+      "default": 0.0,
+      "description": "impNodeGlow distance gate: view-space depth (-view.z after cameraScale). Hierarchical glow only when the node is farther than this. Higher = glow only farther away. Lower (0) = no near gate. Applies to both rectangles and circles.",
+      "editable": true
+    },
+    "nodeGlowRectMinDist": {
+      "type": "float",
+      "default": 0.0,
+      "description": "Square renderer near cutoff: view-space depth (-view.z after cameraScale), same units as nodeGlowActivateDist. Rectangles are drawn only farther than this. 0 = no extra near cutoff. Circles ignore it.",
+      "editable": true
+    },
+    "nodeGlowMinDepth": {
+      "type": "int",
+      "default": 1,
+      "description": "Rectangle glow floor: min post-propagate nodeDepth (height above furthest leaf). Leaves are 0, the root is tall. Rects draw for nodeGlowMinDepth <= nodeDepth <= nodeGlowMaxDepth.",
+      "editable": true
+    },
+    "nodeGlowMaxDepth": {
+      "type": "int",
+      "default": 8,
+      "description": "Rectangle glow ceiling: max post-propagate nodeDepth (height above furthest leaf). Rects draw for nodeGlowMinDepth <= nodeDepth <= this.",
+      "editable": true
+    },
+    "nodeGlowCircleMinDepth": {
+      "type": "int",
+      "default": 1,
+      "description": "Circle glow floor: min post-propagate nodeDepth. Circles draw for nodeGlowCircleMinDepth <= nodeDepth <= nodeGlowCircleMaxDepth.",
+      "editable": true
+    },
+    "nodeGlowCircleMaxDepth": {
+      "type": "int",
+      "default": 8,
+      "description": "Circle glow ceiling: max post-propagate nodeDepth. Circles draw for nodeGlowCircleMinDepth <= nodeDepth <= this.",
+      "editable": true
+    },
+    "nodeGlowDrawRect": {
+      "type": "boolean",
+      "default": true,
+      "description": "Draw the rectangle node glow. Off skips that pass.",
+      "editable": true
+    },
+    "nodeGlowDrawCircle": {
+      "type": "boolean",
+      "default": false,
+      "description": "Draw the circle node glow. Off skips that pass. A node inside both depth ranges is drawn twice.",
+      "editable": true
+    },
+    "nodeGlowIntensity": {
+      "type": "float",
+      "default": 0.003,
+      "description": "impNodeGlow brightness scale applied to hierarchical node-glow surface intensity (before Reinhard). Match body impGlow without crushing substructure. Lower = dimmer haze. Higher = brighter fills.",
+      "editable": true
+    },
+    "nodeGlowShape": {
+      "type": "selector",
+      "default": "rect",
+      "options": ["rect", "circle"],
+      "description": "Kept so older settings files still load. The draw booleans choose which passes run.",
+      "editable": false
+    },
+    "nodeGlowRectScale": {
+      "type": "float",
+      "default": 1.0,
+      "description": "impNodeGlow rect size relative to the normal square (longest side, or the projected union when project box is on). 1 = that size. 1.2 = 20% longer on each side. Circle mode ignores this.",
+      "editable": true
+    },
+    "nodeGlowProjectBox": {
+      "type": "boolean",
+      "default": false,
+      "description": "impNodeGlow option 1: keep the longest-side square and grow it to cover any of the projected AABB that sticks past it, plus a 1px overlap. Off = the square only. The projected rect alone is smaller than the square when the long axis points at the camera, which opens gaps.",
+      "editable": true
+    },
+    "nodeGlowWriteDepth": {
+      "type": "boolean",
+      "default": false,
+      "description": "impNodeGlow option 2: write gl_FragDepth at the box center. Off = the quad's interpolated depth. Depth mask stays off either way.",
+      "editable": true
+    },
+    "nodeGlowOneLevel": {
+      "type": "boolean",
+      "default": true,
+      "description": "impNodeGlow option 3: draw only the coarsest node under theta on each branch. Off = every node in the size band (several generations).",
+      "editable": true
+    },
+    "nodeGlowMinFrac": {
+      "type": "float",
+      "default": 0.04,
+      "description": "impNodeGlow fine edge of the size band, as a fraction of nodeGlowThetaPx. 0.04 draws nodes down to 4% of theta. 0.5 keeps only the octave just under theta (can hide the glow if those nodes are past nodeGlowMaxDepth).",
       "editable": true
     }
   }

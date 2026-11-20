@@ -47,6 +47,14 @@ Remove-Item -Recurse -Force $stage, $appImageDest -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $stage, $installerOut | Out-Null
 Copy-Item $jarPath (Join-Path $stage $jarName)
 
+# JavaFX is excluded from the shaded jar. jpackage puts every jar in --input on the app classpath.
+$javafxJars = @(Get-ChildItem (Join-Path $Root "target\lib") -Filter "javafx-*.jar")
+if ($javafxJars.Count -eq 0) {
+    Write-Error "No JavaFX jars in target\lib. The setup window needs them beside the shaded jar."
+}
+Copy-Item $javafxJars.FullName $stage
+Write-Host "JavaFX jars: $($javafxJars.Name -join ', ')"
+
 Write-Host "==> jpackage app-image"
 & $jpackage `
     --type app-image `
@@ -58,6 +66,7 @@ Write-Host "==> jpackage app-image"
     --dest $appImageDest `
     --java-options "-Xms512m" `
     --java-options "-Xmx8g" `
+    --java-options "-Dprism.order=d3d" `
     --description "Real-time Barnes-Hut N-body simulation (OpenGL compute shaders)" `
     --vendor "Grumbo" `
     --win-console

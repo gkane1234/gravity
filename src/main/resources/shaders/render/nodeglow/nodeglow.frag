@@ -1,7 +1,9 @@
 // =============================================================
 //                Hierarchical node-glow fragment shader
-// Soft additive spherical splat; color from mass-weighted Node.avgColor
-// (star RGB aggregated during tree propagate).
+// rect: flat color over the quad. circle: cosine disk, discarded outside r=1.
+// nodeGlowWriteDepth writes the box-center depth; otherwise the quad's own depth.
+// A fragment shader that writes gl_FragDepth on any path must write it on all,
+// so the off path stores the raster depth (same value the fixed function would).
 // =============================================================
 #include "common/common.glsl"
 
@@ -17,17 +19,19 @@ out vec4 fragColor;
 void main() {
 	if (vIntensity <= 0.0) discard;
 
-	float r2 = dot(vMapping, vMapping);
-	if (r2 > 1.0) discard;
+	float glow = 1.0;
+	if (uNodeGlowShape != 0) {
+		float r2 = dot(vMapping, vMapping);
+		if (r2 > 1.0) discard;
+		glow = cos(PI * r2 * 0.5) * 0.5 + 0.5;
+	}
+	fragColor = vec4(vColor * (vIntensity * glow), 1.0); // additive; alpha ignored
 
-	// Soft spherical falloff toward billboard edge
-	float glow = cos(3.14159265 * r2 * 0.5) * 0.5 + 0.5;
-	vec3 color = vColor * (vIntensity * glow);
-
-	fragColor = vec4(color, 1.0); // additive; alpha ignored
-
-	// Cheap depth at COM (no sphere intersection needed for soft glow)
-	vec4 centerClip = uProj * vec4(vCenterView, 1.0);
-	float ndcDepth = centerClip.z / centerClip.w;
-	gl_FragDepth = 0.5 * ndcDepth + 0.5;
+	if (uNodeGlowWriteDepth != 0) {
+		vec4 centerClip = uProj * vec4(vCenterView, 1.0);
+		float ndcDepth = centerClip.z / centerClip.w;
+		gl_FragDepth = 0.5 * ndcDepth + 0.5;
+	} else {
+		gl_FragDepth = gl_FragCoord.z;
+	}
 }

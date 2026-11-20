@@ -35,8 +35,12 @@ public class UISelector extends UIRow {
             final int index = i;
             final String option = options[index];
             buttons[i].setOnClick(() -> {
-                Settings.getInstance().setValue(name, option);
-                Settings.getInstance().saveSettings();
+                if ("renderMode".equals(name)) {
+                    Settings.getInstance().selectRenderMode(option);
+                } else {
+                    Settings.getInstance().setValue(name, option);
+                    Settings.getInstance().saveSettings();
+                }
                 for (int j = 0; j < options.length; j++) {
                     buttons[j].setSelected(j == index);
                 }

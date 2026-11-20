@@ -1,11 +1,21 @@
 // =============================================================
 //                 Hierarchical node-glow vertex shader
-// Soft additive spherical billboards at BH internal-node COMs.
+// Flat screen-aligned quads at BH node AABB centers.
+// Two passes. Rectangles use nodeGlowMinDepth..nodeGlowMaxDepth.
+// Circles use nodeGlowCircleMinDepth..nodeGlowCircleMaxDepth.
+// nodeGlowDrawRect / nodeGlowDrawCircle skip a pass. uNodeGlowShape is the pass.
+// nodeGlowProjectBox: keep the longest-side square, then grow it to cover any
+//   part of the projected AABB that sticks out, plus a 1px overlap.
+//   Off: screen square of the AABB longest side only.
+//   The projected rect alone is smaller than that square when the long axis
+//   points along the view, and that shrink is what opened the gaps.
+// nodeGlowOneLevel: only the coarsest node under theta on each branch.
+// nodeGlowMinFrac: fine edge of the size band, as a fraction of theta.
 // Draw only when ALL of:
 //   1) camDist >= nodeGlowActivateDist  (far enough in view space)
 //   2) projected AABB extent in (min, θ_r)  — BH open/accept
 //      if projected > θ_r → open (do not draw; children cover)
-//   3) 1 <= nodeDepth <= nodeGlowMaxDepth
+//   3) nodeGlowMinDepth <= nodeDepth <= nodeGlowMaxDepth
 //      nodeDepth = height above furthest leaf (set in treePropagate)
 // θ_r from Settings.nodeGlowThetaPx (pixels → NDC on CPU).
 // Color: luminosity-weighted avg star RGB aggregated onto Node.avgColor (w = subtree L).
@@ -21,12 +31,11 @@ out vec3 vCenterView;
 out float vNdcScaleX;
 out float vNdcScaleY;
 
-const float BOX_CORRECTION = 1.5;
-// Keep glow splat close to the accepted node size (spherical soft radius)
-const float GLOW_SOFT_PAD = 1.1;
-// Deep accept band: kids stay drawable when a parent just above θ_r opens.
-// Prefer many small cells over one coarse blob.
-const float MIN_THETA_FRAC = 0.04;
+// Circle mode (and not projecting the box) uses the old disk: the visible
+// radius is 1.1 * half the longest side, and the quad is 1.5x that so the
+// cosine reaches 0.5 at the rim without the quad edge cutting it.
+const float CIRCLE_BOX = 1.5;
+const float CIRCLE_PAD = 1.1;
 // Surface-brightness scale after 1/r² luminosity / projected splat; Reinhard below.
 // Tuned so many mid-depth splats sum near prior filled-haze / body glow feel.
 const float MASS_GLOW_SCALE = 2.5e-4;
@@ -60,10 +69,11 @@ void main() {
 	}
 
 	// Depth gate: post-propagate nodeDepth is height from furthest leaf
-	// (leaves = 0; root = tall). Cap at nodeGlowMaxDepth so galaxy-scale
-	// parents never draw a single COM blob — children / mid nodes cover.
+	// (leaves = 0; root = tall). nodeGlowMinDepth drops near-leaf nodes.
+	// nodeGlowMaxDepth keeps galaxy-scale parents from drawing one COM blob.
 	uint depth = node.nodeDepth;
-	if (depth < 1u || depth > uint(uNodeGlowMaxDepth)) {
+	uint minDepth = uint(max(uNodeGlowMinDepth, 0));
+	if (depth < minDepth || depth > uint(uNodeGlowMaxDepth)) {
 		cullNode();
 		return;
 	}
@@ -74,8 +84,9 @@ void main() {
 	float longestSide = max(aabbSize.x, max(aabbSize.y, aabbSize.z));
 	float halfExtent = 0.5 * longestSide;
 
-	vec3 com = relativeLocation(node.comMass.xyz, uRelativeTo) * cameraScale;
-	vec4 centerView4 = uModelView * vec4(com, 1.0);
+	// Square sits on the box, not the COM. A COM near one face left a gap on the other.
+	vec3 boxCenter = 0.5 * (minC + maxC);
+	vec4 centerView4 = uModelView * vec4(boxCenter, 1.0);
 	vCenterView = centerView4.xyz;
 
 	// Perspective size uses view-space depth, not Euclidean cam distance
@@ -83,7 +94,8 @@ void main() {
 	float camDist = max(-vCenterView.z, 1e-6);
 
 	// Distance gate: hierarchical glow only when far enough (view-space -z).
-	if (camDist < uNodeGlowActivateDist) {
+	// Squares also wait until nodeGlowRectMinDist. 0 means no extra near gate.
+	if (camDist < uNodeGlowActivateDist || (uNodeGlowShape == 0 && camDist < uNodeGlowRectMinDist)) {
 		cullNode();
 		return;
 	}
@@ -95,7 +107,7 @@ void main() {
 	float projectedExtent = longestSide / (camDist * tanHalfFov);
 
 	float thetaNdc = max(uNodeGlowThetaNdc, 1e-6);
-	float minNdc = thetaNdc * MIN_THETA_FRAC;
+	float minNdc = thetaNdc * max(uNodeGlowMinFrac, 0.0);
 
 	// BH-style structure LOD:
 	//   projected >= θ_r → open (too coarse; children cover)
@@ -105,9 +117,33 @@ void main() {
 		return;
 	}
 
-	// Soft acceptance near θ_r and at the fine edge (helps hard LOD / issue #8)
+	// One quad per lineage when nodeGlowOneLevel is on: the coarsest node
+	// that is still under θ and inside the depth cap. If the parent is
+	// drawn, this child is not. Off draws every node in the size band.
+	if (uNodeGlowOneLevel != 0 && node.parentId != 0xFFFFFFFFu && node.parentId >= sim.initialNumBodies) {
+		uint pIdx = node.parentId - sim.initialNumBodies;
+		if (pIdx < uint(sim.initialNumBodies) - 1u) {
+			Node parent = internalNodes[pIdx];
+			if (parent.nodeDepth >= minDepth && parent.nodeDepth <= uint(uNodeGlowMaxDepth) && !emptyAABB(parent.aabb)) {
+				vec3 pMin = relativeLocation(vec3(parent.aabb[0], parent.aabb[1], parent.aabb[2]), uRelativeTo) * cameraScale;
+				vec3 pMax = relativeLocation(vec3(parent.aabb[3], parent.aabb[4], parent.aabb[5]), uRelativeTo) * cameraScale;
+				vec3 pSize = pMax - pMin;
+				float pLong = max(pSize.x, max(pSize.y, pSize.z));
+				vec3 pCenter = 0.5 * (pMin + pMax);
+				vec4 pView = uModelView * vec4(pCenter, 1.0);
+				float pDist = max(-pView.z, 1e-6);
+				float pExtent = pLong / (pDist * tanHalfFov);
+				bool parentTooClose = uNodeGlowShape == 0 && pDist < uNodeGlowRectMinDist;
+				if (pExtent < thetaNdc && !parentTooClose) {
+					cullNode();
+					return;
+				}
+			}
+		}
+	}
+
+	// Fade only as this node itself reaches θ and hands off to its children.
 	float accept = 1.0 - smoothstep(thetaNdc * 0.75, thetaNdc, projectedExtent);
-	accept *= smoothstep(minNdc, minNdc * 2.5, projectedExtent);
 
 	// Luminosity ∝ mass with inverse-square falloff on camDist (view-space -z).
 	// Spread over the projected AABB splat for peak surface brightness.
@@ -129,20 +165,91 @@ void main() {
 
 	vec4 centerClip = uProj * centerView4;
 
-	int vid = gl_VertexID & 3;
-	if (vid == 0) vMapping = vec2(-1.0, -1.0) * BOX_CORRECTION;
-	else if (vid == 1) vMapping = vec2(-1.0,  1.0) * BOX_CORRECTION;
-	else if (vid == 2) vMapping = vec2( 1.0, -1.0) * BOX_CORRECTION;
-	else               vMapping = vec2( 1.0,  1.0) * BOX_CORRECTION;
+	bool circle = uNodeGlowShape != 0;
+	bool project = uNodeGlowProjectBox != 0;
+	float boxCorrection = circle ? CIRCLE_BOX : 1.0;
 
-	// Spherical soft splat (longest-side ball), not elliptical AABB
-	float glowHalf = max(halfExtent * GLOW_SOFT_PAD, minNdc * 0.5 * camDist * tanHalfFov);
+	int vid = gl_VertexID & 3;
+	vec2 corner = vec2(vid < 2 ? -1.0 : 1.0, (vid & 1) == 0 ? -1.0 : 1.0);
+	vMapping = corner * boxCorrection;
+
+	float pad = circle ? CIRCLE_PAD : 1.0;
+	// Square side = longest side. The min keeps a node at the fine edge from collapsing to nothing.
+	float glowHalf = max(halfExtent * pad, minNdc * 0.5 * camDist * tanHalfFov);
 	float ndcScaleY = glowHalf / (camDist * tanHalfFov);
 	float ndcScaleX = ndcScaleY / max(uAspect, 1e-6);
-	vNdcScaleX = ndcScaleX;
-	vNdcScaleY = ndcScaleY;
 
-	vec2 ndcOffset = vMapping * vec2(ndcScaleX, ndcScaleY);
-	vec2 clipOffset = ndcOffset * centerClip.w;
-	gl_Position = vec4(centerClip.xy + clipOffset, centerClip.z, centerClip.w);
+	// Neighbor gaps sit on the axis-aligned splits. A square of the longest side
+	// covers a gap that is foreshortened to 45 degrees (that view has no bands).
+	// When the split faces the camera the same gap is sqrt(2) wider on screen,
+	// so stretch the rect along that screen axis. At 45 degrees the factor is 1.
+	vec2 ndcHalf = vec2(ndcScaleX, ndcScaleY);
+	if (!circle) {
+		for (int axis = 0; axis < 3; ++axis) {
+			vec2 screen = vec2(uModelView[axis][0], uModelView[axis][1]);
+			float facing = length(screen);
+			float grow = max(0.0, facing * 1.41421356 - 1.0);
+			if (grow <= 0.0) continue;
+			ndcHalf += abs(screen) * vec2(ndcScaleX, ndcScaleY) * (grow / facing);
+		}
+	}
+
+	// Longest-side square, centered on the projected AABB center.
+	vec2 centerNdc = centerClip.xy / centerClip.w;
+	vec2 coverMin = centerNdc - ndcHalf;
+	vec2 coverMax = centerNdc + ndcHalf;
+
+	if (project) {
+		// Union with the real screen rectangle. Never shrink the square:
+		// the screen rect is the smaller one when the long axis points at the camera.
+		vec2 ndcMin = vec2(1e20);
+		vec2 ndcMax = vec2(-1e20);
+		int inFront = 0;
+		for (int i = 0; i < 8; ++i) {
+			vec3 c = vec3(
+				(i & 1) == 0 ? minC.x : maxC.x,
+				(i & 2) == 0 ? minC.y : maxC.y,
+				(i & 4) == 0 ? minC.z : maxC.z);
+			vec4 clip = uProj * (uModelView * vec4(c, 1.0));
+			if (clip.w <= 1e-4) continue;
+			vec2 ndc = clip.xy / clip.w;
+			ndcMin = min(ndcMin, ndc);
+			ndcMax = max(ndcMax, ndc);
+			inFront++;
+		}
+		if (inFront > 0) {
+			coverMin = min(coverMin, ndcMin);
+			coverMax = max(coverMax, ndcMax);
+		}
+		// 1px overlap to close the remaining crack. Capped so a sub-pixel node
+		// does not get blown up to a couple of pixels (that fill killed the large sim).
+		// uBodyDisappearNdc is 2px of NDC height. NDC x spans aspect times more.
+		vec2 onePx = vec2(0.5 * uBodyDisappearNdc / max(uAspect, 1e-6), 0.5 * uBodyDisappearNdc);
+		vec2 outset = min(onePx, 0.15 * vec2(ndcScaleX, ndcScaleY));
+		coverMin -= outset;
+		coverMax += outset;
+	}
+
+	// Rect: scale the finished quad about its center. 1 = the normal square
+	// (or the projected union). Circle keeps its own pad.
+	if (!circle) {
+		float rectScale = max(uNodeGlowRectScale, 0.0);
+		vec2 rectCenter = 0.5 * (coverMin + coverMax);
+		vec2 rectHalf = 0.5 * (coverMax - coverMin) * rectScale;
+		coverMin = rectCenter - rectHalf;
+		coverMax = rectCenter + rectHalf;
+	}
+
+	// Circle: quad is 1.5x the covered rect so the unit disk is that rect.
+	if (circle) {
+		vec2 c = 0.5 * (coverMin + coverMax);
+		vec2 h = 0.5 * (coverMax - coverMin) * CIRCLE_BOX;
+		coverMin = c - h;
+		coverMax = c + h;
+	}
+
+	vNdcScaleX = 0.5 * (coverMax.x - coverMin.x);
+	vNdcScaleY = 0.5 * (coverMax.y - coverMin.y);
+	vec2 ndc = mix(coverMin, coverMax, corner * 0.5 + 0.5);
+	gl_Position = vec4(ndc * centerClip.w, centerClip.z, centerClip.w);
 }

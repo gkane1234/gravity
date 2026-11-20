@@ -24,6 +24,8 @@ public class OpenGLUI {
     private boolean shiftPressed = false;
     private boolean displaySettings = false;
     private boolean displayDebug = false;
+    /** Degrees applied per arrow press or repeat. Not scaled by mouse-pixel sensitivity. */
+    private static final float ARROW_LOOK_DEGREES = 1.0f;
     private BitmapFont font;
 
     private SettingsPane settingsPane;
@@ -177,14 +179,14 @@ public class OpenGLUI {
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_R, () -> {}));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_SHIFT, () -> {shiftPressed = true;}, () -> {shiftPressed = false;},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_UP, () -> {Settings.getInstance().setDt((float)(Settings.getInstance().getDt() * 1.1));},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_DOWN, () -> {Settings.getInstance().setDt((float)(Settings.getInstance().getDt() / 1.1));},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 0.9));},true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> {Settings.getInstance().setTheta((float)(Settings.getInstance().getTheta() * 1.1));},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_UP, () -> {handleArrowKey(GLFW.GLFW_KEY_UP);},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_DOWN, () -> {handleArrowKey(GLFW.GLFW_KEY_DOWN);},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT, () -> {handleArrowKey(GLFW.GLFW_KEY_LEFT);},true));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT, () -> {handleArrowKey(GLFW.GLFW_KEY_RIGHT);},true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_B, () -> {}));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_LEFT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 0.9)),true));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_RIGHT_BRACKET, () -> Settings.getInstance().setSoftening((float)(Settings.getInstance().getSoftening() * 1.1)),true));
-        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_GRAVE_ACCENT, () -> {displaySettings = !displaySettings;},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_GRAVE_ACCENT, LiveSettingsWindow::toggle, false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ESCAPE, () -> {mouseCaptured = !mouseCaptured;
             glfwSetInputMode(openGlWindow.getWindow(), GLFW_CURSOR, mouseCaptured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
             if (mouseCaptured) {
@@ -278,10 +280,63 @@ public class OpenGLUI {
      * @param yoffset The y offset.
      */
     public void changeCamera(float xoffset, float yoffset) {
-        xoffset *= Settings.getInstance().getMouseRotationSensitivity();
-        yoffset *= Settings.getInstance().getMouseRotationSensitivity();
-        Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + xoffset));
-        Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + yoffset));
+        float sensitivity = Settings.getInstance().getMouseRotationSensitivity();
+        applyLook(xoffset * sensitivity, yoffset * sensitivity);
+    }
+
+    /**
+     * Arrow keys look around. Shift keeps the old dt and theta shortcuts.
+     * @param key The arrow key.
+     */
+    private void handleArrowKey(int key) {
+        if (shiftPressed) {
+            switch (key) {
+                case GLFW.GLFW_KEY_UP:
+                    Settings.getInstance().setDt((float) (Settings.getInstance().getDt() * 1.1));
+                    break;
+                case GLFW.GLFW_KEY_DOWN:
+                    Settings.getInstance().setDt((float) (Settings.getInstance().getDt() / 1.1));
+                    break;
+                case GLFW.GLFW_KEY_LEFT:
+                    Settings.getInstance().setTheta((float) (Settings.getInstance().getTheta() * 0.9));
+                    break;
+                case GLFW.GLFW_KEY_RIGHT:
+                    Settings.getInstance().setTheta((float) (Settings.getInstance().getTheta() * 1.1));
+                    break;
+                default:
+                    break;
+            }
+            return;
+        }
+        if (settingsPane.textFieldFocused) {
+            return;
+        }
+        switch (key) {
+            case GLFW.GLFW_KEY_UP:
+                applyLook(0f, ARROW_LOOK_DEGREES);
+                break;
+            case GLFW.GLFW_KEY_DOWN:
+                applyLook(0f, -ARROW_LOOK_DEGREES);
+                break;
+            case GLFW.GLFW_KEY_LEFT:
+                applyLook(-ARROW_LOOK_DEGREES, 0f);
+                break;
+            case GLFW.GLFW_KEY_RIGHT:
+                applyLook(ARROW_LOOK_DEGREES, 0f);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * Applies a look delta in degrees.
+     * @param yawDelta Degrees added to yaw.
+     * @param pitchDelta Degrees added to pitch.
+     */
+    private void applyLook(float yawDelta, float pitchDelta) {
+        Settings.getInstance().setYaw((float)(Settings.getInstance().getYaw() + yawDelta));
+        Settings.getInstance().setPitch((float)(Settings.getInstance().getPitch() + pitchDelta));
         // Constrain pitch to prevent camera flipping
         if (Settings.getInstance().getPitch() > 89.0f)
             Settings.getInstance().setPitch(89.0f);
@@ -345,8 +400,16 @@ public class OpenGLUI {
             }
         });
         
-        // Mouse wheel callback for Z movement
+        // Mouse wheel callback for Z movement, unless a numeric field takes the scroll
         glfwSetScrollCallback(openGlWindow.getWindow(), (window, xoffset, yoffset) -> {
+            if (displaySettings && !mouseCaptured) {
+                double[] cx = new double[1];
+                double[] cy = new double[1];
+                glfwGetCursorPos(window, cx, cy);
+                if (settingsPane.onScroll(cx[0], cy[0], xoffset, yoffset)) {
+                    return;
+                }
+            }
             // Move in the direction the camera is facing
             Vector3f moveDirection = new Vector3f(Settings.getInstance().getCameraFront()).mul((float)(yoffset * Settings.getInstance().getMouseWheelSensitivity()));
             Settings.getInstance().setCameraPos(Settings.getInstance().getCameraPos().add(moveDirection));
@@ -354,7 +417,7 @@ public class OpenGLUI {
         
         // Window resize callback
         glfwSetFramebufferSizeCallback(openGlWindow.getWindow(), (window, width, height) -> {
-            glViewport(0, 0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight());
+            openGlWindow.applyFramebufferSize();
         });
         
         // Window close callback

@@ -1,326 +1,398 @@
 package com.grumbo.ui;
 
 import com.grumbo.simulation.SimulationSetup;
-import com.grumbo.simulation.SpiceKernel;
 import com.grumbo.simulation.SimulationSetup.ObjectType;
 import com.grumbo.simulation.SimulationSetup.Preset;
-import org.lwjgl.glfw.GLFWErrorCallback;
-import org.lwjgl.opengl.GL;
+import com.grumbo.simulation.SimulationSetup.SceneItem;
+import com.grumbo.simulation.SpiceKernel;
 
-import java.awt.FileDialog;
-import java.awt.Frame;
+import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
+
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
+import java.io.File;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
-import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.system.MemoryUtil.NULL;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * First-launch setup screen: choose presets and place objects before GPU buffers are allocated.
+ * The window is JavaFX. The simulation window stays GLFW and is not open at the same time.
  */
 public final class SetupScreen {
 
-    private static final int WIDTH = 1000;
-    private static final int HEIGHT = 700;
-    private static final float FONT_SIZE = 10f;
-    private static final float MARGIN = 12f;
-    private static final float COL_GAP = 24f;
-    private static final float LEFT_W = 520f;
+    private static final Object TOOLKIT_LOCK = new Object();
+    private static volatile boolean toolkitStarted;
 
     private final SimulationSetup setup = new SimulationSetup();
-    private BitmapFont font;
+    /** Scene from the last successful launch. Null until the first launch in this process. */
+    static LaunchMemory launchMemory;
 
-    private long window;
     private boolean finished;
     private boolean cancelled;
     private SimulationSetup.LaunchConfig result;
+    private CountDownLatch done;
+    private Stage stage;
 
     private ObjectType addType = ObjectType.DISK;
-    private final List<UIElement> elements = new ArrayList<>();
-    private final List<UIButton> typeButtons = new ArrayList<>();
 
-    // Persist field values across rebuilds
+    // Persist field values across launches. Tests write these without opening the window.
     private String vCx = "0", vCy = "0", vCz = "0";
     private String vCount = "50000", vRadius = "800", vMass = "1";
     private String vDensity = "1", vCenterMass = "50000", vExtent = "500";
+    private String dLabel = "Disk", dInner = "1", dMassMin = "0.2", dMassMax = "2";
+    private String dDensityMin = "1", dDensityMax = "1", dCenterDensity = "1";
+    private String dNx = "0", dNy = "1", dNz = "0", dVx = "0", dVy = "0", dVz = "0";
+    private String dAdherence = "0.98", dOrbital = "1";
+    private boolean dCcw;
+    private boolean dOrbitalVel = true;
 
-    private UITextField fieldCx, fieldCy, fieldCz;
-    private UITextField fieldCount, fieldRadius, fieldMass;
-    private UITextField fieldDensity, fieldCenterMass, fieldExtent;
-    private UIText statusText;
+    private TextField fieldCx, fieldCy, fieldCz;
+    private TextField fieldCount, fieldRadius, fieldMass;
+    private TextField fieldDensity, fieldCenterMass, fieldExtent;
+    private Label statusLabel;
+    private Label sceneHeading;
+    private ListView<SceneItem> sceneList;
+    private final VBox addFieldsHost = new VBox(8);
+    private DiskForm addDiskForm;
+    private final VBox diskEditorHost = new VBox(8);
+    private DiskForm editDiskForm;
+    private Label editHeading;
+    private int editingIndex = -1;
+    private final ObservableList<SceneItem> sceneItems = FXCollections.observableArrayList();
     private String lastNote = "";
 
-    private double mouseX;
-    private double mouseY;
-    /** Current GLFW window size (cursor space). UI is laid out in WIDTH×HEIGHT logical coords. */
-    private int windowW = WIDTH;
-    private int windowH = HEIGHT;
+    SetupScreen() {}
 
-    private SetupScreen() {}
+    /**
+     * Starts the JavaFX toolkit once. Safe to call again. Must be called off the JavaFX thread.
+     * Direct3D is selected when the caller has not already chosen a Prism pipeline, so JavaFX
+     * does not create an OpenGL context ahead of the GLFW simulation window.
+     */
+    public static void startToolkit() {
+        if (toolkitStarted) {
+            return;
+        }
+        synchronized (TOOLKIT_LOCK) {
+            if (toolkitStarted) {
+                return;
+            }
+            if (System.getProperty("prism.order") == null) {
+                System.setProperty("prism.order", "d3d");
+            }
+            CountDownLatch ready = new CountDownLatch(1);
+            Platform.startup(() -> {
+                Platform.setImplicitExit(false);
+                ready.countDown();
+            });
+            toolkitStarted = true;
+            try {
+                ready.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("JavaFX startup interrupted", e);
+            }
+        }
+    }
+
+    /**
+     * Stops the JavaFX toolkit. Call this only when the process is exiting.
+     * The toolkit cannot be started again after this returns.
+     */
+    public static void stopToolkit() {
+        if (!toolkitStarted) {
+            return;
+        }
+        Platform.exit();
+    }
 
     public static SimulationSetup.LaunchConfig run() {
+        startToolkit();
         return new SetupScreen().loop();
     }
 
+    static void forgetLaunch() {
+        launchMemory = null;
+    }
+
     private SimulationSetup.LaunchConfig loop() {
-        initWindow();
-        setup.applyPreset(Preset.MERGER_FULL);
-        rebuildUi();
-
-        while (!finished && !glfwWindowShouldClose(window)) {
-            glClearColor(0.08f, 0.09f, 0.12f, 1f);
-            glClear(GL_COLOR_BUFFER_BIT);
-
-            // Always draw in fixed logical coordinates; viewport stretches to the window.
-            glMatrixMode(GL_PROJECTION);
-            glLoadIdentity();
-            glOrtho(0, WIDTH, HEIGHT, 0, -1, 1);
-            glMatrixMode(GL_MODELVIEW);
-            glLoadIdentity();
-
-            for (UIElement el : elements) {
-                el.draw(font);
+        done = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try {
+                show();
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+                finish(true);
             }
-
-            glfwSwapBuffers(window);
-            glfwPollEvents();
+        });
+        try {
+            done.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Platform.runLater(() -> finish(true));
+            return null;
         }
-
-        cleanupWindow();
         if (cancelled || result == null) {
-            glfwTerminate();
-            GLFWErrorCallback cb = glfwSetErrorCallback(null);
-            if (cb != null) cb.free();
             return null;
         }
         return result;
     }
 
-    /** Map cursor position from window pixels into the logical UI coordinate system. */
-    private double[] uiMouse() {
-        double sx = windowW > 0 ? (mouseX * WIDTH / windowW) : mouseX;
-        double sy = windowH > 0 ? (mouseY * HEIGHT / windowH) : mouseY;
-        return new double[] { sx, sy };
+    private void show() {
+        prepareInitialScene();
+
+        stage = new Stage();
+        stage.setTitle("GravityChunk — Setup");
+        BorderPane root = buildUi();
+        Scene scene = new Scene(root, 1000, 700);
+        var stylesheet = SetupScreen.class.getResource("/ui/setup.css");
+        if (stylesheet != null) {
+            scene.getStylesheets().add(stylesheet.toExternalForm());
+        }
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, this::onKeyPressed);
+        stage.setScene(scene);
+        stage.setMinWidth(860);
+        stage.setMinHeight(640);
+        stage.setOnCloseRequest(event -> {
+            event.consume();
+            quit();
+        });
+        refreshScene();
+        stage.show();
     }
 
-    private void initWindow() {
-        GLFWErrorCallback.createPrint(System.err).set();
-        if (!glfwInit()) {
-            throw new IllegalStateException("Unable to initialize GLFW");
+    private void onKeyPressed(KeyEvent event) {
+        if (event.getCode() != KeyCode.ESCAPE || stage.getScene() == null) {
+            return;
         }
-        glfwDefaultWindowHints();
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
-
-        window = glfwCreateWindow(WIDTH, HEIGHT, "GravityChunk — Setup", NULL, NULL);
-        if (window == NULL) {
-            throw new RuntimeException("Failed to create setup window");
+        event.consume();
+        // A focused field used to swallow Escape. Clear it first; the next Escape quits.
+        if (stage.getScene().getFocusOwner() instanceof TextField) {
+            stage.getScene().getRoot().requestFocus();
+            return;
         }
-        glfwMakeContextCurrent(window);
-        glfwSwapInterval(1);
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        glfwShowWindow(window);
-        GL.createCapabilities();
-
-        int[] fbw = new int[1], fbh = new int[1];
-        glfwGetFramebufferSize(window, fbw, fbh);
-        glViewport(0, 0, fbw[0], fbh[0]);
-
-        int[] ww = new int[1], wh = new int[1];
-        glfwGetWindowSize(window, ww, wh);
-        windowW = Math.max(1, ww[0]);
-        windowH = Math.max(1, wh[0]);
-
-        font = new BitmapFont();
-        font.setFontSize(FONT_SIZE);
-
-        glfwSetCursorPosCallback(window, (w, x, y) -> {
-            mouseX = x;
-            mouseY = y;
-        });
-        glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
-            if (button != GLFW_MOUSE_BUTTON_LEFT) return;
-            double[] m = uiMouse();
-            if (action == GLFW_PRESS) {
-                for (UIElement el : elements) {
-                    if (el.handleMousePress(m[0], m[1])) break;
-                }
-            } else if (action == GLFW_RELEASE) {
-                for (UIElement el : elements) {
-                    el.handleMouseRelease();
-                }
-            }
-        });
-        glfwSetKeyCallback(window, (w, key, scancode, action, mods) -> {
-            for (UIElement el : elements) {
-                if (el.handleKeyPress(key, action, mods)) return;
-            }
-            if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE) {
-                cancelled = true;
-                finished = true;
-            }
-        });
-        glfwSetCharCallback(window, (w, codepoint) -> {
-            for (UIElement el : elements) {
-                if (el.handleCharPress(codepoint)) return;
-            }
-        });
-        glfwSetWindowSizeCallback(window, (win, w, h) -> {
-            windowW = Math.max(1, w);
-            windowH = Math.max(1, h);
-        });
-        glfwSetFramebufferSizeCallback(window, (win, w, h) -> {
-            glViewport(0, 0, w, h);
-        });
+        quit();
     }
 
-    private void cleanupWindow() {
-        if (window != 0) {
-            glfwFreeCallbacks(window);
-            glfwDestroyWindow(window);
-            window = 0;
+    private void quit() {
+        finish(true);
+    }
+
+    private void finish(boolean cancel) {
+        if (finished) {
+            return;
         }
+        finished = true;
+        if (cancel) {
+            cancelled = true;
+            result = null;
+        }
+        if (stage != null) {
+            stage.hide();
+        }
+        done.countDown();
+    }
+
+    /**
+     * Last launched scene, including add-object fields. Planets are already deep-copied.
+     */
+    static final class LaunchMemory {
+        final SimulationSetup scene;
+        final ObjectType addType;
+        final String vCx, vCy, vCz, vCount, vRadius, vMass, vDensity, vCenterMass, vExtent;
+
+        private LaunchMemory(SimulationSetup scene, ObjectType addType,
+                             String vCx, String vCy, String vCz,
+                             String vCount, String vRadius, String vMass,
+                             String vDensity, String vCenterMass, String vExtent) {
+            this.scene = scene;
+            this.addType = addType;
+            this.vCx = vCx;
+            this.vCy = vCy;
+            this.vCz = vCz;
+            this.vCount = vCount;
+            this.vRadius = vRadius;
+            this.vMass = vMass;
+            this.vDensity = vDensity;
+            this.vCenterMass = vCenterMass;
+            this.vExtent = vExtent;
+        }
+
+        static LaunchMemory capture(SimulationSetup setup, ObjectType addType,
+                                    String vCx, String vCy, String vCz,
+                                    String vCount, String vRadius, String vMass,
+                                    String vDensity, String vCenterMass, String vExtent) {
+            return new LaunchMemory(setup.copy(), addType,
+                vCx, vCy, vCz, vCount, vRadius, vMass, vDensity, vCenterMass, vExtent);
+        }
+    }
+
+    /** First open uses the full merger. Later opens use the scene that was just launched. */
+    void prepareInitialScene() {
+        if (!restoreRememberedScene()) {
+            setup.applyPreset(Preset.MERGER_FULL);
+        }
+    }
+
+    boolean restoreRememberedScene() {
+        LaunchMemory memory = launchMemory;
+        if (memory == null) {
+            return false;
+        }
+        setup.restoreFrom(memory.scene);
+        addType = memory.addType;
+        vCx = memory.vCx;
+        vCy = memory.vCy;
+        vCz = memory.vCz;
+        vCount = memory.vCount;
+        vRadius = memory.vRadius;
+        vMass = memory.vMass;
+        vDensity = memory.vDensity;
+        vCenterMass = memory.vCenterMass;
+        vExtent = memory.vExtent;
+        return true;
+    }
+
+    void rememberLaunch() {
+        snapshotFields();
+        launchMemory = LaunchMemory.capture(setup, addType,
+            vCx, vCy, vCz, vCount, vRadius, vMass, vDensity, vCenterMass, vExtent);
+    }
+
+    SimulationSetup scene() {
+        return setup;
+    }
+
+    ObjectType addObjectType() {
+        return addType;
+    }
+
+    String[] addObjectFields() {
+        return new String[] {vCx, vCy, vCz, vCount, vRadius, vMass, vDensity, vCenterMass, vExtent};
+    }
+
+    void setAddForm(ObjectType type, String[] fields) {
+        addType = type;
+        vCx = fields[0];
+        vCy = fields[1];
+        vCz = fields[2];
+        vCount = fields[3];
+        vRadius = fields[4];
+        vMass = fields[5];
+        vDensity = fields[6];
+        vCenterMass = fields[7];
+        vExtent = fields[8];
     }
 
     private void snapshotFields() {
-        if (fieldCx != null) {
-            vCx = fieldCx.getText();
-            vCy = fieldCy.getText();
-            vCz = fieldCz.getText();
-            vCount = fieldCount.getText();
-            vRadius = fieldRadius.getText();
-            vMass = fieldMass.getText();
-            vDensity = fieldDensity.getText();
-            vCenterMass = fieldCenterMass.getText();
-            vExtent = fieldExtent.getText();
+        if (fieldCx != null) vCx = fieldCx.getText();
+        if (fieldCy != null) vCy = fieldCy.getText();
+        if (fieldCz != null) vCz = fieldCz.getText();
+        if (fieldCount != null) vCount = fieldCount.getText();
+        if (fieldRadius != null) vRadius = fieldRadius.getText();
+        if (fieldMass != null) vMass = fieldMass.getText();
+        if (fieldDensity != null) vDensity = fieldDensity.getText();
+        if (fieldCenterMass != null) vCenterMass = fieldCenterMass.getText();
+        if (fieldExtent != null) vExtent = fieldExtent.getText();
+        if (addDiskForm != null) {
+            dLabel = addDiskForm.label.getText();
+            dInner = addDiskForm.inner.getText();
+            dMassMin = addDiskForm.massMin.getText();
+            dMassMax = addDiskForm.massMax.getText();
+            dDensityMin = addDiskForm.densityMin.getText();
+            dDensityMax = addDiskForm.densityMax.getText();
+            dCenterDensity = addDiskForm.centerDensity.getText();
+            dNx = addDiskForm.nx.getText();
+            dNy = addDiskForm.ny.getText();
+            dNz = addDiskForm.nz.getText();
+            dVx = addDiskForm.vx.getText();
+            dVy = addDiskForm.vy.getText();
+            dVz = addDiskForm.vz.getText();
+            dAdherence = addDiskForm.adherence.getText();
+            dOrbital = addDiskForm.orbital.getText();
+            dCcw = addDiskForm.ccw.isSelected();
+            dOrbitalVel = addDiskForm.orbitalVelocity.isSelected();
         }
     }
 
-    private void rebuildUi() {
-        snapshotFields();
-        elements.clear();
-        typeButtons.clear();
+    private BorderPane buildUi() {
+        Label title = new Label("GravityChunk Setup");
+        title.getStyleClass().add("title");
 
-        float leftX = MARGIN;
-        float rightX = MARGIN + LEFT_W + COL_GAP;
-        float y = MARGIN;
+        VBox form = new VBox(8,
+            title,
+            section("Presets"),
+            presetRow1(),
+            presetRow2(),
+            section("Add object"),
+            typeRow(),
+            addFieldsHost,
+            actionRow(),
+            statusLabel = new Label(),
+            launchRow(),
+            diskEditorHost
+        );
+        diskEditorHost.setVisible(false);
+        diskEditorHost.setManaged(false);
+        rebuildAddFields();
+        statusLabel.setWrapText(true);
+        form.setFillWidth(true);
 
-        elements.add(label("GravityChunk Setup", leftX, y));
-        y += lineGap() + 4;
+        ScrollPane leftScroll = new ScrollPane(form);
+        leftScroll.setFitToWidth(true);
+        leftScroll.getStyleClass().add("setup-scroll");
+        leftScroll.setMinWidth(540);
+        leftScroll.setPrefWidth(560);
+        leftScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
 
-        // --- Presets (two short rows) ---
-        elements.add(label("Presets", leftX, y));
-        y += lineGap();
-        UIRow presetRow1 = new UIRow();
-        addPreset(presetRow1, Preset.EMPTY, "Empty");
-        addPreset(presetRow1, Preset.SOLAR_SYSTEM, "Solar Sys");
-        addPreset(presetRow1, Preset.SMALL_GALAXY, "Small Gal");
-        placeRow(presetRow1, leftX, y);
-        y += presetRow1.height + 4;
-        UIRow presetRow2 = new UIRow();
-        addPreset(presetRow2, Preset.MERGER_SCALED, "Merger sm");
-        addPreset(presetRow2, Preset.MERGER_FULL, "Merger 3.8M");
-        placeRow(presetRow2, leftX, y);
-        y += presetRow2.height + 10;
+        sceneHeading = new Label();
+        sceneHeading.getStyleClass().add("section");
+        Label editHint = new Label("Click a disk to edit it below Launch.");
+        editHint.getStyleClass().add("help");
+        sceneList = new ListView<>(sceneItems);
+        sceneList.setCellFactory(list -> new SceneCell());
+        sceneList.setPlaceholder(new Label("(empty)"));
+        VBox.setVgrow(sceneList, Priority.ALWAYS);
 
-        // --- Object type ---
-        elements.add(label("Add object", leftX, y));
-        y += lineGap();
-        UIRow typeRow = new UIRow();
-        addTypeButton(typeRow, "Disk", ObjectType.DISK);
-        addTypeButton(typeRow, "Box", ObjectType.BOX);
-        addTypeButton(typeRow, "Body", ObjectType.SINGLE);
-        addTypeButton(typeRow, "Solar JSON", ObjectType.SOLAR_SYSTEM);
-        placeRow(typeRow, leftX, y);
-        y += typeRow.height + 8;
+        Label helpHeading = new Label("Simulation controls");
+        helpHeading.getStyleClass().add("section");
+        Label help = new Label(String.join("\n", CONTROL_HELP));
+        help.getStyleClass().add("help");
 
-        fieldCx = field(vCx);
-        fieldCy = field(vCy);
-        fieldCz = field(vCz);
-        fieldCount = field(vCount);
-        fieldRadius = field(vRadius);
-        fieldMass = field(vMass);
-        fieldDensity = field(vDensity);
-        fieldCenterMass = field(vCenterMass);
-        fieldExtent = field(vExtent);
+        VBox right = new VBox(8, sceneHeading, editHint, sceneList, helpHeading, help);
+        right.setMinWidth(340);
+        VBox.setVgrow(sceneList, Priority.ALWAYS);
 
-        // Compact field grid: 3 columns
-        y = placeFieldTriple(leftX, y, "X", fieldCx, "Y", fieldCy, "Z", fieldCz);
-        y = placeFieldTriple(leftX, y, "Count", fieldCount, "Radius", fieldRadius, "Extent", fieldExtent);
-        y = placeFieldTriple(leftX, y, "Mass", fieldMass, "Dens", fieldDensity, "CtrMass", fieldCenterMass);
-        y += 4;
-
-        UIRow actionRow = new UIRow();
-        actionRow.getElements().add(btn("Add", this::addCurrentObject));
-        actionRow.getElements().add(btn("Load BSP", this::loadBsp));
-        actionRow.getElements().add(btn("Clear", () -> {
-            snapshotFields();
-            lastNote = "";
-            setup.clear();
-            rebuildUi();
-        }));
-        placeRow(actionRow, leftX, y);
-        y += actionRow.height + 10;
-
-        statusText = label(statusMessage(), leftX, y);
-        elements.add(statusText);
-        y += lineGap() + 8;
-
-        UIRow launchRow = new UIRow();
-        launchRow.getElements().add(btn("LAUNCH", this::launch));
-        launchRow.getElements().add(btn("Quit app", () -> {
-            cancelled = true;
-            finished = true;
-        }));
-        placeRow(launchRow, leftX, y);
-
-        // --- Right column: scene list + controls help ---
-        float ry = MARGIN;
-        elements.add(label("Scene (~" + setup.totalBodies() + " bodies)", rightX, ry));
-        ry += lineGap() + 4;
-
-        List<SimulationSetup.SceneItem> items = setup.getItems();
-        int maxLines = 8;
-        for (int i = 0; i < items.size() && i < maxLines; i++) {
-            final int index = i;
-            String text = truncate(items.get(i).toString(), 42);
-            elements.add(label(text, rightX, ry));
-            UIButton remove = btn("x", () -> {
-                snapshotFields();
-                setup.remove(index);
-                rebuildUi();
-            });
-            remove.calculateSize(font);
-            remove.setPosition(WIDTH - MARGIN - remove.width, ry - 1);
-            elements.add(remove);
-            ry += lineGap() + 2;
-        }
-        if (items.size() > maxLines) {
-            elements.add(label("... +" + (items.size() - maxLines) + " more", rightX, ry));
-            ry += lineGap() + 2;
-        } else if (items.isEmpty()) {
-            elements.add(label("(empty)", rightX, ry));
-            ry += lineGap() + 2;
-        }
-
-        ry += 10;
-        elements.add(label("Simulation controls", rightX, ry));
-        ry += lineGap() + 2;
-        for (String line : CONTROL_HELP) {
-            elements.add(label(line, rightX, ry));
-            ry += lineGap();
-        }
-
-        updateTypeSelection();
+        BorderPane root = new BorderPane();
+        root.setPadding(new Insets(12));
+        root.setLeft(leftScroll);
+        root.setCenter(right);
+        BorderPane.setMargin(right, new Insets(0, 0, 0, 16));
+        return root;
     }
 
     private static final String[] CONTROL_HELP = {
@@ -336,48 +408,352 @@ public final class SetupScreen {
         "Up/Down  Time step (dt)",
         "Left/Right  Barnes-Hut theta",
         "[ / ]  Softening",
-        "`  Settings pane",
+        "`  Settings window",
         "F2  Tree regions  |  F3  Debug",
         "F4  Stats  |  F5  Crosshair",
         "F6  Record PNG frames",
     };
 
-    private float placeFieldTriple(float x, float y, String l1, UITextField f1,
-                                   String l2, UITextField f2, String l3, UITextField f3) {
-        UIRow row = new UIRow();
-        row.getElements().add(tinyLabel(l1));
-        row.getElements().add(f1);
-        row.getElements().add(tinyLabel(l2));
-        row.getElements().add(f2);
-        row.getElements().add(tinyLabel(l3));
-        row.getElements().add(f3);
-        placeRow(row, x, y);
-        return y + row.height + 3;
+    private Label section(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("section");
+        return label;
     }
 
-    private void addPreset(UIRow row, Preset preset, String shortLabel) {
-        UIButton b = btn(shortLabel, () -> {
+    private HBox presetRow1() {
+        return new HBox(8,
+            presetButton(Preset.EMPTY, "Empty"),
+            presetButton(Preset.SOLAR_SYSTEM, "Solar Sys"),
+            presetButton(Preset.SMALL_GALAXY, "Small Gal")
+        );
+    }
+
+    private HBox presetRow2() {
+        return new HBox(8,
+            presetButton(Preset.MERGER_SCALED, "Merger sm"),
+            presetButton(Preset.MERGER_FULL, "Merger 3.8M"),
+            actionButton("Randomize", this::randomizeLayout)
+        );
+    }
+
+    private Button presetButton(Preset preset, String shortLabel) {
+        return actionButton(shortLabel, () -> {
             snapshotFields();
             lastNote = "";
             setup.applyPreset(preset);
-            rebuildUi();
+            refreshScene();
         });
-        row.getElements().add(b);
     }
 
-    private void addTypeButton(UIRow row, String label, ObjectType type) {
-        UIButton b = btn(label, () -> {
+    private HBox typeRow() {
+        ToggleGroup types = new ToggleGroup();
+        types.selectedToggleProperty().addListener((obs, oldToggle, selected) -> {
+            if (selected == null && oldToggle != null) {
+                oldToggle.setSelected(true);
+            }
+        });
+        return new HBox(8,
+            typeButton(types, "Disk", ObjectType.DISK),
+            typeButton(types, "Box", ObjectType.BOX),
+            typeButton(types, "Body", ObjectType.SINGLE),
+            typeButton(types, "Solar JSON", ObjectType.SOLAR_SYSTEM)
+        );
+    }
+
+    private ToggleButton typeButton(ToggleGroup group, String label, ObjectType type) {
+        ToggleButton button = new ToggleButton(label);
+        button.setToggleGroup(group);
+        button.setSelected(addType == type);
+        button.setOnAction(event -> {
+            snapshotFields();
             addType = type;
-            updateTypeSelection();
+            button.setSelected(true);
+            rebuildAddFields();
         });
-        typeButtons.add(b);
-        row.getElements().add(b);
+        return button;
     }
 
-    private void updateTypeSelection() {
-        ObjectType[] types = {ObjectType.DISK, ObjectType.BOX, ObjectType.SINGLE, ObjectType.SOLAR_SYSTEM};
-        for (int i = 0; i < typeButtons.size() && i < types.length; i++) {
-            typeButtons.get(i).setSelected(addType == types[i]);
+    private HBox actionRow() {
+        return new HBox(8,
+            actionButton("Add", this::addCurrentObject),
+            actionButton("Load BSP", this::loadBsp),
+            actionButton("Clear", () -> {
+                snapshotFields();
+                lastNote = "";
+                hideDiskEditor();
+                setup.clear();
+                refreshScene();
+            })
+        );
+    }
+
+    private HBox launchRow() {
+        return new HBox(8,
+            actionButton("LAUNCH", this::launch),
+            actionButton("Quit app", this::quit)
+        );
+    }
+
+    /** Disk gets every generator field. The other types keep the short form. */
+    private void rebuildAddFields() {
+        snapshotFields();
+        addFieldsHost.getChildren().clear();
+        fieldCx = fieldCy = fieldCz = null;
+        fieldCount = fieldRadius = fieldMass = null;
+        fieldDensity = fieldCenterMass = fieldExtent = null;
+        addDiskForm = null;
+        if (addType == ObjectType.DISK) {
+            addDiskForm = new DiskForm();
+            addDiskForm.cx.setText(vCx);
+            addDiskForm.cy.setText(vCy);
+            addDiskForm.cz.setText(vCz);
+            addDiskForm.count.setText(vCount);
+            addDiskForm.outer.setText(vRadius);
+            addDiskForm.label.setText(dLabel);
+            addDiskForm.inner.setText(dInner);
+            addDiskForm.massMin.setText(dMassMin);
+            addDiskForm.massMax.setText(dMassMax);
+            addDiskForm.centerMass.setText(vCenterMass);
+            addDiskForm.centerDensity.setText(dCenterDensity);
+            addDiskForm.densityMin.setText(dDensityMin);
+            addDiskForm.densityMax.setText(dDensityMax);
+            addDiskForm.nx.setText(dNx);
+            addDiskForm.ny.setText(dNy);
+            addDiskForm.nz.setText(dNz);
+            addDiskForm.vx.setText(dVx);
+            addDiskForm.vy.setText(dVy);
+            addDiskForm.vz.setText(dVz);
+            addDiskForm.adherence.setText(dAdherence);
+            addDiskForm.orbital.setText(dOrbital);
+            addDiskForm.ccw.setSelected(dCcw);
+            addDiskForm.orbitalVelocity.setSelected(dOrbitalVel);
+            fieldCx = addDiskForm.cx;
+            fieldCy = addDiskForm.cy;
+            fieldCz = addDiskForm.cz;
+            fieldCount = addDiskForm.count;
+            fieldRadius = addDiskForm.outer;
+            fieldCenterMass = addDiskForm.centerMass;
+            addFieldsHost.getChildren().add(addDiskForm.root);
+            return;
+        }
+        fieldCx = formField(vCx);
+        fieldCy = formField(vCy);
+        fieldCz = formField(vCz);
+        fieldCount = formField(vCount);
+        fieldRadius = formField(vRadius);
+        fieldExtent = formField(vExtent);
+        fieldMass = formField(vMass);
+        fieldDensity = formField(vDensity);
+        fieldCenterMass = formField(vCenterMass);
+        addFieldsHost.getChildren().addAll(
+            fieldRow("X", fieldCx, "Y", fieldCy, "Z", fieldCz),
+            fieldRow("Count", fieldCount, "Radius", fieldRadius, "Extent", fieldExtent),
+            fieldRow("Mass", fieldMass, "Dens", fieldDensity, "CtrMass", fieldCenterMass)
+        );
+    }
+
+    private static Button actionButton(String text, Runnable onClick) {
+        Button button = new Button(text);
+        button.setOnAction(event -> onClick.run());
+        return button;
+    }
+
+    private static TextField formField(String initial) {
+        TextField field = new TextField(initial == null ? "" : initial);
+        field.setPrefColumnCount(7);
+        HBox.setHgrow(field, Priority.ALWAYS);
+        return field;
+    }
+
+    private HBox fieldRow(String l1, TextField f1, String l2, TextField f2, String l3, TextField f3) {
+        HBox row = new HBox(8, labeled(l1, f1), labeled(l2, f2), labeled(l3, f3));
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private HBox labeled(String name, TextField field) {
+        Label label = new Label(name);
+        label.setMinWidth(Region.USE_PREF_SIZE);
+        HBox box = new HBox(4, label, field);
+        box.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(box, Priority.ALWAYS);
+        HBox.setHgrow(field, Priority.ALWAYS);
+        field.setMaxWidth(Double.MAX_VALUE);
+        return box;
+    }
+
+    private void refreshScene() {
+        sceneItems.setAll(setup.getItems());
+        if (sceneHeading != null) {
+            sceneHeading.setText("Scene (~" + setup.totalBodies() + " bodies)");
+        }
+        if (statusLabel != null) {
+            statusLabel.setText(statusMessage());
+        }
+        if (sceneList != null && editingIndex >= 0 && editingIndex < sceneItems.size()) {
+            sceneList.getSelectionModel().select(editingIndex);
+        }
+    }
+
+    private final class SceneCell extends ListCell<SceneItem> {
+        private final Label label = new Label();
+        private final Button remove = new Button("x");
+        private final HBox row = new HBox(8, label, remove);
+        private final ContextMenu menu = new ContextMenu();
+        private final MenuItem duplicateItem = new MenuItem("Duplicate");
+
+        private SceneCell() {
+            label.getStyleClass().add("scene-item");
+            label.setWrapText(true);
+            HBox.setHgrow(label, Priority.ALWAYS);
+            remove.setMinWidth(Region.USE_PREF_SIZE);
+            row.setAlignment(Pos.TOP_LEFT);
+            remove.setOnMouseClicked(event -> event.consume());
+            remove.setOnAction(event -> {
+                int index = getIndex();
+                if (index < 0 || index >= setup.getItems().size()) {
+                    return;
+                }
+                snapshotFields();
+                setup.remove(index);
+                if (index == editingIndex) {
+                    hideDiskEditor();
+                } else if (editingIndex > index) {
+                    editingIndex--;
+                }
+                refreshScene();
+            });
+            setOnMouseClicked(event -> {
+                if (event.getButton() != MouseButton.PRIMARY || event.getTarget() instanceof Button) {
+                    return;
+                }
+                SceneItem item = getItem();
+                if (item == null) {
+                    return;
+                }
+                if (item.type == ObjectType.DISK) {
+                    if (event.getClickCount() == 1) {
+                        showDiskEditor(getIndex());
+                    }
+                    return;
+                }
+                if (event.getClickCount() == 2) {
+                    editSceneItem(getIndex());
+                }
+            });
+            menu.getItems().add(duplicateItem);
+            menu.setOnShowing(event -> {
+                int index = getIndex();
+                duplicateItem.setOnAction(e -> duplicateSceneItem(index));
+            });
+        }
+
+        @Override
+        protected void updateItem(SceneItem item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setGraphic(null);
+                setContextMenu(null);
+                return;
+            }
+            label.setText(item.settingsText());
+            setGraphic(row);
+            setContextMenu(menu);
+        }
+    }
+
+    private void duplicateSceneItem(int index) {
+        if (index < 0 || index >= setup.getItems().size()) {
+            return;
+        }
+        snapshotFields();
+        setup.duplicate(index);
+        if (editingIndex >= 0 && index < editingIndex) {
+            editingIndex++;
+        }
+        refreshScene();
+    }
+
+    private void showDiskEditor(int index) {
+        if (index < 0 || index >= setup.getItems().size()) {
+            return;
+        }
+        SceneItem item = setup.getItems().get(index);
+        if (item.type != ObjectType.DISK) {
+            return;
+        }
+        editingIndex = index;
+        if (editDiskForm == null) {
+            editDiskForm = new DiskForm();
+            editHeading = section("Selected disk");
+            diskEditorHost.getChildren().setAll(
+                editHeading,
+                editDiskForm.root,
+                new HBox(8, actionButton("Save", this::saveDiskEdit), actionButton("Discard", this::discardDiskEdit))
+            );
+        }
+        editHeading.setText(item.label);
+        editDiskForm.load(item);
+        diskEditorHost.setVisible(true);
+        diskEditorHost.setManaged(true);
+        if (sceneList != null) {
+            sceneList.getSelectionModel().select(index);
+        }
+    }
+
+    private void saveDiskEdit() {
+        if (editDiskForm == null || editingIndex < 0 || editingIndex >= setup.getItems().size()) {
+            return;
+        }
+        SceneItem current = setup.getItems().get(editingIndex);
+        SceneItem updated = editDiskForm.apply(current);
+        if (updated == null) {
+            return;
+        }
+        setup.replace(editingIndex, updated);
+        refreshScene();
+        editHeading.setText(updated.label);
+        editDiskForm.load(setup.getItems().get(editingIndex));
+    }
+
+    private void discardDiskEdit() {
+        if (editDiskForm == null || editingIndex < 0 || editingIndex >= setup.getItems().size()) {
+            hideDiskEditor();
+            return;
+        }
+        editDiskForm.load(setup.getItems().get(editingIndex));
+    }
+
+    private void hideDiskEditor() {
+        editingIndex = -1;
+        diskEditorHost.setVisible(false);
+        diskEditorHost.setManaged(false);
+    }
+
+    private void editSceneItem(int index) {
+        if (index < 0 || index >= setup.getItems().size() || stage == null) {
+            return;
+        }
+        SceneItem edited = SceneItemEditor.edit(stage, setup.getItems().get(index), setup.getUnitSet());
+        if (edited == null) {
+            return;
+        }
+        setup.replace(index, edited);
+        refreshScene();
+    }
+
+    private void randomizeLayout() {
+        snapshotFields();
+        if (!setup.randomizeDisks()) {
+            lastNote = "No galaxies to randomize.";
+        } else {
+            lastNote = "Randomized galaxy positions, sizes, and orientations.";
+        }
+        refreshScene();
+        if (editDiskForm != null && editingIndex >= 0 && editingIndex < setup.getItems().size()
+                && setup.getItems().get(editingIndex).type == ObjectType.DISK) {
+            editHeading.setText(setup.getItems().get(editingIndex).label);
+            editDiskForm.load(setup.getItems().get(editingIndex));
         }
     }
 
@@ -419,7 +795,7 @@ public final class SetupScreen {
             chosen = chooseBspPath();
         } catch (HeadlessException e) {
             lastNote = "BSP upload needs a desktop file dialog.";
-            rebuildUi();
+            refreshScene();
             return;
         }
         if (chosen == null) {
@@ -438,106 +814,72 @@ public final class SetupScreen {
             e.printStackTrace();
             lastNote = e.getMessage() == null ? "Could not read that BSP." : e.getMessage();
         }
-        rebuildUi();
+        refreshScene();
     }
 
-    /** Native open dialog. Returns null when the user cancels. */
-    private static String chooseBspPath() {
+    /** Returns null when the user cancels. */
+    private String chooseBspPath() {
         if (GraphicsEnvironment.isHeadless()) {
             throw new HeadlessException("BSP upload needs a desktop file dialog.");
         }
-        Frame frame = new Frame();
-        try {
-            FileDialog dialog = new FileDialog(frame, "SPICE kernel (.bsp)", FileDialog.LOAD);
-            dialog.setFile("*.bsp");
-            dialog.setVisible(true);
-            if (dialog.getFile() == null || dialog.getDirectory() == null) {
-                return null;
-            }
-            return dialog.getDirectory() + dialog.getFile();
-        } finally {
-            frame.dispose();
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("SPICE kernel (.bsp)");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("SPICE kernel (*.bsp)", "*.bsp"));
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) {
+            return null;
         }
+        return file.getAbsolutePath();
     }
 
     private void addCurrentObject() {
         snapshotFields();
         lastNote = "";
+        if (addType == ObjectType.DISK && addDiskForm != null) {
+            SceneItem disk = addDiskForm.create("Disk");
+            if (disk == null) {
+                return;
+            }
+            setup.addItem(disk);
+            refreshScene();
+            return;
+        }
         float cx = parseFloat(vCx, 0);
         float cy = parseFloat(vCy, 0);
         float cz = parseFloat(vCz, 0);
         switch (addType) {
-            case DISK -> setup.addDisk(
-                parseInt(vCount, 50_000), cx, cy, cz,
-                parseFloat(vRadius, 800), parseFloat(vMass, 1),
-                parseFloat(vDensity, 1), parseFloat(vCenterMass, 50_000)
-            );
             case BOX -> setup.addBox(
                 parseInt(vCount, 30_000), cx, cy, cz,
                 parseFloat(vExtent, 500), parseFloat(vMass, 1), parseFloat(vDensity, 1)
             );
             case SINGLE -> setup.addSingle(cx, cy, cz, parseFloat(vMass, 1000), parseFloat(vDensity, 1));
             case SOLAR_SYSTEM -> setup.addSolarSystem();
+            case SPICE_KERNEL -> { }
         }
-        rebuildUi();
+        refreshScene();
     }
 
     private void launch() {
         if (setup.getItems().isEmpty()) {
-            if (statusText != null) statusText.setText("Scene empty — add something first.");
+            if (statusLabel != null) {
+                statusLabel.setText("Scene empty — add something first.");
+            }
             return;
         }
+        LaunchMemory previous = launchMemory;
+        rememberLaunch();
         try {
             result = setup.toLaunchConfig();
             System.out.println("Launching with " + result.bodyCount + " bodies, bounds=" + result.squareBounds
                 + ", " + result.suggestedSettings);
-            finished = true;
+            finish(false);
         } catch (Exception e) {
+            launchMemory = previous;
             e.printStackTrace();
-            if (statusText != null) statusText.setText("Launch failed: " + e.getMessage());
+            if (statusLabel != null) {
+                statusLabel.setText("Launch failed: " + e.getMessage());
+            }
         }
-    }
-
-    private float lineGap() {
-        return font.getCharHeight() + 4f;
-    }
-
-    private void placeRow(UIRow row, float x, float y) {
-        row.calculateSize(font);
-        row.setPosition(x, y);
-        elements.add(row);
-    }
-
-    private UIButton btn(String text, Runnable onClick) {
-        UIButton b = new UIButton(text, onClick);
-        b.setOnRelease(() -> {});
-        return b;
-    }
-
-    private UITextField field(String initial) {
-        UITextField f = new UITextField(initial);
-        f.setMinWidth(7); // characters, not pixels
-        f.setNumericalRounding(3);
-        f.calculateSize(font);
-        return f;
-    }
-
-    private UIText tinyLabel(String text) {
-        UIText t = new UIText(text);
-        t.calculateSize(font);
-        return t;
-    }
-
-    private UIText label(String text, float x, float y) {
-        UIText t = new UIText(text);
-        t.calculateSize(font);
-        t.setPosition(x, y);
-        return t;
-    }
-
-    private static String truncate(String s, int max) {
-        if (s.length() <= max) return s;
-        return s.substring(0, max - 2) + "..";
     }
 
     private static float parseFloat(String text, float fallback) {
