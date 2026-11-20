@@ -321,7 +321,7 @@ public class GPUSimulation {
             launchSettings.apply(settings);
             System.out.println("Launch settings applied: " + launchSettings);
         }
-        float aspect = settings.getWidth() / (float) Math.max(1, settings.getHeight());
+        float aspect = settings.getDrawableWidth() / (float) Math.max(1, settings.getDrawableHeight());
         LaunchView.Frame frame = LaunchView.frame(viewRadius, settings.getCameraScale(), settings.getFov(), aspect);
         settings.setCameraPos(frame.position);
         settings.setCameraFront(frame.front);
@@ -687,8 +687,8 @@ public class GPUSimulation {
             String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
             recordDir = Path.of("captures", "rec_" + ts);
             Files.createDirectories(recordDir);
-            int width = Settings.getInstance().getWidth();
-            int height = Settings.getInstance().getHeight();
+            int width = Settings.getInstance().getDrawableWidth();
+            int height = Settings.getInstance().getDrawableHeight();
             recording = new Recording();
             recording.start(recordDir, width, height, true, "frame", false, true, 2);
             recordFrameIndex = 0;

@@ -1237,6 +1237,33 @@ public class Settings {
 		saveSettings();
 	}
 
+	// Live framebuffer size. Not a saved property: width and height stay the windowed size.
+	private int drawableWidth;
+	private int drawableHeight;
+
+	/**
+	 * Pixel width of the current framebuffer. Falls back to the saved window width before the first size event.
+	 */
+	public int getDrawableWidth() {
+		return drawableWidth > 0 ? drawableWidth : Math.max(1, getWidth());
+	}
+
+	/**
+	 * Pixel height of the current framebuffer. Falls back to the saved window height before the first size event.
+	 */
+	public int getDrawableHeight() {
+		return drawableHeight > 0 ? drawableHeight : Math.max(1, getHeight());
+	}
+
+	/**
+	 * Records the framebuffer size used for the viewport, projection, and UI.
+	 * Does not write the saved window width and height.
+	 */
+	public void setDrawableSize(int width, int height) {
+		drawableWidth = Math.max(1, width);
+		drawableHeight = Math.max(1, height);
+	}
+
 	// Reset all properties to their default values (kept across regenerations)
 	public void restoreDefaults() {
 		for (Property<?> prop : properties.values()) {

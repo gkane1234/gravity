@@ -209,6 +209,7 @@ public class OpenGLUI {
 
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F5, () -> {openGlWindow.gpuSimulation.toggleCrosshair();},false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F6, () -> {openGlWindow.gpuSimulation.toggleRecording();},false));
+        keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_F11, () -> openGlWindow.toggleFullscreen(), false));
         keyEvents.add(new KeyEvent(GLFW.GLFW_KEY_ENTER, () -> {if (openGlWindow.getState() == GPUSimulation.State.PAUSED) openGlWindow.gpuSimulation.frameAdvance();},false));
     }
 
@@ -382,7 +383,7 @@ public class OpenGLUI {
             if (mouseCaptured) {
                 changeCamera((float)xoffset, (float)yoffset);
             } else if (displaySettings) {
-                settingsPane.onMouseMove(xpos, ypos);
+                settingsPane.onMouseMove(openGlWindow.toFramebufferX(xpos), openGlWindow.toFramebufferY(ypos));
             }
         });
 
@@ -406,7 +407,7 @@ public class OpenGLUI {
                 double[] cx = new double[1];
                 double[] cy = new double[1];
                 glfwGetCursorPos(window, cx, cy);
-                if (settingsPane.onScroll(cx[0], cy[0], xoffset, yoffset)) {
+                if (settingsPane.onScroll(openGlWindow.toFramebufferX(cx[0]), openGlWindow.toFramebufferY(cy[0]), xoffset, yoffset)) {
                     return;
                 }
             }
@@ -558,7 +559,7 @@ public class OpenGLUI {
         // Draw frame advance indicator in top-right corner
         String indicatorText = "SIMULATION PAUSED\n ENTER: FRAME ADVANCE";
         
-        int x = Settings.getInstance().getWidth() - (int)font.getTextWidth(indicatorText.split("\n")[1]) - 20;
+        int x = Settings.getInstance().getDrawableWidth() - (int)font.getTextWidth(indicatorText.split("\n")[1]) - 20;
         int y = 20;
         int padding = 4;
         int lineHeight = 16;
@@ -578,8 +579,8 @@ public class OpenGLUI {
         glLineWidth(2.0f);
         
         // Calculate center of screen
-        float centerX = Settings.getInstance().getWidth() / 2.0f;
-        float centerY = Settings.getInstance().getHeight() / 2.0f;
+        float centerX = Settings.getInstance().getDrawableWidth() / 2.0f;
+        float centerY = Settings.getInstance().getDrawableHeight() / 2.0f;
         float crosshairSize = 10.0f;
         
         // Draw crosshair lines
@@ -615,7 +616,7 @@ public class OpenGLUI {
             }
         }
         
-        int x = Settings.getInstance().getWidth() - (int)width - 20; // 400 pixels from right edge
+        int x = Settings.getInstance().getDrawableWidth() - (int)width - 20; // 400 pixels from right edge
         int y = 80;
         int lineHeight = 16;
         int padding = 6;
@@ -635,7 +636,7 @@ public class OpenGLUI {
         glLoadIdentity();
         GPUSimulation.checkGLError("saved projection matrix");
         // Set up 2D orthographic projection
-        glOrtho(0, Settings.getInstance().getWidth(), Settings.getInstance().getHeight(), 0, -1, 1);
+        glOrtho(0, Settings.getInstance().getDrawableWidth(), Settings.getInstance().getDrawableHeight(), 0, -1, 1);
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
         glLoadIdentity();
