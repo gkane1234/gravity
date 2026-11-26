@@ -91,7 +91,7 @@ nav a { text-decoration: none; }
 nav a:hover { text-decoration: underline; }
 
 .kicker {
-  margin: 0.15rem 0 0;
+  margin: 2.25rem 0 0;
   font-family: var(--mono);
   font-size: 0.75rem;
   letter-spacing: 0.14em;
@@ -100,8 +100,8 @@ nav a:hover { text-decoration: underline; }
 }
 
 h1 {
-  margin: 2.25rem 0 0.35rem;
-  max-width: 18ch;
+  margin: 0.6rem 0 0.8rem;
+  max-width: 16ch;
   font-weight: 500;
   font-size: clamp(2.5rem, 6vw, 4.1rem);
   line-height: 1.02;
