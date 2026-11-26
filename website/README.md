@@ -26,4 +26,4 @@ Paths in the HTML are relative, so the same files work at the domain root and un
 
 ## Optional captures
 
-`scripts/encode-capture.ps1` can write mp4/webm files into `public/videos/`. The page does not reference them.
+`scripts/encode-capture.ps1` can write mp4/webm files into `public/videos/`. The page embeds `videos/sim.mp4`, which is the web-sized recording kept next to `index.html`. Files in `public/videos/` stay gitignored.

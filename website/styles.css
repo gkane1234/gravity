@@ -184,7 +184,8 @@ a:focus-visible {
   background: #000;
 }
 
-.plate img {
+.plate img,
+.plate video {
   display: block;
   width: 100%;
   height: auto;
